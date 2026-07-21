@@ -87,9 +87,9 @@ it("flips the audience on Shift+Tab, keeps focus, draft, and textarea identity",
     expect(currentTextarea).toBe(textarea);
     expect(document.activeElement).toBe(textarea);
     expect(textarea.value).toBe("hello team");
-    // The focused agents-mode selector owns the accent hairline. Keep this
-    // lifecycle test independent of Firefox's cosmetic transition scheduling.
-    expect(card().matches(":focus-within")).toBe(true);
+    // Keep the lifecycle assertion independent of Firefox's asynchronous
+    // :focus-within pseudo-state update when the full browser suite is busy.
+    expect(card().contains(document.activeElement)).toBe(true);
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
     expect(changes).toEqual(["agents", "people"]);
     expect(card().hasAttribute("data-agents")).toBe(false);
@@ -268,9 +268,9 @@ it("marks Agents mode with a quiet accent frame instead of a chip row", async ()
     expect(view.container.querySelector('[data-happy2-ui="composer-agents"]')).toBeNull();
     expect(view.container.querySelector('[data-happy2-ui="composer-agent-chip"]')).toBeNull();
     expect(view.container.querySelector('[aria-label="Add agent"]')).toBeNull();
-    // At rest the frame uses Happy's selected-surface role.
+    // At rest the tint stays quiet (accent at 15% over the card).
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(198, 198, 200)");
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("color(srgb 0 0.478431 1 / 0.14)");
     // Focus resolves the frame to the full accent, then back on blur.
     const textarea = view.$('[data-testid="composer-agents"] [data-happy2-ui="composer-textarea"]')
         .element as HTMLTextAreaElement;
@@ -281,7 +281,7 @@ it("marks Agents mode with a quiet accent frame instead of a chip row", async ()
     expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(0, 122, 255)");
     textarea.blur();
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(198, 198, 200)");
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("color(srgb 0 0.478431 1 / 0.14)");
     await view.screenshot("Composer.agents.test");
 });
 

@@ -589,10 +589,6 @@ export function Message(props: MessageProps) {
 export type MessageListProps = {
     children: ReactNode;
     className?: string;
-    intro?: {
-        description: string;
-        title: string;
-    };
     style?: CSSProperties;
     /**
      * Enables TanStack Virtual for this list's entire mounted lifetime. Callers
@@ -675,27 +671,6 @@ export function MessageList(props: MessageListProps) {
                     className="happy2-message-list__spacer"
                     data-happy2-ui="message-list-spacer"
                 />
-                {props.intro
-                    ? ((intro) => (
-                          <header
-                              className="happy2-message-list__intro"
-                              data-happy2-ui="message-list-intro"
-                          >
-                              <h2
-                                  className="happy2-message-list__intro-title"
-                                  data-happy2-ui="message-list-intro-title"
-                              >
-                                  {intro.title}
-                              </h2>
-                              <p
-                                  className="happy2-message-list__intro-description"
-                                  data-happy2-ui="message-list-intro-description"
-                              >
-                                  {intro.description}
-                              </p>
-                          </header>
-                      ))(props.intro)
-                    : null}
                 {virtualized ? (
                     <div
                         className="happy2-message-list__virtual"
@@ -721,7 +696,7 @@ export function MessageList(props: MessageListProps) {
         </div>
     );
 }
-/** Centered mono date pill over a hairline, separating message days. */
+/** Centered plain-text date separating message days. */
 export function DayDivider(props: { className?: string; label: string }) {
     return (
         <div
@@ -730,19 +705,9 @@ export function DayDivider(props: { className?: string; label: string }) {
             data-happy2-ui="day-divider"
             role="separator"
         >
-            <span
-                aria-hidden="true"
-                className="happy2-day-divider__line"
-                data-happy2-ui="day-divider-line"
-            />
             <span className="happy2-day-divider__label" data-happy2-ui="day-divider-label">
                 {props.label}
             </span>
-            <span
-                aria-hidden="true"
-                className="happy2-day-divider__line"
-                data-happy2-ui="day-divider-line"
-            />
         </div>
     );
 }

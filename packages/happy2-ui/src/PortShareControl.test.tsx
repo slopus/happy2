@@ -76,7 +76,7 @@ it("holds bar layout geometry, typography, tokens, and the link mark's optical c
     // Fixed 16px link mark, secondary-toned, its icon optically centered.
     const mark = view.$('[data-testid="bar"] [data-happy2-ui="port-share-control-mark"]');
     expect(mark.bounds()).toMatchObject({ width: 16, height: 16 });
-    expect(mark.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(mark.computedStyle("color")).toBe("rgb(73, 69, 79)");
     const markDrift = await iconDrift(
         view,
         '[data-testid="bar"] [data-happy2-ui="port-share-control-mark"] svg',
@@ -106,7 +106,7 @@ it("holds bar layout geometry, typography, tokens, and the link mark's optical c
 
     const subtitle = view.$('[data-testid="bar"] [data-happy2-ui="port-share-control-subtitle"]');
     expect(subtitle.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-size": "12px",
         "font-weight": "400",
     });
@@ -201,10 +201,10 @@ it("renders busy and error states with disabled actions, danger tokens, and an i
         view
             .$('[data-testid="error"] [data-happy2-ui="port-share-control-mark"]')
             .computedStyle("color"),
-    ).toBe("rgb(255, 59, 48)");
+    ).toBe("rgb(244, 67, 54)");
     const errorLine = view.$('[data-testid="error"] [data-happy2-ui="port-share-control-error"]');
     expect(errorLine.computedStyles(["color", "font-size"])).toEqual({
-        color: "rgb(255, 59, 48)",
+        color: "rgb(244, 67, 54)",
         "font-size": "12px",
     });
     expect(errorLine.element.textContent).toBe(
@@ -278,7 +278,7 @@ it("renders the compact header pair with accessible names, no labels, and center
         view
             .$('[data-testid="compact-error"] [data-happy2-ui="port-share-control-mark"]')
             .computedStyle("color"),
-    ).toBe("rgb(255, 59, 48)");
+    ).toBe("rgb(244, 67, 54)");
 
     // Assistive tech gets the actual message through a visually hidden role=status
     // node — not conveyed by color/title alone. It must not occupy layout.

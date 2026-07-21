@@ -171,7 +171,7 @@ it("holds McpAppShell layout, states, chips, frame geometry, and failure actions
     /* ---- Failed state: error text + retry ------------------------------ */
     const errorText = view.$('[data-testid="mcp-failed"] [data-happy2-ui="mcp-app-error-text"]');
     expect(errorText.element.textContent?.trim()).toBe("This interactive app could not be loaded.");
-    expect(errorText.computedStyle("color")).toBe("rgb(255, 59, 48)");
+    expect(errorText.computedStyle("color")).toBe("rgb(244, 67, 54)");
 
     const retry = view.$('[data-testid="mcp-failed"] [data-happy2-ui="button"]');
     expect(

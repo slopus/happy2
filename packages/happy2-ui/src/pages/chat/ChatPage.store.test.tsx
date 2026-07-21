@@ -121,67 +121,11 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         agentEffortChange: async () => undefined,
         directMessageCreate: async () => undefined,
         messageSend: () => undefined,
+        sharedLinkOpen: () => undefined,
         ...overrides,
     };
 }
 
-async function chatIntroDescription(
-    selectedChat: ChatSummary,
-    messages: ChatMessageItem[],
-    hasMoreMessages: boolean,
-): Promise<string> {
-    const sidebar = sidebarStoreFixtureCreate();
-    const directory = directoryStoreFixtureCreate();
-    const chatSurface = chatStoreFixtureCreate(selectedChat.id);
-    const view = createRenderer();
-    try {
-        directory.input({ type: "directoryLoaded", users: [], channels: [] });
-        sidebar.input({
-            type: "sidebarLoaded",
-            chats: [
-                {
-                    chat: selectedChat,
-                    id: selectedChat.id,
-                    displayName: selectedChat.name!,
-                    participants: [],
-                },
-            ],
-            sync: { protocolVersion: 1, generation: "test", sequence: "0" },
-        });
-        chatSurface.input({
-            type: "chatLoaded",
-            chat: selectedChat,
-            messages,
-            hasMoreMessages,
-        });
-        view.render(
-            () => (
-                <ChatPage
-                    actions={chatPageActionsCreate()}
-                    chat={chatSurface.store}
-                    directory={directory.store}
-                    navigation={{ chatId: selectedChat.id }}
-                    rail={<div>Rail</div>}
-                    sidebarSearch=""
-                    sidebar={sidebar.store}
-                    windowControls={false}
-                    user={{ id: "user-1", firstName: "Ada" }}
-                />
-            ),
-            { width: 1200, height: 800 },
-        );
-        await view.ready();
-        return (
-            view.container.querySelector('[data-happy2-ui="message-list-intro-description"]')
-                ?.textContent ?? ""
-        );
-    } finally {
-        view.destroy();
-        sidebar[Symbol.dispose]();
-        directory[Symbol.dispose]();
-        chatSurface[Symbol.dispose]();
-    }
-}
 it("projects messages with stable entity ids for React keyed reconciliation", () => {
     const first = messageItem("message-1", "first");
     const second = messageItem("message-2", "second");
@@ -284,67 +228,6 @@ it("projects channel lifecycle service messages as generic user notices with ser
             text: "@owner archived #ops",
         },
     ]);
-});
-it("describes a topic-less channel with only notices as ready for its first message", async () => {
-    const notice = messageItem("message-1", "@agent's reasoning effort changed to low");
-    const description = await chatIntroDescription(
-        { ...chat, topic: undefined },
-        [
-            {
-                ...notice,
-                message: {
-                    ...notice.message,
-                    kind: "automated",
-                    service: {
-                        type: "agent_effort_changed",
-                        agentUserId: "agent-1",
-                        effort: "low",
-                    },
-                },
-            },
-        ],
-        false,
-    );
-
-    expect(description).toBe("This channel is ready for its first message.");
-});
-it("describes a topic-less channel with a message as the beginning", async () => {
-    const description = await chatIntroDescription(
-        { ...chat, topic: undefined },
-        [messageItem("message-1", "Hello")],
-        false,
-    );
-
-    expect(description).toBe("This is the beginning of #state-architecture.");
-});
-it("uses neutral intro copy when a topic-less channel has more history", async () => {
-    const description = await chatIntroDescription({ ...chat, topic: undefined }, [], true);
-
-    expect(description).toBe("Showing the latest messages in #state-architecture.");
-});
-it("shows an explicit channel topic for every history state", async () => {
-    const topic = "One coarse store per rendered surface";
-    const notice = messageItem("message-1", "@agent's reasoning effort changed to low");
-    const noticeItem: ChatMessageItem = {
-        ...notice,
-        message: {
-            ...notice.message,
-            kind: "automated",
-            service: {
-                type: "agent_effort_changed",
-                agentUserId: "agent-1",
-                effort: "low",
-            },
-        },
-    };
-
-    await expect(chatIntroDescription({ ...chat, topic }, [noticeItem], false)).resolves.toBe(
-        topic,
-    );
-    await expect(
-        chatIntroDescription({ ...chat, topic }, [messageItem("message-2", "Hello")], false),
-    ).resolves.toBe(topic);
-    await expect(chatIntroDescription({ ...chat, topic }, [], true)).resolves.toBe(topic);
 });
 it("updates one mounted message while preserving its open menu and sibling DOM", async () => {
     const first = messageItem("message-1", "first");
@@ -498,6 +381,8 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
     });
     chatSurface.input({ type: "chatLoaded", chat, messages: [], hasMoreMessages: false });
     await view.ready();
+    expect(view.container.querySelector('[data-happy2-ui="message-list-intro"]')).toBeNull();
+    expect(view.container.textContent).not.toContain("Welcome to #state-architecture");
     expect(view.container.textContent).toContain("State architecture");
     expect(view.container.textContent).toContain("One coarse store per rendered surface");
     // The default-agent conversation renders as a normal row inside the agents
@@ -617,7 +502,7 @@ it("does not select the first channel for a nonempty unknown route", async () =>
     await view.ready();
     await nextFrame();
     expect(chatSelect).not.toHaveBeenCalled();
-    expect(view.container.textContent).toContain("No conversation selected");
+    expect(view.container.textContent).not.toContain("No conversation selected");
 });
 
 it("creates a direct message from the directory and does not hijack later navigation", async () => {
@@ -1393,6 +1278,17 @@ it("opens a live trace panel from the message row and keeps DOM identity across 
     expect(messageRoot.textContent).toContain("All done.");
     expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBe(panel);
 
+    // Closing an expanded trace resets its local geometry so route-driven
+    // reopening starts docked instead of reviving a stale full-shell overlay.
+    view.container
+        .querySelector<HTMLButtonElement>('[data-happy2-ui="app-shell-panel-toggle"]')!
+        .click();
+    await nextFrame();
+    expect(
+        view.container
+            .querySelector('[data-happy2-ui="app-shell-panel"]')!
+            .getAttribute("data-maximized"),
+    ).toBe("");
     const closeButton = panel.querySelector<HTMLButtonElement>('[aria-label="Close trace"]')!;
     closeButton.click();
     await nextFrame();
@@ -1401,6 +1297,11 @@ it("opens a live trace panel from the message row and keeps DOM identity across 
     panelSet({ kind: "trace", messageId: "message-2" });
     await nextFrame();
     expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).not.toBeNull();
+    expect(
+        view.container
+            .querySelector('[data-happy2-ui="app-shell-panel"]')!
+            .getAttribute("data-maximized"),
+    ).toBeNull();
 
     expect(chatSubscriptions()).toBeGreaterThan(0);
     expect(traceSubscriptions()).toBeGreaterThan(0);
@@ -1592,6 +1493,231 @@ it("projects live subagents and terminals into the strip with stable row identit
     expect(textarea.selectionEnd).toBe(11);
 });
 
+function sharedResourceLink(uri: string, title?: string) {
+    return {
+        callId: `call-${uri}`,
+        position: 0,
+        installationId: "install-1",
+        pluginId: "plugin-1",
+        pluginShortName: "share",
+        toolName: "share_link",
+        kind: "shared_link" as const,
+        uri,
+        name: uri,
+        title,
+    };
+}
+function sharedLinkMessage(
+    id: string,
+    links: ReturnType<typeof sharedResourceLink>[],
+    changePts = "1",
+): ChatMessageItem {
+    const base = messageItem(id, "shared");
+    return { ...base, message: { ...base.message, changePts, resourceLinks: links } };
+}
+it("projects shared MCP links into the sidebar and opens them via the external-link action", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(chat.id);
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+    });
+    directory.input({ type: "directoryLoaded", users: [], channels: [] });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    chatSurface.input({
+        type: "chatLoaded",
+        chat,
+        messages: [
+            sharedLinkMessage("message-1", [sharedResourceLink("https://a.example", "Alpha")]),
+        ],
+        hasMoreMessages: false,
+    });
+    const sharedLinkOpen = vi.fn();
+    const chatSelect = vi.fn();
+    const view = createRenderer();
+    onTestFinished(() => view.destroy());
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate({ sharedLinkOpen, chatSelect })}
+                chat={chatSurface.store}
+                directory={directory.store}
+                navigation={{ chatId: chat.id }}
+                sidebarSearch=""
+                sidebar={sidebar.store}
+                windowControls={false}
+                user={{ id: "user-1", firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+
+    const section = view.container.querySelector(
+        '[data-happy2-ui="sidebar-section"][data-section-id="shared-links"]',
+    )!;
+    expect(section).not.toBeNull();
+    const row = section.querySelector<HTMLButtonElement>(
+        '[data-item-id="shared-link:https://a.example"]',
+    )!;
+    expect(row).not.toBeNull();
+    expect(row.dataset.kind).toBe("action");
+    expect(row.textContent).toContain("Alpha");
+
+    // Selecting a shared-link row opens it externally and never selects a conversation.
+    row.click();
+    expect(sharedLinkOpen).toHaveBeenCalledExactlyOnceWith("https://a.example");
+    expect(chatSelect).not.toHaveBeenCalled();
+
+    // Reactively adds a link and deduplicates a repeat of the first from the new snapshot.
+    chatSurface.input({
+        type: "messageUpserted",
+        item: sharedLinkMessage("message-2", [
+            sharedResourceLink("https://a.example", "Alpha again"),
+            sharedResourceLink("https://b.example", "Beta"),
+        ]),
+    });
+    await nextFrame();
+    const ids = [
+        ...view.container.querySelectorAll(
+            '[data-section-id="shared-links"] [data-happy2-ui="sidebar-item"]',
+        ),
+    ].map((item) => item.getAttribute("data-item-id"));
+    expect(ids).toEqual(["shared-link:https://a.example", "shared-link:https://b.example"]);
+
+    // Clearing every message's links (newer changePts) removes the whole section.
+    chatSurface.input({ type: "messageUpserted", item: sharedLinkMessage("message-1", [], "2") });
+    chatSurface.input({ type: "messageUpserted", item: sharedLinkMessage("message-2", [], "2") });
+    await nextFrame();
+    expect(view.container.querySelector('[data-section-id="shared-links"]')).toBeNull();
+});
+it("expands the trace over the shell with a working composer footer and stable identity", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(chat.id);
+    const trace = agentTraceStoreFixtureCreate("message-2");
+    const submitted = vi.fn();
+    const composer = composerStoreFixtureCreate(chat.id, { output: submitted });
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+        trace[Symbol.dispose]();
+        composer[Symbol.dispose]();
+    });
+    directory.input({ type: "directoryLoaded", users: [], channels: [] });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    chatSurface.input({
+        type: "chatLoaded",
+        chat,
+        messages: [messageItem("message-1", "Please inspect"), assistantItem(traceSummary())],
+        hasMoreMessages: false,
+    });
+    trace.input({
+        type: "agentTraceLoaded",
+        trace: {
+            ...traceSummary({ entryCount: 1 }),
+            entries: [traceEntry("entry-1", "Reasoning", 1)],
+        },
+    });
+    const view = createRenderer();
+    onTestFinished(() => view.destroy());
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate()}
+                chat={chatSurface.store}
+                composer={composer}
+                directory={directory.store}
+                navigation={{ chatId: chat.id, panel: { kind: "trace", messageId: "message-2" } }}
+                sidebarSearch=""
+                sidebar={sidebar.store}
+                windowControls={false}
+                trace={trace.store}
+                user={{ id: "user-1", firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+
+    // Docked: the trace panel is present, not maximized, and carries no composer footer.
+    const panel = view.container.querySelector('[data-happy2-ui="app-shell-panel"]')!;
+    expect(panel.getAttribute("data-maximized")).toBeNull();
+    expect(view.container.querySelector('[data-happy2-ui="app-shell-panel-footer"]')).toBeNull();
+    const tracePanel = view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')!;
+    expect(tracePanel).not.toBeNull();
+
+    // Expand: the panel maximizes over the content and the trace body keeps its identity.
+    view.container
+        .querySelector<HTMLButtonElement>('[data-happy2-ui="app-shell-panel-toggle"]')!
+        .click();
+    await nextFrame();
+    expect(
+        view.container
+            .querySelector('[data-happy2-ui="app-shell-panel"]')!
+            .getAttribute("data-maximized"),
+    ).toBe("");
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBe(tracePanel);
+
+    // A composer footer appears inside the expanded panel and shares the composer store.
+    const footer = view.container.querySelector('[data-happy2-ui="app-shell-panel-footer"]')!;
+    const footerTextarea = footer.querySelector<HTMLTextAreaElement>("textarea")!;
+    expect(footerTextarea).not.toBeNull();
+    composer.getState().textUpdate("draft from the trace view");
+    await nextFrame();
+    expect(footerTextarea.value).toBe("draft from the trace view");
+    // The hidden workspace composer reflects the same snapshot (single source of truth).
+    const workspaceTextarea = view.container.querySelector<HTMLTextAreaElement>(
+        '[data-happy2-ui="app-shell-workspace"] textarea',
+    )!;
+    expect(workspaceTextarea.value).toBe("draft from the trace view");
+
+    // Sending from the footer routes through the shared composer action.
+    footer.querySelector<HTMLButtonElement>('[aria-label="Send message"]')!.click();
+    await nextFrame();
+    expect(submitted).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "textSubmitted", text: "draft from the trace view" }),
+    );
+
+    // An ordinary chat-store notification preserves the footer composer and trace identities.
+    chatSurface.input({
+        type: "messageUpserted",
+        item: assistantItem(
+            traceSummary({
+                entryCount: 2,
+                latest: { kind: "tool", title: "Running tests", occurredAt: 2 },
+            }),
+            "Partial reply",
+        ),
+    });
+    await nextFrame();
+    expect(footer.querySelector("textarea")).toBe(footerTextarea);
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBe(tracePanel);
+
+    // Restore returns to the docked layout and removes the footer composer.
+    view.container
+        .querySelector<HTMLButtonElement>('[data-happy2-ui="app-shell-panel-toggle"]')!
+        .click();
+    await nextFrame();
+    expect(
+        view.container
+            .querySelector('[data-happy2-ui="app-shell-panel"]')!
+            .getAttribute("data-maximized"),
+    ).toBeNull();
+    expect(view.container.querySelector('[data-happy2-ui="app-shell-panel-footer"]')).toBeNull();
+    expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBe(tracePanel);
+});
 async function nextFrame(): Promise<void> {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }

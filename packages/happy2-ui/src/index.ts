@@ -143,6 +143,16 @@ export { FilePanel, type FilePanelProps } from "./FilePanel";
 export { FileEditor, type FileEditorProps } from "./FileEditor";
 export { Icon, type IconName, iconNames, type IconProps } from "./Icon";
 export {
+    Ionicon,
+    type IoniconName,
+    type IoniconProps,
+    ioniconNames,
+    Octicon,
+    type OcticonName,
+    type OcticonProps,
+    octiconNames,
+} from "./vectorIcons/VectorIcon";
+export {
     DayDivider,
     Message,
     MessageList,

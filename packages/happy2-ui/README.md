@@ -3,11 +3,13 @@
 React visuals and product-surface composition for Happy (2), implementing the "Relay" dark
 theme. Leaf components remain props-only. A complete product surface may use `StoreSurface` to
 consume one concrete framework-independent `happy2-state` store directly, without callback shims or
-framework-specific selectors. All colors and typography come from the `--happy2-*` design tokens in
-`src/theme.css`. The package bundles the OFL-licensed Figtree (UI) and JetBrains Mono (code) variable
+framework-specific selectors. Colors use Happy's original `--colors-*` roles and typography uses
+the non-color `--happy2-*` tokens in `src/theme.css`. The package bundles the OFL-licensed Figtree
+(UI) and JetBrains Mono (code) variable
 fonts so component typography does not depend on host operating-system fonts.
 
-Run `pnpm --filter happy2-ui dev` to open the blueprint component workbench. Its component selector
+Run `pnpm blueprint` from the repository root to open the Blueprint component workbench through
+Portless. Its component selector
 navigates between the specimen pages C-001 (Box) through C-017 (Composer): layout and window
 chrome (AppShell, TitleBar, Rail, Sidebar), chat (ChannelHeader, Message/MessageList, Composer),
 agent surfaces (AgentRunCard, ApprovalCard, EventCard, AgentDesk, DiffSnippet), and the primitives

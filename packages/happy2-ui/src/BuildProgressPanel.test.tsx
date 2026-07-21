@@ -247,7 +247,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
     expect(
         statusLabel.computedStyles(["color", "font-size", "font-weight", "line-height"]),
     ).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-size": "13px",
         "font-weight": "500",
         "line-height": "18px",
@@ -318,7 +318,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
     const errorText = view.$(
         '[data-testid="bp-failed"] [data-happy2-ui="build-progress-error-text"]',
     );
-    expect(errorText.computedStyle("color")).toBe("rgb(255, 59, 48)");
+    expect(errorText.computedStyle("color")).toBe("rgb(244, 67, 54)");
     await paints(errorText, "error text");
 
     const retry = view.$('[data-testid="bp-failed"] [data-happy2-ui="button"]');

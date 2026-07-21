@@ -50,6 +50,7 @@ import { FilePanelPage } from "./pages/FilePanelPage";
 import { FileTreePage } from "./pages/FileTreePage";
 import { FormRowPage } from "./pages/FormRowPage";
 import { IconPage } from "./pages/IconPage";
+import { VectorIconPage } from "./pages/VectorIconPage";
 import { InfoPanelPage } from "./pages/InfoPanelPage";
 import { LightboxPage } from "./pages/LightboxPage";
 import { MediaGalleryPage } from "./pages/MediaGalleryPage";

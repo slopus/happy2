@@ -171,6 +171,17 @@ the latest `origin/main`, then push the resulting `HEAD` to `main` with a normal
 non-force push. If `main` advances or the push is rejected, fetch, rebase again,
 and retry until the push succeeds. Never force-push `main`.
 
+Keep sync validation proportional to the packages that changed. When a diff is
+client-only and limited to `happy2-app`, `happy2-state`, and `happy2-ui` (plus
+their docs, assets, or development tooling), run only the package-level checks
+that are directly relevant; do not run server gym, server coverage, or another
+repository-wide test pass solely because the work is being synced. These UI and
+client-state changes cannot corrupt durable server data or migrations. If the
+user explicitly asks to sync without tests, skip tests and limit the sync gate
+to formatting and non-test repository/diff checks before committing and
+rebasing. Any server, schema, migration, authentication, or durable-state change
+still follows the full server validation requirements above.
+
 ## Server principles
 
 `happy2-server` is a small desktop-app backend that may run as the complete

@@ -144,7 +144,7 @@ it("holds Tabs dimensions, typography, colors, and the active underline for ever
                 "background-color": "rgba(0, 0, 0, 0)",
                 "border-top-width": "0px",
                 "box-sizing": "border-box",
-                color: active ? "rgb(0, 0, 0)" : "rgb(142, 142, 147)",
+                color: active ? "rgb(0, 0, 0)" : "rgb(73, 69, 79)",
                 cursor: "pointer",
                 display: "flex",
                 "font-family": uiFont(),

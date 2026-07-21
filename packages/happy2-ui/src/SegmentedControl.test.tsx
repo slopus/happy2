@@ -187,7 +187,7 @@ it("holds SegmentedControl dimensions, layout, colors, and pill placement", asyn
         ).toEqual({
             "background-color": "rgb(248, 248, 248)",
             "border-radius": "1px",
-            "border-top-color": "rgb(209, 209, 214)",
+            "border-top-color": "rgb(234, 234, 234)",
             "box-sizing": "border-box",
             position: "absolute",
         });
@@ -201,7 +201,7 @@ it("holds SegmentedControl dimensions, layout, colors, and pill placement", asyn
         );
         expect(activeLabel.computedStyle("color"), `${id} active color`).toBe("rgb(0, 0, 0)");
         expect(inactiveLabel.computedStyle("color"), `${id} inactive color`).toBe(
-            "rgb(142, 142, 147)",
+            "rgb(73, 69, 79)",
         );
 
         // Label typography contract.
@@ -381,7 +381,7 @@ it("holds SegmentedControl icon segments, selection sweep, fullWidth, and disabl
                 `[data-testid="${id}"] [data-value="${SWEEP[other]!.value}"] [data-happy2-ui="segmented-control-label"]`,
             );
             expect(otherLabel.computedStyle("color"), `${id} inactive ${other}`).toBe(
-                "rgb(142, 142, 147)",
+                "rgb(73, 69, 79)",
             );
         }
     }

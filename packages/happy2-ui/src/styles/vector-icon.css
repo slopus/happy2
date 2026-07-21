@@ -1,0 +1,49 @@
+/*
+ * Vector icon fonts — Ionicons and Octicons, ported verbatim from Happy's
+ * `@expo/vector-icons` usage. The TTFs are vendored under `../assets/fonts`
+ * (the upstream package ships no woff2), and each glyph is a Private Use Area
+ * codepoint addressed by the generated name -> codepoint glyphmaps. The CSS
+ * only pins the icon box and font so a glyph paints on its own layout box,
+ * never distorts inside a flex row, and follows `currentColor`.
+ */
+
+@font-face {
+    font-family: "happy2 Ionicons";
+    font-style: normal;
+    font-weight: normal;
+    font-display: block;
+    src: url("../assets/fonts/Ionicons.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: "happy2 Octicons";
+    font-style: normal;
+    font-weight: normal;
+    font-display: block;
+    src: url("../assets/fonts/Octicons.ttf") format("truetype");
+}
+
+.happy2-vector-icon {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    font-weight: normal;
+    font-style: normal;
+    font-variant: normal;
+    text-transform: none;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: auto;
+    user-select: none;
+}
+
+.happy2-vector-icon[data-set="ionicons"] {
+    font-family: "happy2 Ionicons";
+}
+
+.happy2-vector-icon[data-set="octicons"] {
+    font-family: "happy2 Octicons";
+}

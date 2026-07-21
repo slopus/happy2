@@ -25,10 +25,6 @@ export type Conversation = {
     composerPlaceholder: string;
     icon?: "hash" | "spark" | "inbox";
     id: string;
-    intro?: {
-        description: string;
-        title: string;
-    };
     memberCount?: number;
     members?: {
         initials: string;

@@ -79,7 +79,7 @@ it("holds FileEditor header, code body, status bar, and dirty affordances", asyn
     const subtitle = view.$('[data-testid="clean"] [data-happy2-ui="file-editor-subtitle"]');
     expect(subtitle.element.textContent).toBe("src/");
     expect(subtitle.textMetrics().font.family).toBe(fontMono);
-    expect(subtitle.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(subtitle.computedStyle("color")).toBe("rgb(73, 69, 79)");
 
     /* ---- Code body: monospace ink on the code surface ------------------- */
 

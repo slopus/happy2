@@ -13,21 +13,21 @@ function Slot(props: { height?: string; label: string; note?: string; width?: st
                 alignItems: "center",
                 borderRadius: "6px",
                 boxSizing: "border-box",
-                color: "var(--text-secondary)",
+                color: "var(--colors-input-placeholder)",
                 display: "flex",
                 flexDirection: "column",
                 gap: "8px",
                 height: props.height ?? "100%",
                 justifyContent: "center",
                 margin: "6px",
-                outline: "1px dashed var(--surface-pressed-overlay)",
+                outline: "1px dashed var(--colors-surface-selected)",
                 outlineOffset: "-6px",
                 width: props.width ?? "auto",
             }}
         >
             <span
                 style={{
-                    color: "var(--text-secondary)",
+                    color: "var(--colors-text-secondary)",
                     font: "700 11px var(--happy2-font-mono)",
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
@@ -78,7 +78,10 @@ export function AppShellPage() {
                         sidebar={sidebarSlot()}
                         titleBar={titleBarSlot()}
                     >
-                        <Slot label="children" note="main workspace · --groupped-background" />
+                        <Slot
+                            label="children"
+                            note="main workspace · --colors-groupped-background"
+                        />
                     </AppShell>,
                 )}
             </Specimen>
@@ -110,6 +113,104 @@ export function AppShellPage() {
                         titleBar={titleBarSlot()}
                     >
                         <Slot label="children" note="main workspace" />
+                    </AppShell>,
+                )}
+            </Specimen>
+
+            <Specimen
+                detail="sidebarCollapsible + panelResizable: an 8px drag separator (role=separator) sits on each inner edge, the sidebar carries a collapse control, and the panel a maximize control"
+                label="Resizable sidebar + inspector"
+                number="04"
+                stage="chrome"
+            >
+                {window1024(
+                    <AppShell
+                        panel={<Slot label="panel" note="resizable · 340px" />}
+                        panelMaximizable
+                        panelResizable
+                        rail={railSlot()}
+                        sidebar={<Slot label="sidebar" note="resizable · 288px" />}
+                        sidebarCollapsible
+                        titleBar={titleBarSlot()}
+                    >
+                        <Slot label="children" note="main workspace" />
+                    </AppShell>,
+                )}
+            </Specimen>
+
+            <Specimen
+                detail="collapsed sidebar: the sidebar DOM stays mounted but hidden, replaced by a 48px reveal lane whose button restores it"
+                label="Sidebar collapsed"
+                number="05"
+                stage="chrome"
+            >
+                {window1024(
+                    <AppShell
+                        rail={railSlot()}
+                        sidebar={<Slot label="sidebar" note="hidden while collapsed" />}
+                        sidebarCollapsible
+                        sidebarDefaultCollapsed
+                        titleBar={titleBarSlot()}
+                    >
+                        <Slot label="children" note="workspace spans the freed space" />
+                    </AppShell>,
+                )}
+            </Specimen>
+
+            <Specimen
+                detail="maximized inspector: the panel overlays the whole content region — including the left sidebar — while the sidebar and workspace stay mounted underneath; the control restores the docked width"
+                label="Inspector maximized"
+                number="06"
+                stage="chrome"
+            >
+                {window1024(
+                    <AppShell
+                        panel={<Slot label="panel" note="maximized · overlays content" />}
+                        panelDefaultMaximized
+                        panelMaximizable
+                        panelResizable
+                        rail={railSlot()}
+                        sidebar={<Slot label="sidebar" note="mounted, overlaid" />}
+                        sidebarCollapsible
+                        titleBar={titleBarSlot()}
+                    >
+                        <Slot label="children" note="mounted, overlaid" />
+                    </AppShell>,
+                )}
+            </Specimen>
+
+            <Specimen
+                detail="expanded trace + input: the panel body (live trace) fills the overlay while a panelFooter keeps the composer pinned at the bottom; the panel body identity is unaffected as the footer mounts"
+                label="Expanded trace with composer footer"
+                number="07"
+                stage="chrome"
+            >
+                {window1024(
+                    <AppShell
+                        panel={
+                            <Slot label="panel body" note="AgentTracePanel · ongoing inference" />
+                        }
+                        panelDefaultMaximized
+                        panelFooter={
+                            <div
+                                style={{ boxSizing: "border-box", height: "96px", display: "flex" }}
+                            >
+                                <Slot
+                                    height="auto"
+                                    label="panelFooter"
+                                    note="composer dock"
+                                    width="100%"
+                                />
+                            </div>
+                        }
+                        panelMaximizable
+                        panelResizable
+                        rail={railSlot()}
+                        sidebar={<Slot label="sidebar" note="mounted, overlaid" />}
+                        sidebarCollapsible
+                        titleBar={titleBarSlot()}
+                    >
+                        <Slot label="children" note="mounted, overlaid" />
                     </AppShell>,
                 )}
             </Specimen>

@@ -139,7 +139,7 @@ it("holds AgentSecretPanel layout, variable names, attachment counts, and row ac
         weight: "600",
     });
     expect(view.$(".happy2-agent-secret-panel__subtitle").computedStyle("color")).toBe(
-        "rgb(142, 142, 147)",
+        "rgb(73, 69, 79)",
     );
 
     // Header actions pin right and expose only New secret — there is no refresh

@@ -59,8 +59,10 @@ import { ChatWorkspacePanel } from "./ChatWorkspacePanel.js";
 import { useChatWorkspaceModel } from "./chatWorkspaceModel.js";
 import { useChatMessageMediaModel } from "./chatMessageMediaModel.js";
 import { ChatConversation } from "./ChatConversation.js";
+import { ComposerDock } from "./ComposerDock.js";
 import { ComposeModal } from "../compose/ComposeModal.js";
 import { chatSidebarModelCreate } from "./chatSidebarModel.js";
+import { chatSharedLinksSectionCreate, sharedLinkUriFromItemId } from "./chatSharedLinksModel.js";
 import { useChatInfoModel } from "./chatInfoModel.js";
 import { chatMessageActionsModelCreate } from "./chatMessageActionsModel.js";
 import { chatCreationModelCreate, useChatCreateRequest } from "./chatCreationModel.js";
@@ -222,6 +224,12 @@ export interface ChatPageActions {
     agentEffortChange(chatId: string, agentUserId: string, effort: string): Promise<void>;
     directMessageCreate(userId: string): Promise<void>;
     messageSend(chatId: string, text: string): void;
+    /**
+     * Opens a durable shared link from the sidebar externally. The application binds
+     * this to a safe helper that accepts only absolute http/https URLs; reusable UI
+     * never calls `window.open` itself.
+     */
+    sharedLinkOpen(uri: string): void;
     terminalOpen?(agentUserId: string): void;
     terminalClose?(): void;
     /** Downloads one staged plugin request image while the request package remains staged. */
@@ -279,6 +287,9 @@ export function ChatPage(props: ChatPageProps) {
     const [directoryOpen, setDirectoryOpen] = useState(false);
     const [composeOpen, setComposeOpen] = useState(false);
     const [directMessageOpen, setDirectMessageOpen] = useState(false);
+    // Whether the trace inspector is expanded to overlay the whole content region.
+    // Only meaningful while the trace panel is open; AppShell owns the geometry.
+    const [traceExpanded, setTraceExpanded] = useState(false);
     const [messageEdit, setMessageEdit] = useState<{
         chatId: string;
         error?: string;
@@ -372,6 +383,9 @@ export function ChatPage(props: ChatPageProps) {
         avatarFor,
     });
     const sidebarSections = sidebarModel.sections;
+    // Durable shared MCP links from the active chat's message snapshot, projected
+    // into a sidebar section from the one coarse chat subscription (no per-link work).
+    const sharedLinksSection = () => chatSharedLinksSectionCreate(chatSnapshot()?.messages ?? []);
     const directoryItems = sidebarModel.directoryItems;
     const isServerAdmin = sidebarModel.isServerAdmin;
     const infoModel = useChatInfoModel({
@@ -556,10 +570,6 @@ export function ChatPage(props: ChatPageProps) {
                 title: "Your Happy (2)",
                 topic: "Create a channel or select a person to start chatting",
                 composerPlaceholder: "Message Happy (2)…",
-                intro: {
-                    title: "No conversation selected",
-                    description: "Create a channel or choose a teammate from the sidebar.",
-                },
             };
         const title = projection.displayName;
         const agent = projection.participants.some((person) => person.kind === "agent");
@@ -592,18 +602,6 @@ export function ChatPage(props: ChatPageProps) {
                 initials: identityInitials(person),
                 tone: toneFor(person.id),
             })),
-            intro: {
-                title: chat.kind === "dm" ? title : `Welcome to #${chat.slug ?? title}`,
-                description:
-                    chat.topic ??
-                    (chat.kind === "dm"
-                        ? `This conversation is between you and ${title}.`
-                        : chatSnapshot()?.status.type !== "ready" || chatSnapshot()?.hasMoreMessages
-                          ? `Showing the latest messages in #${chat.slug ?? title}.`
-                          : conversationEntries().some((entry) => entry.kind === "message")
-                            ? `This is the beginning of #${chat.slug ?? title}.`
-                            : "This channel is ready for its first message."),
-            },
         };
     })();
     const mentionCandidates = () =>
@@ -789,6 +787,7 @@ export function ChatPage(props: ChatPageProps) {
     };
     function selectConversation(id: string, replace = false) {
         pendingSelection.current = undefined;
+        setTraceExpanded(false);
         const projection = sidebarChats().find((candidate) => candidate.id === id);
         if (!projection) return;
         props.actions.chatSelect(id, projection.chat.kind === "dm" ? "chat" : "channel", replace);
@@ -913,6 +912,19 @@ export function ChatPage(props: ChatPageProps) {
         <>
             <AppShell
                 windowControls={props.windowControls}
+                // Left navigation can hide/show and resize whenever the normal chat
+                // sidebar is present (not a pushed detail override).
+                sidebarCollapsible={!props.sidebarOverride}
+                // Any inspector can be mouse-resized; only the trace inspector can
+                // expand to overlay the content, and only then carries a composer
+                // footer so the live trace and a usable input share the region.
+                panelResizable
+                panelMaximizable={panelMode() === "trace"}
+                panelMaximized={panelMode() === "trace" ? traceExpanded : undefined}
+                onPanelMaximizedChange={setTraceExpanded}
+                panelFooter={
+                    panelMode() === "trace" && traceExpanded ? renderComposerDock() : undefined
+                }
                 sidebar={
                     props.sidebarOverride ?? (
                         <Sidebar
@@ -936,6 +948,13 @@ export function ChatPage(props: ChatPageProps) {
                             composeLabel="New chat"
                             onCompose={() => setComposeOpen(true)}
                             onItemSelect={(id) => {
+                                // A reserved shared-link row opens externally through app
+                                // glue and must never fall through to conversation select.
+                                const sharedUri = sharedLinkUriFromItemId(id);
+                                if (sharedUri !== undefined) {
+                                    props.actions.sharedLinkOpen(sharedUri);
+                                    return;
+                                }
                                 if (props.navSection?.items.some((item) => item.id === id))
                                     props.onNavSelect?.(id);
                                 else selectConversation(id);
@@ -946,11 +965,11 @@ export function ChatPage(props: ChatPageProps) {
                                     setDirectoryOpen(true);
                                 if (sectionId === "dms") setDirectMessageOpen(true);
                             }}
-                            sections={
-                                props.navSection
-                                    ? [props.navSection, ...sidebarSections]
-                                    : sidebarSections
-                            }
+                            sections={[
+                                ...(props.navSection ? [props.navSection] : []),
+                                ...sidebarSections,
+                                ...(sharedLinksSection() ? [sharedLinksSection()!] : []),
+                            ]}
                         />
                     )
                 }
@@ -964,7 +983,10 @@ export function ChatPage(props: ChatPageProps) {
                                 loading={
                                     !trace || (trace.type !== "ready" && trace.type !== "error")
                                 }
-                                onClose={props.actions.traceClose}
+                                onClose={() => {
+                                    setTraceExpanded(false);
+                                    props.actions.traceClose();
+                                }}
                                 status={traceDetails()?.status ?? "pending"}
                                 title={traceAgentName()}
                             />
@@ -1312,6 +1334,39 @@ export function ChatPage(props: ChatPageProps) {
                 : null}
         </>
     );
+    // The same composer surface, bound to the same snapshot/actions, rendered at the
+    // bottom of the expanded trace panel. Focus moving here on expand is an explicit
+    // UI lifetime boundary; the composer store remains the single source of truth.
+    function renderComposerDock(): ReactNode {
+        return (
+            <ComposerDock
+                activities={activeAgentActivity()}
+                activityNow={activityNow}
+                composerAudience={
+                    audienceRoutingActive() ? composerSnapshot()?.audience : undefined
+                }
+                composerCompactHint={liveComposerCompactHint()}
+                composerContributions={props.composerContributions}
+                composerDisabled={!activeConversationId()}
+                composerHint={liveComposerHint()}
+                composerMentions={composerMentionCandidates()}
+                composerPending={composerSnapshot()?.submission.status === "pending" || busy()}
+                composerSendEnabled={draft().trim().length > 0 || pendingAttachments().length > 0}
+                composerValue={draft()}
+                contextItems={composerContext}
+                onAudienceChange={(audience) => props.composer?.getState().audienceUpdate(audience)}
+                onComposerFocusChange={(focused) => props.composer?.getState().focusUpdate(focused)}
+                onContextRemove={(id) =>
+                    props.composer?.getState().attachmentRemove(id.replace(/^file:/u, ""))
+                }
+                onFilesSelected={(files) => void uploadFiles(files)}
+                onMentionSelect={composerMentionSelect}
+                onSend={sendMessage}
+                onValueChange={updateDraft}
+                placeholder={conversation.composerPlaceholder}
+            />
+        );
+    }
     function renderEntry(
         entry: WorkspaceEntry,
         index: number,
@@ -1359,7 +1414,11 @@ export function ChatPage(props: ChatPageProps) {
                 onReactionSelect={(message, emoji) =>
                     void messageActions.reactionToggle(message, emoji)
                 }
-                onTraceSelect={(message) => props.actions.traceOpen(message.id)}
+                onTraceSelect={(message) => {
+                    // A freshly opened trace starts docked, not left maximized from before.
+                    setTraceExpanded(false);
+                    props.actions.traceOpen(message.id);
+                }}
                 traceOpen={message ? activeTraceMessageId() === message.id : false}
             />
         );

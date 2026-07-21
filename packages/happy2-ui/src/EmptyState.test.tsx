@@ -106,7 +106,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
     ).toEqual({
         "align-items": "center",
         "box-sizing": "border-box",
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         display: "flex",
         "flex-direction": "column",
         "justify-content": "center",
@@ -136,7 +136,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
         "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
     });
 
     /* Icon box centered in the medallion by integer inset (48 → 20 → 14). */
@@ -147,7 +147,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
     expect(icon.bounds().height).toBe(20);
     expect(icon.bounds().x - media.bounds().x, "icon box left inset").toBe(14);
     expect(icon.bounds().y - media.bounds().y, "icon box top inset").toBe(14);
-    expect(icon.computedStyle("stroke")).toBe("rgb(142, 142, 147)");
+    expect(icon.computedStyle("stroke")).toBe("rgb(73, 69, 79)");
     /* Balanced glyph: alpha centroid on the medallion center (24, 24). */
     const iconInk = await ink(icon, media, "panel medallion glyph");
     expect(Math.abs(iconInk.x - 24), "medallion glyph optical x").toBeLessThanOrEqual(ICON_TOL);
@@ -187,7 +187,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
     expect(description.textMetrics()).toMatchObject({
         font: { lineHeight: 18, size: 13, weight: "400" },
     });
-    expect(description.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(description.computedStyle("color")).toBe("rgb(73, 69, 79)");
     expect(description.computedStyle("max-width")).toBe("320px");
     expect(symmetry(description, root), "description horizontal centering").toBeLessThanOrEqual(
         0.5,

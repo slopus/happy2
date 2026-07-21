@@ -5,7 +5,7 @@ desktop application. Design for its desktop window and do not introduce mobile
 breakpoints, touch-only behavior, or mobile substitutes.
 
 The design system is implemented by `happy2-ui`. Its component workbench is the
-blueprint: run it with `pnpm --filter happy2-ui dev`.
+blueprint: run it through Portless with `pnpm blueprint`.
 
 ## Architecture and ownership
 
@@ -465,6 +465,42 @@ SVG viewBox alone. Assert its visible bounds and optical center inside every
 button, rail item, field, or other container that uses it. Generated icons in
 particular often contain uneven transparent margins and must be normalized
 before component integration.
+
+## Icon systems
+
+Happy (2) has two icon systems, and both live in `happy2-ui`. Application code
+never imports an icon font or draws its own glyph; it composes one of these
+components and passes a name, size, and optional color.
+
+**`Icon`** is the hand-drawn house set: stroke glyphs on a 20-unit grid with a
+shared 1.7 stroke mass, round caps and joins, and path data that is optically
+centered in the file. Its `IconName` union is a small, curated vocabulary. Use
+it for the core product chrome where a consistent bespoke stroke identity
+matters, and hold it to the optical-centering contract in `Icon.test.tsx`.
+
+**`Ionicon` and `Octicon`** are the font-based sets ported verbatim from Happy's
+`@expo/vector-icons` usage — the same two families Happy relies on: **Ionicons**
+(~1357 glyphs) and **Octicons** (~331 glyphs). Reach for these when porting a
+Happy surface that already names an Ionicons or Octicons glyph, or when the
+curated `Icon` set has no equivalent; they give the broad coverage the house set
+deliberately does not. How they are built:
+
+- The upstream TrueType fonts are vendored under
+  `packages/happy2-ui/src/assets/fonts/` (`Ionicons.ttf`, `Octicons.ttf`).
+  `@expo/vector-icons` ships no woff2, so the TTFs are used as-is through
+  `@font-face` in `styles/vector-icon.css`; every engine renders them.
+- Each set is addressed by the upstream glyph name through the generated
+  `name → Private Use Area codepoint` maps in `src/vectorIcons/` — do not
+  hand-edit those; regenerate them from the upstream glyphmap so a name renders
+  the exact same glyph Happy renders.
+- A glyph paints as a single PUA character in a square, `currentColor` box that
+  never distorts inside a flex row. `size` sets both the font size and the box.
+
+Prove a font-icon integration the same way as any icon: real ink (non-zero
+visible pixels, which also proves the font actually loaded) and the correct box
+geometry in the container that uses it, across Chromium, Firefox, and WebKit.
+Prefer an accessible `aria-label` on a standalone, meaningful icon; a decorative
+icon stays `aria-hidden`.
 
 ## Generated background images
 

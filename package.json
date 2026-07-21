@@ -1,106 +1,107 @@
 {
-  "name": "happy2",
-  "version": "0.0.18",
-  "description": "Happy (2) desktop web app and server bundle",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/slopus/happy2.git"
-  },
-  "bin": {
-    "happy2": "packages/happy2-server/bin/happy2.js"
-  },
-  "files": [
-    "packages/happy2-server/bin/happy2.js",
-    "packages/happy2-server/dist",
-    "packages/happy2-server/drizzle",
-    "packages/happy2-server/happy2.example.toml",
-    "packages/happy2-server/README.md",
-    "packages/happy2-server/PLUGINS.md",
-    "Dockerfile",
-    "deploy"
-  ],
-  "type": "module",
-  "main": "./packages/happy2-server/dist/index.js",
-  "types": "./packages/happy2-server/dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./packages/happy2-server/dist/index.d.ts",
-      "default": "./packages/happy2-server/dist/index.js"
-    }
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org"
-  },
-  "packageManager": "pnpm@10.28.1",
-  "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=10.28.1"
-  },
-  "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "dev:web": "pnpm --filter happy2-web dev",
-    "web": "node scripts/web.mjs",
-    "dev:desktop": "node scripts/dev-desktop.mjs",
-    "dev:server": "pnpm --dir packages/happy2-server dev",
-    "plugins:build": "pnpm --filter './packages/happy2-plugin-*' --filter '!happy2-plugin-sdk' build",
-    "plugins:assemble": "pnpm --dir packages/happy2-server plugins:assemble",
-    "plugins:prepare": "pnpm run plugins:build && pnpm run plugins:assemble",
-    "start": "node packages/happy2-server/dist/runner.js",
-    "build": "pnpm -r --if-present build && VITE_HAPPY2_SERVER_URL='/' pnpm --filter happy2-web exec vite build --outDir ../happy2-server/dist/web --emptyOutDir false",
-    "test": "pnpm test:coverage-tooling && pnpm -r --if-present test",
-    "test:dockerfile": "node --test scripts/dockerfile.test.mjs",
-    "test:non-server": "pnpm --parallel --filter happy2-state --filter happy2-ui --filter happy2-app test && pnpm --dir packages/happy2-gym test:playwright",
-    "test:coverage-tooling": "pnpm --dir packages/happy2-server test:coverage-tooling",
-    "coverage:server:unit": "pnpm --dir packages/happy2-server test:coverage",
-    "coverage:server:gym": "pnpm --dir packages/happy2-gym test:server:coverage",
-    "coverage:server": "pnpm test:coverage-tooling && pnpm coverage:server:unit && pnpm coverage:server:gym && tsx packages/happy2-server/tooling/server-coverage/cli.ts check",
-    "coverage:server:baseline": "pnpm test:coverage-tooling && pnpm coverage:server:unit && pnpm coverage:server:gym && tsx packages/happy2-server/tooling/server-coverage/cli.ts baseline",
-    "package:check": "tsx scripts/checkPublishedRuntimeDependencies.ts",
-    "test:watch": "pnpm -r --parallel --if-present test:watch",
-    "typecheck": "tsc --project tsconfig.json && pnpm -r --if-present typecheck",
-    "format": "oxfmt --write eslint scripts tsconfig.json && pnpm -r --if-present format",
-    "format:check": "oxfmt --check eslint scripts tsconfig.json && pnpm -r --if-present format:check",
-    "lint": "oxlint eslint scripts && pnpm -r --if-present lint",
-    "check:validation": "pnpm test:dockerfile && pnpm package:check && pnpm format:check && pnpm lint && pnpm --dir packages/happy2-server architecture:check && pnpm typecheck && pnpm test:coverage-tooling && pnpm test:non-server && pnpm coverage:server:unit && pnpm coverage:server:gym",
-    "check": "pnpm check:validation && tsx packages/happy2-server/tooling/server-coverage/cli.ts check && pnpm build",
-    "check:release": "pnpm check:validation && pnpm build",
-    "release": "tsx scripts/release.ts",
-    "prepack": "pnpm run build",
-    "clean": "pnpm -r --if-present clean"
-  },
-  "dependencies": {
-    "@fastify/cors": "^11.3.0",
-    "@fastify/http-proxy": "^11.5.0",
-    "@fastify/multipart": "^10.1.0",
-    "@fastify/static": "^10.1.0",
-    "@libsql/client": "^0.17.4",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "@paralleldrive/cuid2": "^3.3.0",
-    "@slopus/rig": "^0.0.31",
-    "drizzle-orm": "^0.45.2",
-    "fastify": "^5.8.2",
-    "jose": "^6.1.3",
-    "nodemailer": "^7.0.13",
-    "pino": "^10.3.1",
-    "sharp": "^0.35.3",
-    "smol-toml": "^1.4.2",
-    "thumbhash": "^0.1.1",
-    "ws": "^8.21.1",
-    "yaml": "^2.9.0",
-    "yjs": "^13.6.31"
-  },
-  "devDependencies": {
-    "@eslint/css": "^1.4.0",
-    "@rolldown/plugin-babel": "0.2.3",
-    "@types/node": "^26.1.1",
-    "babel-plugin-react-compiler": "1.0.0",
-    "concurrently": "^10.0.3",
-    "oxfmt": "^0.57.0",
-    "oxlint": "^1.73.0",
-    "portless": "^0.15.1",
-    "tsx": "^4.21.0",
-    "typescript": "^7.0.2",
-    "vite-plugin-node-polyfills": "^0.28.0"
-  }
+    "name": "happy2",
+    "version": "0.0.18",
+    "description": "Happy (2) desktop web app and server bundle",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/slopus/happy2.git"
+    },
+    "bin": {
+        "happy2": "packages/happy2-server/bin/happy2.js"
+    },
+    "files": [
+        "packages/happy2-server/bin/happy2.js",
+        "packages/happy2-server/dist",
+        "packages/happy2-server/drizzle",
+        "packages/happy2-server/happy2.example.toml",
+        "packages/happy2-server/README.md",
+        "packages/happy2-server/PLUGINS.md",
+        "Dockerfile",
+        "deploy"
+    ],
+    "type": "module",
+    "main": "./packages/happy2-server/dist/index.js",
+    "types": "./packages/happy2-server/dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./packages/happy2-server/dist/index.d.ts",
+            "default": "./packages/happy2-server/dist/index.js"
+        }
+    },
+    "publishConfig": {
+        "access": "public",
+        "registry": "https://registry.npmjs.org"
+    },
+    "scripts": {
+        "dev": "node scripts/dev.mjs",
+        "dev:web": "pnpm --filter happy2-web dev",
+        "web": "node scripts/web.mjs",
+        "dev:desktop": "node scripts/dev-desktop.mjs",
+        "dev:server": "pnpm --dir packages/happy2-server dev",
+        "blueprint": "pnpm exec portless run --name happy2-blueprint node scripts/dev-blueprint.mjs",
+        "plugins:build": "pnpm --filter './packages/happy2-plugin-*' --filter '!happy2-plugin-sdk' build",
+        "plugins:assemble": "pnpm --dir packages/happy2-server plugins:assemble",
+        "plugins:prepare": "pnpm run plugins:build && pnpm run plugins:assemble",
+        "start": "node packages/happy2-server/dist/runner.js",
+        "build": "pnpm -r --if-present build && VITE_HAPPY2_SERVER_URL='/' pnpm --filter happy2-web exec vite build --outDir ../happy2-server/dist/web --emptyOutDir false",
+        "test": "pnpm test:coverage-tooling && pnpm -r --if-present test",
+        "test:dockerfile": "node --test scripts/dockerfile.test.mjs",
+        "test:non-server": "pnpm --parallel --filter happy2-state --filter happy2-ui --filter happy2-app test && pnpm --dir packages/happy2-gym test:playwright",
+        "test:coverage-tooling": "pnpm --dir packages/happy2-server test:coverage-tooling",
+        "coverage:server:unit": "pnpm --dir packages/happy2-server test:coverage",
+        "coverage:server:gym": "pnpm --dir packages/happy2-gym test:server:coverage",
+        "coverage:server": "pnpm test:coverage-tooling && pnpm coverage:server:unit && pnpm coverage:server:gym && tsx packages/happy2-server/tooling/server-coverage/cli.ts check",
+        "coverage:server:baseline": "pnpm test:coverage-tooling && pnpm coverage:server:unit && pnpm coverage:server:gym && tsx packages/happy2-server/tooling/server-coverage/cli.ts baseline",
+        "package:check": "tsx scripts/checkPublishedRuntimeDependencies.ts",
+        "test:watch": "pnpm -r --parallel --if-present test:watch",
+        "typecheck": "tsc --project tsconfig.json && pnpm -r --if-present typecheck",
+        "format": "oxfmt --write eslint scripts tsconfig.json && pnpm -r --if-present format",
+        "format:check": "oxfmt --check eslint scripts tsconfig.json && pnpm -r --if-present format:check",
+        "lint": "oxlint eslint scripts && pnpm -r --if-present lint",
+        "check:validation": "pnpm test:dockerfile && pnpm package:check && pnpm format:check && pnpm lint && pnpm --dir packages/happy2-server architecture:check && pnpm typecheck && pnpm test:coverage-tooling && pnpm test:non-server && pnpm coverage:server:unit && pnpm coverage:server:gym",
+        "check": "pnpm check:validation && tsx packages/happy2-server/tooling/server-coverage/cli.ts check && pnpm build",
+        "check:release": "pnpm check:validation && pnpm build",
+        "release": "tsx scripts/release.ts",
+        "prepack": "pnpm run build",
+        "clean": "pnpm -r --if-present clean"
+    },
+    "dependencies": {
+        "@fastify/cors": "^11.3.0",
+        "@fastify/http-proxy": "^11.5.0",
+        "@fastify/multipart": "^10.1.0",
+        "@fastify/static": "^10.1.0",
+        "@libsql/client": "^0.17.4",
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "@paralleldrive/cuid2": "^3.3.0",
+        "@slopus/rig": "^0.0.31",
+        "drizzle-orm": "^0.45.2",
+        "fastify": "^5.8.2",
+        "jose": "^6.1.3",
+        "nodemailer": "^7.0.13",
+        "pino": "^10.3.1",
+        "sharp": "^0.35.3",
+        "smol-toml": "^1.4.2",
+        "thumbhash": "^0.1.1",
+        "ws": "^8.21.1",
+        "yaml": "^2.9.0",
+        "yjs": "^13.6.31"
+    },
+    "devDependencies": {
+        "@eslint/css": "^1.4.0",
+        "@rolldown/plugin-babel": "0.2.3",
+        "@types/node": "^26.1.1",
+        "babel-plugin-react-compiler": "1.0.0",
+        "concurrently": "^10.0.3",
+        "oxfmt": "^0.57.0",
+        "oxlint": "^1.73.0",
+        "portless": "^0.15.1",
+        "tsx": "^4.21.0",
+        "typescript": "^7.0.2",
+        "vite-plugin-node-polyfills": "^0.28.0"
+    },
+    "engines": {
+        "node": ">=24.0.0",
+        "pnpm": ">=10.28.1"
+    },
+    "packageManager": "pnpm@10.28.1"
 }

@@ -31,6 +31,7 @@ import {
     type ContributionSurface,
 } from "./PluginContributionRenderer";
 import { MessageApp } from "./MessageApp";
+import { openExternalLink } from "../externalLink";
 export type ChatViewProps = {
     platform?: "desktop" | "web";
     session?: AuthSession;
@@ -330,6 +331,7 @@ export function ChatView(props: ChatViewProps) {
             state.agentEffortChange(chatId, agentUserId, effort),
         directMessageCreate: (userId) => state.directMessageCreate(userId),
         messageSend: (chatId, text) => state.messageSend(chatId, { text }),
+        sharedLinkOpen: (uri) => openExternalLink(uri),
         pluginRequestImageDownload: (chatId, requestId) =>
             state.pluginManagementRequestImageDownload(chatId, requestId),
         terminalOpen(agentUserId) {

@@ -116,7 +116,7 @@ it("holds FileAttachment geometry, typography, truncation, and interactivity", a
     const size = view.$('[data-testid="fa"] [data-happy2-ui="file-attachment-size"]');
     expect(size.element.textContent).toBe("283 KB");
     expect(size.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
-    expect(size.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(size.computedStyle("color")).toBe("rgb(73, 69, 79)");
     /* The doc glyph is optically centered in the 36px pill's vertical lane. */
     const iconInk = await icon.visibleMetrics();
     expect(iconInk.pixelCount, "doc glyph paints").toBeGreaterThan(0);

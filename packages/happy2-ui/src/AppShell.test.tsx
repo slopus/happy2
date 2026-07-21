@@ -13,18 +13,21 @@ it("composes Happy's flat desktop shell with clamped navigation and inspector su
         () => (
             <AppShell
                 data-testid="shell"
-                panel={slot("panel-slot", { background: "var(--surface)" })}
-                rail={slot("rail-slot", { background: "var(--header-background)", width: "64px" })}
+                panel={slot("panel-slot", { background: "var(--colors-surface)" })}
+                rail={slot("rail-slot", {
+                    background: "var(--colors-header-background)",
+                    width: "64px",
+                })}
                 sidebar={slot("sidebar-slot", {
-                    background: "var(--groupped-background)",
+                    background: "var(--colors-groupped-background)",
                     width: "100%",
                 })}
                 titleBar={slot("title-slot", {
-                    background: "var(--header-background)",
+                    background: "var(--colors-header-background)",
                     height: "56px",
                 })}
             >
-                {slot("workspace-slot", { background: "var(--surface)" })}
+                {slot("workspace-slot", { background: "var(--colors-surface)" })}
             </AppShell>
         ),
         { height: 800, width: 1280 },
@@ -85,13 +88,16 @@ it("keeps a workspace-only shell flat and free of legacy card insets", async () 
         () => (
             <AppShell
                 data-testid="bare-shell"
-                rail={slot("bare-rail", { background: "var(--header-background)", width: "64px" })}
+                rail={slot("bare-rail", {
+                    background: "var(--colors-header-background)",
+                    width: "64px",
+                })}
                 titleBar={slot("bare-title", {
-                    background: "var(--header-background)",
+                    background: "var(--colors-header-background)",
                     height: "56px",
                 })}
             >
-                {slot("bare-workspace", { background: "var(--surface)" })}
+                {slot("bare-workspace", { background: "var(--colors-surface)" })}
             </AppShell>
         ),
         { height: 800, width: 1280 },

@@ -16,8 +16,8 @@
     min-width: 720px;
     min-height: 480px;
     overflow: hidden;
-    background-color: var(--header-background);
-    color: var(--header-tint);
+    background-color: var(--colors-header-background);
+    color: var(--colors-text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -61,6 +61,8 @@
 }
 
 .happy2-app-shell__content {
+    /* Positioning context for the maximized panel overlay (inset: 0). */
+    position: relative;
     box-sizing: border-box;
     display: flex;
     flex: 1 1 0%;
@@ -71,15 +73,14 @@
 }
 
 .happy2-app-shell__main {
+    position: relative;
     box-sizing: border-box;
     display: flex;
     flex: 1 1 0%;
     flex-direction: row;
     min-width: 0;
     min-height: 0;
-    /* Happy's main canvas follows the grouped/root background; #18171c is
-       reserved for the native header/chrome rather than the content plane. */
-    background: var(--groupped-background);
+    background: var(--colors-surface);
     border: 0;
     border-radius: 0;
     overflow: hidden;
@@ -89,13 +90,147 @@
     box-sizing: border-box;
     display: flex;
     align-items: stretch;
-    flex: none;
+    flex: 0 1 auto;
     width: clamp(250px, 30vw, 360px);
+    min-width: 250px;
     min-height: 0;
-    background: var(--groupped-background);
-    /* Original Happy sidebar: grouped background with a hairline divider on the
-       content edge (theme.colors.divider in SidebarView). */
-    border-right: 1px solid var(--divider);
+    background: var(--colors-groupped-background);
+    position: relative;
+}
+
+.happy2-app-shell__sidebar::after {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--colors-divider);
+    content: "";
+    pointer-events: none;
+}
+
+/* When the sidebar is resizable the drag handle owns the divider line instead. */
+.happy2-app-shell__sidebar[data-resizable]::after {
+    display: none;
+}
+
+/* Collapsed: keep the sidebar mounted (identity/scroll preserved) but out of layout. */
+.happy2-app-shell__sidebar[data-collapsed] {
+    display: none;
+}
+
+.happy2-app-shell__sidebar-collapse {
+    /* Overlay pinned to the sidebar's empty top-right corner (clear of the
+       top-left macOS traffic lights); it is chrome above the sidebar content. */
+    position: absolute;
+    z-index: 2;
+    top: 12px;
+    right: 12px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--colors-text-secondary);
+    cursor: pointer;
+}
+
+.happy2-app-shell__sidebar-collapse:hover {
+    background: var(--colors-surface-pressed);
+    color: var(--colors-text);
+}
+
+.happy2-app-shell__sidebar-collapse:focus-visible {
+    outline: 2px solid var(--colors-radio-active);
+    outline-offset: 1px;
+}
+
+.happy2-app-shell__chevron-left {
+    display: flex;
+    /* Reuse the shared chevron glyph pointing the other way for a "collapse left". */
+    transform: rotate(180deg);
+}
+
+/* Slim lane shown when the sidebar is collapsed, carrying the reveal control. */
+.happy2-app-shell__reveal {
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    flex: none;
+    width: 48px;
+    min-height: 0;
+    padding-top: 12px;
+    background: var(--colors-groupped-background);
+    border-right: 1px solid var(--colors-divider);
+}
+
+/* Reserve the top-left traffic-light lane so the reveal control never sits under it. */
+.happy2-app-shell__reveal[data-window-controls] {
+    width: 76px;
+    padding-top: 64px;
+}
+
+.happy2-app-shell__reveal-button {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--colors-text-secondary);
+    cursor: pointer;
+}
+
+.happy2-app-shell__reveal-button:hover {
+    background: var(--colors-surface-pressed);
+    color: var(--colors-text);
+}
+
+.happy2-app-shell__reveal-button:focus-visible {
+    outline: 2px solid var(--colors-radio-active);
+    outline-offset: 1px;
+}
+
+/* Vertical drag divider: an 8px hit lane with a centered 1px hairline. */
+.happy2-app-shell__resize-handle {
+    box-sizing: border-box;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    flex: none;
+    width: 8px;
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    cursor: col-resize;
+    touch-action: none;
+}
+
+.happy2-app-shell__resize-handle:focus-visible {
+    outline: 2px solid var(--colors-radio-active);
+    outline-offset: -2px;
+}
+
+.happy2-app-shell__resize-line {
+    display: block;
+    width: 1px;
+    background: var(--colors-divider);
+}
+
+.happy2-app-shell__resize-handle:hover .happy2-app-shell__resize-line,
+.happy2-app-shell__resize-handle:focus-visible .happy2-app-shell__resize-line {
+    background: var(--colors-surface-selected);
 }
 
 .happy2-app-shell__workspace {
@@ -103,20 +238,93 @@
     display: flex;
     flex: 1 1 0%;
     flex-direction: column;
-    min-width: 0;
+    /* At the 720px desktop minimum, a 64px rail, both sidebar minimums,
+       and their 8px handles leave exactly 140px for the owning workspace. */
+    min-width: 140px;
     min-height: 0;
 }
 
 .happy2-app-shell__panel {
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    min-width: 250px;
+    min-height: 0;
+    width: clamp(250px, 30vw, 360px);
+    background: var(--colors-surface);
+    border: 0;
+    border-left: 1px solid var(--colors-divider);
+    border-radius: 0;
+    overflow: hidden;
+}
+
+/* Resizable panels take the divider line from the drag handle to their left. */
+.happy2-app-shell__panel[data-resizable] {
+    border-left: 0;
+}
+
+/*
+ * Maximized: overlay the entire content region (sidebar + workspace) as an
+ * absolute box. The sidebar, workspace, and panel stay mounted underneath so
+ * focus, scroll, and in-flight content survive the transition. width: auto lets
+ * inset: 0 span the full content area rather than the docked clamp/width.
+ */
+.happy2-app-shell__panel[data-maximized] {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    width: auto;
+    border-left: 0;
+}
+
+/* Panel body fills above an optional pinned footer; both stay in the flex column. */
+.happy2-app-shell__panel-content {
+    box-sizing: border-box;
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.happy2-app-shell__panel-footer {
     box-sizing: border-box;
     display: flex;
     flex: none;
     flex-direction: column;
     min-height: 0;
-    width: clamp(250px, 30vw, 360px);
-    background: var(--groupped-background);
-    border: 0;
-    border-left: 1px solid var(--divider);
-    border-radius: 0;
-    overflow: hidden;
+}
+
+.happy2-app-shell__panel-toggle {
+    /* Chrome pinned to the panel's left edge, vertically centered; on the docked
+       divider when narrow and just inside the content edge when maximized. */
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: 0;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--colors-divider);
+    border-left: 0;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+    background: var(--colors-surface);
+    color: var(--colors-text-secondary);
+    transform: translateY(-50%);
+    cursor: pointer;
+}
+
+.happy2-app-shell__panel-toggle:hover {
+    color: var(--colors-text);
+}
+
+.happy2-app-shell__panel-toggle:focus-visible {
+    outline: 2px solid var(--colors-radio-active);
+    outline-offset: 1px;
 }

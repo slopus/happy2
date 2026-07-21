@@ -94,6 +94,7 @@ const passiveActions: ChatPageActions = {
     agentEffortChange: async () => undefined,
     directMessageCreate: async () => undefined,
     messageSend: () => undefined,
+    sharedLinkOpen: () => undefined,
 };
 export function ChatStorePage() {
     const [{ sidebar, directory, chatSurface, composer }] = useState(() => {

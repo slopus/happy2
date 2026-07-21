@@ -20,7 +20,7 @@ import {
     pluginOpenAppNavigate,
     type PluginNavigationSurface,
 } from "../pluginContributions";
-import { openExternalLink } from "./AppsView";
+import { openExternalLink } from "../externalLink";
 
 export interface PluginAppOverlayViewProps {
     state: HappyState;

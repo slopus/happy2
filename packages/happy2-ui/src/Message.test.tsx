@@ -11,7 +11,7 @@ function stage(testid: string, children: ReactNode) {
         <div
             data-testid={testid}
             style={{
-                background: "#f2f2f7",
+                background: "#f5f5f5",
                 boxSizing: "border-box",
                 display: "flex",
                 flexDirection: "column",
@@ -47,6 +47,16 @@ async function glyphVsPill(part: () => RenderedElement<Element>) {
     return {
         dx: glyph.center.x - (bg.bounds.x + bg.bounds.width / 2),
         dy: glyph.center.y - (bg.bounds.y + bg.bounds.height / 2),
+    };
+}
+async function glyphVsBox(part: () => RenderedElement<Element>) {
+    const box = part();
+    const glyph = await box.visibleMetrics();
+    const bounds = box.bounds();
+    expect(glyph.pixelCount, "label glyph pixels").toBeGreaterThan(0);
+    return {
+        dx: glyph.center.x - bounds.width / 2,
+        dy: glyph.center.y - bounds.height / 2,
     };
 }
 it("shows the audience pill in the meta row without shifting author or time vertically", async () => {
@@ -106,7 +116,7 @@ it("shows the audience pill in the meta row without shifting author or time vert
         "font-size": "10px",
         "font-weight": "700",
         "border-radius": "999px",
-        color: "rgb(43, 172, 204)",
+        color: "rgb(0, 122, 255)",
     });
     const ink = await audience.visibleMetrics();
     expect(ink.pixelCount).toBeGreaterThan(0);
@@ -151,6 +161,7 @@ it("shows the audience pill in the meta row without shifting author or time vert
 it("holds Message anatomy, segment styling, and affordances", async () => {
     const view = createRenderer();
     const selectedEmoji: string[] = [];
+    let replies = 0;
     let adds = 0;
     view.render(
         () =>
@@ -169,17 +180,19 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
                     ]}
                     onReactionSelect={(emoji) => selectedEmoji.push(emoji)}
                     onReactionAdd={() => (adds += 1)}
+                    onReplySelect={() => (replies += 1)}
                     reactions={[
                         { count: 1, emoji: "👍" },
                         { active: true, count: 12, emoji: "🎉" },
                         { count: 128, emoji: "🚀" },
                     ]}
+                    replyCount={3}
                     time="10:42"
                     tone="amber"
                 />,
             ),
         /* Taller stage: the human body now wraps in a padded bubble, pushing
-           the reactions row further down. */
+           the reactions and reply rows further down. */
         { width: 560, height: 150 },
     );
     view.render(
@@ -319,7 +332,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(authorMetrics.ink.width).toBeGreaterThan(0);
     const time = view.$('[data-testid="m1"] [data-happy2-ui="message-time"]');
     expect(time.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-size": "11px",
         "font-weight": "500",
     });
@@ -335,7 +348,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(tag.element.textContent).toBe("AGENT");
     expect(tag.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
     expect(tag.computedStyles(["color", "font-size", "font-weight", "text-transform"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-size": "11px",
         "font-weight": "600",
         "text-transform": "uppercase",
@@ -372,9 +385,9 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
             "padding-right",
         ]),
     ).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+        "background-color": "color(srgb 0 0.478431 1 / 0.14)",
         "border-radius": "4px",
-        color: "rgb(43, 172, 204)",
+        color: "rgb(0, 122, 255)",
         "font-weight": "500",
         "padding-left": "5px",
         "padding-right": "5px",
@@ -390,7 +403,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect((await code.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     const link = view.$('[data-testid="m1"] [data-happy2-ui="message-link"]');
     expect(link.computedStyles(["color", "text-decoration-line"])).toEqual({
-        color: "rgb(43, 172, 204)",
+        color: "rgb(0, 122, 255)",
         "text-decoration-line": "none",
     });
     expect((await link.visibleMetrics()).pixelCount).toBeGreaterThan(0);
@@ -432,7 +445,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(addButton.computedStyles(["background-color", "border-radius", "color"])).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
         "border-radius": "999px",
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
     });
     const addIcon = await view
         .$('[data-testid="m1"] [data-happy2-ui="message-react-add"] svg')
@@ -442,6 +455,18 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     (addButton.element as HTMLButtonElement).click();
     expect(selectedEmoji).toEqual(["👍"]);
     expect(adds).toBe(1);
+    /* ---- Reply affordance ------------------------------------------------ */
+    const repliesButton = view.$('[data-testid="m1"] [data-happy2-ui="message-replies"]');
+    expect(repliesButton.element.tagName).toBe("BUTTON");
+    expect(repliesButton.element.textContent).toBe("3 replies");
+    expect(repliesButton.computedStyles(["color", "font-size", "font-weight"])).toEqual({
+        color: "rgb(0, 122, 255)",
+        "font-size": "12px",
+        "font-weight": "700",
+    });
+    expect((await repliesButton.visibleMetrics()).pixelCount).toBeGreaterThan(0);
+    (repliesButton.element as HTMLButtonElement).click();
+    expect(replies).toBe(1);
     /* ---- Attachment slot -------------------------------------------------- */
     const m2Body = view.$('[data-testid="m2"] [data-happy2-ui="message-body"]');
     const attachments = view.$('[data-testid="m2"] [data-happy2-ui="message-attachments"]');
@@ -464,7 +489,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     ).toBeNull();
     const gutterTime = view.$('[data-testid="m3"] [data-happy2-ui="message-gutter-time"]');
     expect(gutterTime.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-size": "11px",
         "line-height": "22px",
     });
@@ -617,6 +642,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
     const view = createRenderer();
     const reactions: string[] = [];
     const menuSelections: string[] = [];
+    let threadStarts = 0;
     const messageMenu = [
         { kind: "item" as const, id: "copy-link", icon: "link" as const, label: "Copy link" },
         { kind: "item" as const, id: "edit", icon: "edit" as const, label: "Edit message" },
@@ -637,6 +663,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
                     menuItems={messageMenu}
                     onMenuSelect={(id) => menuSelections.push(id)}
                     onReactionSelect={(id) => reactions.push(id)}
+                    onReplySelect={() => (threadStarts += 1)}
                     reactionOptions={reactionOptions}
                     time="10:55"
                     tone="ocean"
@@ -680,6 +707,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
                     body="Waiting for acknowledgement."
                     deliveryState="sending"
                     grouped
+                    onReplySelect={() => {}}
                     time="11:03"
                 />,
             ),
@@ -693,7 +721,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
         ),
     ).toBeNull();
     const toolbar = view.$('[data-testid="actions"] [data-happy2-ui="message-actions"]');
-    expect(toolbar.bounds()).toEqual({ x: 478, y: 4, width: 62, height: 34 });
+    expect(toolbar.bounds()).toEqual({ x: 450, y: 4, width: 90, height: 34 });
     expect(
         toolbar.computedStyles([
             "background-color",
@@ -708,7 +736,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
             "position",
         ]),
     ).toEqual({
-        "background-color": "rgb(248, 248, 248)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "6px",
         display: "flex",
         opacity: "1",
@@ -722,16 +750,19 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
     const actionButtons = toolbar.element.querySelectorAll<HTMLButtonElement>(
         '[data-happy2-ui="button"]',
     );
-    expect(actionButtons.length).toBe(2);
+    expect(actionButtons.length).toBe(3);
     expect(Array.from(actionButtons, (button) => button.getAttribute("aria-label"))).toEqual([
         "Add reaction",
+        "Start thread",
         "More message actions",
     ]);
     for (const button of actionButtons) {
         expect(button.getBoundingClientRect().width).toBe(28);
         expect(button.getBoundingClientRect().height).toBe(28);
     }
-    /* The picker/menu popovers perform actual selections. */
+    /* Thread callback and the picker/menu popovers perform actual selections. */
+    actionButtons[1]?.click();
+    expect(threadStarts).toBe(1);
     actionButtons[0]?.click();
     await nextFrame();
     const picker = view.$('[data-testid="actions"] [data-happy2-ui="emoji-picker"]');
@@ -747,12 +778,12 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
     expect(
         view.container.querySelector('[data-testid="actions"] [data-happy2-ui="emoji-picker"]'),
     ).toBeNull();
-    actionButtons[1]?.click();
+    actionButtons[2]?.click();
     await nextFrame();
     const menu = view.$('[data-testid="actions"] [data-happy2-ui="menu"]');
     assertParallelRoundedCorners(view.container);
     expect(menu.bounds().width).toBe(196);
-    expect(actionButtons[1]?.getAttribute("aria-expanded")).toBe("true");
+    expect(actionButtons[2]?.getAttribute("aria-expanded")).toBe("true");
     const edit = view.$('[data-testid="actions"] [data-item-id="edit"]');
     (edit.element as HTMLButtonElement).click();
     await nextFrame();
@@ -761,13 +792,13 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
         view.container.querySelector('[data-testid="actions"] [data-happy2-ui="menu"]'),
     ).toBeNull();
     /* Escape and an outside pointer both dismiss without selecting an action. */
-    actionButtons[1]?.click();
-    actionButtons[1]?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+    actionButtons[2]?.click();
+    actionButtons[2]?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
     await nextFrame();
     expect(
         view.container.querySelector('[data-testid="actions"] [data-happy2-ui="menu"]'),
     ).toBeNull();
-    actionButtons[1]?.click();
+    actionButtons[2]?.click();
     await nextFrame();
     document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
     await nextFrame();
@@ -935,10 +966,9 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
     expect(Math.abs(gutterBaseline - bodyBaseline), "gutter time baseline").toBeLessThanOrEqual(
         1.75,
     );
-    /* ---- DayDivider pill ---------------------------------------------------- */
-    /* "TODAY" is glyph-symmetric enough for both axes. Measured drift
-       dx <= 0.16, dy <= 0.33 across engines. */
-    const todayDrift = await glyphVsPill(() =>
+    /* ---- Plain DayDivider label -------------------------------------------- */
+    /* "TODAY" is glyph-symmetric enough for both axes. */
+    const todayDrift = await glyphVsBox(() =>
         view.$('[data-testid="d1"] [data-happy2-ui="day-divider-label"]'),
     );
     expect(Math.abs(todayDrift.dx), "divider TODAY optical x").toBeLessThanOrEqual(0.75);
@@ -946,22 +976,28 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
     /* Long and punctuated labels have content-weighted ink ("MON," is denser
        than the lone "3"), so they assert the vertical centroid only. */
     for (const testid of ["d2", "d3"] as const) {
-        const drift = await glyphVsPill(() =>
+        const drift = await glyphVsBox(() =>
             view.$(`[data-testid="${testid}"] [data-happy2-ui="day-divider-label"]`),
         );
         expect(Math.abs(drift.dy), `divider ${testid} optical y`).toBeLessThanOrEqual(0.75);
     }
-    /* The advance box is centered via the letter-spacing trim on the right pad. */
+    /* The unfilled label has no capsule padding. */
     const label = view.$('[data-testid="d1"] [data-happy2-ui="day-divider-label"]');
     expect(label.computedStyles(["letter-spacing", "padding-left", "padding-right"])).toEqual({
         "letter-spacing": "0.66px",
-        "padding-left": "10px",
-        "padding-right": "9.34px",
+        "padding-left": "0px",
+        "padding-right": "0px",
     });
-    /* The pill is horizontally centered over the divider row. */
+    /* The label is horizontally centered in the divider row. */
     const divider = view.$('[data-testid="d1"] [data-happy2-ui="day-divider"]');
     const dividerBounds = divider.bounds();
     const labelBounds = label.bounds();
+    expect(divider.computedStyles(["padding-bottom", "padding-top"])).toEqual({
+        "padding-bottom": "20px",
+        "padding-top": "20px",
+    });
+    expect(labelBounds.y - dividerBounds.y).toBe(20);
+    expect(dividerBounds.y + dividerBounds.height - (labelBounds.y + labelBounds.height)).toBe(20);
     expect(
         Math.abs(
             labelBounds.x + labelBounds.width / 2 - (dividerBounds.x + dividerBounds.width / 2),
@@ -1029,12 +1065,7 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
         () =>
             stage(
                 "sparse",
-                <MessageList
-                    intro={{
-                        description: "Ship mobile v2 by Friday. Humans and agents coordinate here.",
-                        title: "Welcome to #launch-week",
-                    }}
-                >
+                <MessageList>
                     <DayDivider label="Today" />
                     <Message
                         author="Maya Johnson"
@@ -1089,33 +1120,15 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
     /* The spacer absorbs the free space above the history. */
     const spacer = view.$('[data-testid="sparse"] [data-happy2-ui="message-list-spacer"]');
     expect(spacer.bounds().height).toBe(0);
-    const intro = view.$('[data-testid="sparse"] [data-happy2-ui="message-list-intro"]');
-    expect(intro.offsets().top).toBeGreaterThan(80);
     /* The newest message sits exactly against the 12px bottom padding. */
     const lastMessage = view.$('[data-testid="sparse-last"]');
     const lastBottom = lastMessage.bounds().y + lastMessage.bounds().height;
     expect(Math.abs(lastBottom - (sparse.bounds().y + 360 - 12))).toBeLessThanOrEqual(1);
-    /* Chronology preserved: intro, divider, first, last from top to bottom. */
+    /* Chronology preserved: divider, first, last from top to bottom. */
     const divider = view.$('[data-testid="sparse"] [data-happy2-ui="day-divider"]');
     const firstMessage = view.$('[data-testid="sparse-first"]');
-    expect(intro.bounds().y).toBeLessThan(divider.bounds().y);
     expect(divider.bounds().y).toBeLessThan(firstMessage.bounds().y);
     expect(firstMessage.bounds().y).toBeLessThan(lastMessage.bounds().y);
-    /* Intro typography. */
-    const title = view.$('[data-testid="sparse"] [data-happy2-ui="message-list-intro-title"]');
-    expect(title.textMetrics().font.size).toBe(17);
-    expect(title.textMetrics().font.weight).toBe("800");
-    expect(title.textMetrics().font.lineHeight).toBe(24);
-    expect((await title.visibleMetrics()).pixelCount).toBeGreaterThan(0);
-    const description = view.$(
-        '[data-testid="sparse"] [data-happy2-ui="message-list-intro-description"]',
-    );
-    expect(description.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(142, 142, 147)",
-        "font-size": "13px",
-        "line-height": "20px",
-    });
-    expect((await description.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     /* ---- DayDivider geometry --------------------------------------------- */
     const label = view.$('[data-testid="sparse"] [data-happy2-ui="day-divider-label"]');
     expect(label.bounds().height).toBe(20);
@@ -1129,21 +1142,19 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
             "text-transform",
         ]),
     ).toEqual({
-        "background-color": "rgb(245, 245, 245)",
-        "border-radius": "999px",
-        color: "rgb(142, 142, 147)",
+        "background-color": "rgba(0, 0, 0, 0)",
+        "border-radius": "0px",
+        color: "rgb(73, 69, 79)",
         "font-size": "11px",
         "font-weight": "700",
         "text-transform": "uppercase",
     });
     expect(label.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
-    const lines = view.container.querySelectorAll(
-        '[data-testid="sparse"] [data-happy2-ui="day-divider-line"]',
-    );
-    expect(lines.length).toBe(2);
-    const line = view.$('[data-testid="sparse"] [data-happy2-ui="day-divider-line"]');
-    expect(line.bounds().height).toBe(1);
-    expect(line.computedStyle("background-color")).toBe("rgb(234, 234, 234)");
+    expect(
+        view.container.querySelectorAll(
+            '[data-testid="sparse"] [data-happy2-ui="day-divider-line"]',
+        ).length,
+    ).toBe(0);
     await view.screenshot("MessageList.test");
 });
 it("virtualizes long MessageList histories with bounded mounted rows", async () => {
@@ -1614,7 +1625,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     const caret = view.$('[data-testid="md-stream"] [data-happy2-ui="message-stream-caret"]');
     expect(caret.bounds().width).toBe(8);
     expect(caret.bounds().height).toBe(16);
-    expect(caret.computedStyle("background-color")).toBe("rgb(43, 172, 204)");
+    expect(caret.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     /* Streamed content is never dimmed — that treatment is reserved for delivery. */
     const streamContent = view.$('[data-testid="md-stream"] [data-happy2-ui="message-content"]');
     expect(streamContent.computedStyle("opacity")).toBe("1");
@@ -1652,7 +1663,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     expect(failedRoot.element.getAttribute("aria-busy")).toBeNull();
     const failed = view.$('[data-testid="md-failed"] [data-happy2-ui="message-generation-failed"]');
     expect(failed.element.getAttribute("aria-label")).toBe("Generation failed");
-    expect(failed.computedStyle("background-color")).toBe("rgb(255, 59, 48)");
+    expect(failed.computedStyle("background-color")).toBe("rgb(244, 67, 54)");
     const failedParagraph = view.$('[data-testid="md-failed"] [data-happy2-ui="message-body"] p');
     const failedParagraphBounds = failedParagraph.bounds();
     const failedBounds = failed.bounds();
@@ -1757,7 +1768,7 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     /* ---- Text + ref color/weight contract --------------------------------- */
     const text = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-text"]');
     expect(text.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(102, 102, 102)",
+        color: "rgb(73, 69, 79)",
         "font-size": "13px",
         "font-weight": "400",
         "line-height": "20px",
@@ -1769,7 +1780,7 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     expect(Array.from(refs, (node) => node.textContent)).toEqual(["@ada", "#welcome"]);
     const firstRef = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-ref"]');
     expect(firstRef.computedStyles(["color", "font-weight"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-weight": "500",
     });
     /* The by-@ada actor and both refs survive in a multi-ref line. */
@@ -1783,7 +1794,7 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     ]);
     /* ---- Leading glyph: faint, 14px, painted -------------------------------- */
     const iconSlot = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"]');
-    expect(iconSlot.computedStyle("color")).toBe("rgb(102, 102, 102)");
+    expect(iconSlot.computedStyle("color")).toBe("rgb(153, 153, 153)");
     const iconSvg = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"] svg');
     const iconBounds = iconSvg.bounds();
     expect(iconBounds.width).toBe(14);

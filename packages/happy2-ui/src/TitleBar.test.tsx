@@ -407,7 +407,7 @@ it("holds SearchField geometry, colors, and optical centering", async () => {
     expect(icon.bounds().y - field.bounds().y).toBe(9);
     expect(iconGlyph.bounds().width).toBe(14);
     expect(iconGlyph.bounds().height).toBe(14);
-    expect(icon.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(icon.computedStyle("color")).toBe("rgb(73, 69, 79)");
     const iconVisible = await iconGlyph.visibleMetrics();
     expect(iconVisible.pixelCount).toBeGreaterThan(0);
     expect(

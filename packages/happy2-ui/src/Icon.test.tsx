@@ -1,74 +1,21 @@
 import { expect, it } from "vitest";
-import { Icon, iconNames, type IconName } from "./Icon";
+import { Icon, iconNames } from "./Icon";
+import { ioniconsGlyphs } from "./vectorIcons/ioniconsGlyphs";
+import { octiconsGlyphs } from "./vectorIcons/octiconsGlyphs";
 import { createRenderer } from "./testing";
 import "./styles.css";
 const SIZES = [12, 14, 16, 18, 20] as const;
-/* Sizes the optical-centering contract is enforced at (px). */
-const OPTICAL_SIZES = [14, 16, 20] as const;
 /*
- * Alpha-weighted ink centroid must sit on the box center within this many CSS
- * px on both axes, at every optical size, in every engine. Measured drift
- * after tuning is <= 0.4px everywhere; the extra headroom absorbs
- * engine-specific stroke rasterization at small sizes.
+ * Icon is now font-backed: each curated name resolves to one Private Use Area
+ * glyph in the Ionicons or Octicons font. The geometry contract is the square
+ * font box (size sets both font-size and box), the correct per-set font
+ * resolution, and the stable data-name/data-happy2-ui parts call sites and
+ * other component tests key on. Optical centering belongs to the font, so the
+ * old SVG stroke/viewBox/centroid assertions are replaced by a real-ink proof
+ * (non-zero visible pixels, which also proves the font actually loaded) for
+ * every name in every engine.
  */
-const CENTER_TOLERANCE = 0.6;
-/*
- * Directional glyphs deliberately carry off-center ink on the named axis, so
- * the centroid assertion is skipped there (visible-bounds sanity still runs).
- * Every axis not listed here is asserted at CENTER_TOLERANCE.
- */
-const DIRECTIONAL: Partial<
-    Record<
-        IconName,
-        {
-            skip: "x" | "xy";
-            reason: string;
-        }
-    >
-> = {
-    "arrow-right": {
-        skip: "x",
-        reason: "arrowhead mass pulls the centroid right; the shaft is bounds-centered",
-    },
-    play: {
-        skip: "x",
-        reason: "right-pointing triangle keeps a deliberate rightward centroid bias",
-    },
-    reply: {
-        skip: "x",
-        reason: "return-arrow head and curve stack ink on the left by design",
-    },
-    send: {
-        skip: "xy",
-        reason: "diagonal paper plane points up-right; ink is corner-weighted by design",
-    },
-    terminal: {
-        skip: "xy",
-        reason: "prompt chevron + baseline underscore are corner-weighted like a text label",
-    },
-};
-/*
- * A plain filled square centered in an icon-sized box, rendered at the exact
- * fixture position each glyph is measured at. Its measured centroid calibrates
- * away the element-capture origin error (the tester iframe can be scaled and
- * fractionally offset inside the outer page, which shifts and quantizes every
- * capture identically), so glyph drift is asserted differentially against it.
- */
-function ControlSquare(props: { size: number }) {
-    const inset = `${Math.round(props.size * 0.35 * 100) / 100}px`;
-    return (
-        <div
-            style={{
-                width: `${props.size}px`,
-                height: `${props.size}px`,
-                position: "relative",
-            }}
-        >
-            <div style={{ position: "absolute", inset, background: "#ffffff" }} />
-        </div>
-    );
-}
-it("holds Icon box geometry across sizes", async () => {
+it("holds Icon box geometry, font, and PUA glyph across sizes", async () => {
     const view = createRenderer();
     for (const size of SIZES) {
         view.render(
@@ -84,6 +31,14 @@ it("holds Icon box geometry across sizes", async () => {
         () => (
             <div data-testid="icon-default" style={{ display: "flex" }}>
                 <Icon name="check" />
+            </div>
+        ),
+        { width: 44, height: 44, padding: 12 },
+    );
+    view.render(
+        () => (
+            <div data-testid="icon-octicon" style={{ display: "flex" }}>
+                <Icon name="branch" size={20} />
             </div>
         ),
         { width: 44, height: 44, padding: 12 },
@@ -107,149 +62,91 @@ it("holds Icon box geometry across sizes", async () => {
     await view.ready();
     for (const size of SIZES) {
         const icon = view.$(`[data-testid="icon-size-${size}"] [data-happy2-ui="icon"]`);
-        expect(icon.bounds()).toEqual({ x: 12, y: 12, width: size, height: size });
+        expect(icon.bounds(), `icon ${size} box`).toEqual({
+            x: 12,
+            y: 12,
+            width: size,
+            height: size,
+        });
         expect(
-            icon.computedStyles([
-                "box-sizing",
-                "display",
-                "fill",
-                "flex-grow",
-                "flex-shrink",
-                "stroke-linecap",
-                "stroke-linejoin",
-                "stroke-width",
-            ]),
+            icon.computedStyles(["box-sizing", "display", "flex-grow", "flex-shrink"]),
+            `icon ${size} styles`,
         ).toEqual({
             "box-sizing": "border-box",
-            display: "block",
-            fill: "none",
+            /* inline-flex is blockified to flex here because each fixture wraps
+             * the icon in a display:flex parent, making it a flex item. */
+            display: "flex",
             "flex-grow": "0",
             "flex-shrink": "0",
-            "stroke-linecap": "round",
-            "stroke-linejoin": "round",
-            "stroke-width": "1.7px",
         });
-        expect(icon.element.getAttribute("viewBox")).toBe("0 0 20 20");
+        expect(icon.computedStyle("font-family").replaceAll('"', ""), `icon ${size} font`).toBe(
+            "happy2 Ionicons",
+        );
+        expect(icon.element.textContent, `icon ${size} glyph`).toBe(
+            String.fromCodePoint(ioniconsGlyphs["file-tray-outline"]),
+        );
     }
     const fallback = view.$('[data-testid="icon-default"] [data-happy2-ui="icon"]');
     expect(fallback.bounds()).toEqual({ x: 12, y: 12, width: 16, height: 16 });
     expect(fallback.element.getAttribute("aria-hidden")).toBe("true");
     expect(fallback.element.getAttribute("role")).toBeNull();
     expect(fallback.element.getAttribute("data-name")).toBe("check");
+    expect(fallback.element.getAttribute("data-set")).toBe("ionicons");
+    const octicon = view.$('[data-testid="icon-octicon"] [data-happy2-ui="icon"]');
+    expect(octicon.computedStyle("font-family").replaceAll('"', "")).toBe("happy2 Octicons");
+    expect(octicon.element.getAttribute("data-set")).toBe("octicons");
+    expect(octicon.element.getAttribute("data-name")).toBe("branch");
+    expect(octicon.element.textContent).toBe(String.fromCodePoint(octiconsGlyphs["git-branch"]));
     const inherit = view.$('[data-testid="icon-inherit"] [data-happy2-ui="icon"]');
-    expect(inherit.computedStyles(["color", "stroke"])).toEqual({
-        color: "rgb(142, 142, 147)",
-        stroke: "rgb(142, 142, 147)",
-    });
+    expect(inherit.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const colored = view.$('[data-testid="icon-colored"] [data-happy2-ui="icon"]');
-    expect(colored.computedStyles(["color", "stroke"])).toEqual({
-        color: "rgb(0, 122, 255)",
-        stroke: "rgb(0, 122, 255)",
-    });
+    expect(colored.computedStyle("color")).toBe("rgb(0, 122, 255)");
     expect(colored.element.getAttribute("aria-label")).toBe("Notifications");
     expect(colored.element.getAttribute("role")).toBe("img");
     expect(colored.element.getAttribute("aria-hidden")).toBeNull();
 });
-it("renders the entire pinned glyph set on the 20-unit grid", async () => {
+it("paints real ink for every curated glyph in its box", async () => {
+    const size = 20;
+    const columns = 8;
+    const gap = 12;
+    const rows = Math.ceil(iconNames.length / columns);
     const view = createRenderer().render(
         () => (
             <div
                 data-testid="icon-sheet"
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(7, 28px)",
-                    justifyItems: "center",
-                    alignItems: "center",
-                    gap: "4px",
-                    color: "#ffffff",
+                    alignItems: "flex-start",
+                    color: "#111111",
+                    background: "#ffffff",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: `${gap}px`,
+                    width: `${columns * size + (columns - 1) * gap}px`,
                 }}
             >
                 {iconNames.map((name) => (
-                    <Icon key={name} name={name} size={20} />
+                    <Icon key={name} name={name} size={size} />
                 ))}
             </div>
         ),
-        { width: 248, height: 236, padding: 12 },
+        {
+            height: rows * size + (rows - 1) * gap + 24,
+            padding: 12,
+            width: columns * size + (columns - 1) * gap + 24,
+        },
     );
     await view.ready();
     expect(iconNames.length).toBe(48);
-    for (const name of iconNames) {
-        const icon = view.$(`[data-name="${name}"]`);
-        const bounds = icon.bounds();
-        expect(bounds.width, name).toBe(20);
-        expect(bounds.height, name).toBe(20);
-        expect(icon.element.getAttribute("data-happy2-ui")).toBe("icon");
+    const parts = iconNames.map((name) => view.$(`[data-name="${name}"]`));
+    const metrics = await view.visibleMetrics(parts);
+    for (const [index, name] of iconNames.entries()) {
+        const part = parts[index]!;
+        const visible = metrics.get(part)!;
+        /* A blank capture means the font never loaded or the codepoint is wrong. */
+        expect(visible.pixelCount, `${name} ink`).toBeGreaterThan(0);
+        expect(part.bounds().width, `${name} box`).toBe(size);
+        expect(part.bounds().height, `${name} box`).toBe(size);
+        expect(part.element.getAttribute("data-happy2-ui")).toBe("icon");
     }
     await view.screenshot("Icon.test");
 });
-for (const size of OPTICAL_SIZES) {
-    it(`centers glyph ink optically at size ${size}`, async () => {
-        const columns = 8;
-        const gap = 12;
-        const rows = Math.ceil((iconNames.length + 1) / columns);
-        const view = createRenderer().render(
-            () => (
-                <div
-                    data-testid="optical-fixtures"
-                    style={{
-                        alignItems: "flex-start",
-                        color: "#ffffff",
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: `${gap}px`,
-                        width: `${columns * size + (columns - 1) * gap}px`,
-                    }}
-                >
-                    <ControlSquare size={size} />
-                    {iconNames.map((name) => (
-                        <Icon key={name} name={name} size={size} />
-                    ))}
-                </div>
-            ),
-            {
-                height: rows * size + (rows - 1) * gap + 24,
-                padding: 12,
-                width: columns * size + (columns - 1) * gap + 24,
-            },
-        );
-        await view.ready();
-        const controlPart = view.$('[data-testid="optical-fixtures"] > :first-child');
-        const parts = [controlPart, ...iconNames.map((name) => view.$(`[data-name="${name}"]`))];
-        /*
-         * All fixtures share one integer-aligned Retina surface. The harness
-         * reconstructs each element from its true DOM rectangle after taking
-         * one black/white pair, so the control still calibrates the glyphs
-         * without 46 independent screenshot pairs.
-         */
-        const metrics = await view.visibleMetrics(parts);
-        const control = metrics.get(controlPart)!;
-        /* A blank or catastrophically misaligned capture can never pass. */
-        expect(control.pixelCount).toBeGreaterThan(0);
-        expect(Math.abs(control.center.x - size / 2)).toBeLessThanOrEqual(2);
-        expect(Math.abs(control.center.y - size / 2)).toBeLessThanOrEqual(2);
-        const drifted: Array<{
-            name: IconName;
-            dx: number;
-            dy: number;
-        }> = [];
-        for (const [index, name] of iconNames.entries()) {
-            const icon = metrics.get(parts[index + 1]!);
-            if (!icon) throw new Error(`Missing visible-pixel metrics for ${name}.`);
-            /* Ink must exist and paint fully inside the icon box. */
-            expect(icon.pixelCount, name).toBeGreaterThan(0);
-            expect(icon.bounds.width, name).toBeGreaterThan(size * 0.2);
-            expect(icon.bounds.height, name).toBeGreaterThan(size * 0.1);
-            expect(icon.bounds.x, name).toBeGreaterThanOrEqual(0);
-            expect(icon.bounds.y, name).toBeGreaterThanOrEqual(0);
-            expect(icon.bounds.x + icon.bounds.width, name).toBeLessThanOrEqual(size);
-            expect(icon.bounds.y + icon.bounds.height, name).toBeLessThanOrEqual(size);
-            const skip = DIRECTIONAL[name]?.skip ?? "";
-            const dx = Math.round((icon.center.x - control.center.x) * 1000) / 1000;
-            const dy = Math.round((icon.center.y - control.center.y) * 1000) / 1000;
-            const xDrifts = !skip.includes("x") && Math.abs(dx) > CENTER_TOLERANCE;
-            const yDrifts = !skip.includes("y") && Math.abs(dy) > CENTER_TOLERANCE;
-            if (xDrifts || yDrifts) drifted.push({ name, dx, dy });
-        }
-        expect(drifted).toEqual([]);
-    }, 240000);
-}

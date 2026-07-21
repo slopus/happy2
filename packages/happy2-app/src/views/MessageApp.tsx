@@ -1,6 +1,7 @@
 import { useLayoutEffect, useReducer, useRef, type ReactNode } from "react";
 import type { HappyState, McpAppHandle, McpAppSnapshot } from "happy2-state";
 import { McpAppShell, StoreSurface, type McpAppRenderInput } from "happy2-ui";
+import { openExternalLink } from "../externalLink";
 
 export interface MessageAppProps {
     state: HappyState;
@@ -72,20 +73,4 @@ function renderShell(
             />
         );
     return <McpAppShell status="loading" toolName={input.toolName} />;
-}
-
-/**
- * Opens an app-requested external link only when it is a plain web URL. An
- * untrusted app can ask to open a link, so anything but http/https is refused,
- * and the new context is fully severed from Happy with noopener/noreferrer.
- */
-function openExternalLink(url: string): void {
-    let parsed: URL;
-    try {
-        parsed = new URL(url);
-    } catch {
-        return;
-    }
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
-    window.open(parsed.href, "_blank", "noopener,noreferrer");
 }

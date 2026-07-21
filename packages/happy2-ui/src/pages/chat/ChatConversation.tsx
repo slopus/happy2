@@ -1,11 +1,8 @@
-import { useRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import type { AgentActivityState, DeepReadonly } from "happy2-state";
 import {
-    AgentActivityStrip,
-    Box,
     Button,
     ChannelHeader,
-    Composer,
     MessageList,
     PortShareControl,
     TerminalPanel,
@@ -15,7 +12,8 @@ import {
 } from "./ChatPageComponents.js";
 import type { TerminalSnapshot } from "happy2-state";
 import type { AudienceValue } from "../../AudienceToggle.js";
-import { emojiItems, type Conversation, type PortShareView } from "./chatPageModels.js";
+import { ComposerDock } from "./ComposerDock.js";
+import { type Conversation, type PortShareView } from "./chatPageModels.js";
 export interface ChatConversationProps {
     conversation: Conversation;
     activeConversationId: string;
@@ -67,7 +65,6 @@ export interface ChatConversationProps {
     onTerminalResize(cols: number, rows: number): void;
 }
 export function ChatConversation(props: ChatConversationProps) {
-    const fileInput = useRef<HTMLInputElement>(null);
     return (
         <div className="happy2-chat-conversation" data-happy2-ui="chat-conversation">
             <ChannelHeader
@@ -139,60 +136,29 @@ export function ChatConversation(props: ChatConversationProps) {
                 title={props.conversation.title}
                 topic={props.conversation.topic}
             />
-            <MessageList intro={props.conversation.intro} virtualize>
-                {props.messageEntries}
-            </MessageList>
-            <Box className="happy2-chat-conversation__dock">
-                <Box className="happy2-chat-conversation__compose">
-                    {props.activities.length > 0 ? (
-                        <AgentActivityStrip
-                            now={props.activityNow}
-                            // Rig subagent/terminal ids are only unique per agent, so
-                            // two concurrently active agents need namespaced row keys.
-                            subagents={props.activities.flatMap((activity) =>
-                                activity.subagents.map((subagent) => ({
-                                    ...subagent,
-                                    id: `${activity.agentUserId}:${subagent.id}`,
-                                })),
-                            )}
-                            terminals={props.activities.flatMap((activity) =>
-                                activity.backgroundTerminals.map((terminal) => ({
-                                    ...terminal,
-                                    id: `${activity.agentUserId}:${terminal.id}`,
-                                })),
-                            )}
-                        />
-                    ) : null}
-                    <input
-                        hidden
-                        multiple
-                        onChange={(event) => props.onFilesSelected(event.currentTarget.files)}
-                        ref={fileInput}
-                        type="file"
-                    />
-                    <Composer
-                        audience={props.composerAudience}
-                        contributions={props.composerContributions}
-                        contextItems={props.contextItems}
-                        disabled={props.composerDisabled}
-                        emoji={emojiItems}
-                        compactHint={props.composerCompactHint}
-                        hint={props.composerHint}
-                        mentions={props.composerMentions}
-                        onAttachFile={() => fileInput.current?.click()}
-                        onMentionSelect={props.onMentionSelect}
-                        onAudienceChange={props.onAudienceChange}
-                        onContextRemove={props.onContextRemove}
-                        onFocusChange={props.onComposerFocusChange}
-                        onSend={props.onSend}
-                        onValueChange={props.onValueChange}
-                        pending={props.composerPending}
-                        placeholder={props.conversation.composerPlaceholder}
-                        sendEnabled={props.composerSendEnabled}
-                        value={props.composerValue}
-                    />
-                </Box>
-            </Box>
+            <MessageList virtualize>{props.messageEntries}</MessageList>
+            <ComposerDock
+                activities={props.activities}
+                activityNow={props.activityNow}
+                composerAudience={props.composerAudience}
+                composerCompactHint={props.composerCompactHint}
+                composerContributions={props.composerContributions}
+                composerDisabled={props.composerDisabled}
+                composerHint={props.composerHint}
+                composerMentions={props.composerMentions}
+                composerPending={props.composerPending}
+                composerSendEnabled={props.composerSendEnabled}
+                composerValue={props.composerValue}
+                contextItems={props.contextItems}
+                onAudienceChange={props.onAudienceChange}
+                onComposerFocusChange={props.onComposerFocusChange}
+                onContextRemove={props.onContextRemove}
+                onFilesSelected={props.onFilesSelected}
+                onMentionSelect={props.onMentionSelect}
+                onSend={props.onSend}
+                onValueChange={props.onValueChange}
+                placeholder={props.conversation.composerPlaceholder}
+            />
             {props.terminal ? (
                 <TerminalPanel
                     error={props.terminal.error?.message}

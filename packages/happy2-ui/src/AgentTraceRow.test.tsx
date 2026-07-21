@@ -161,7 +161,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         "border-radius": "999px",
     });
     expect(dotOf("tr-complete").computedStyle("background-color")).toBe("rgb(52, 199, 89)");
-    expect(dotOf("tr-failed").computedStyle("background-color")).toBe("rgb(255, 59, 48)");
+    expect(dotOf("tr-failed").computedStyle("background-color")).toBe("rgb(244, 67, 54)");
     const drift = await dotDrift(view, '[data-testid="tr-running"]');
     expect(Math.abs(drift), `dot lane drift ${drift}`).toBeLessThanOrEqual(0.5);
 
@@ -202,7 +202,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
             "white-space",
         ]),
     ).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-family": monoFamily(),
         "font-size": "11px",
         "overflow-x": "hidden",

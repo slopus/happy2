@@ -262,8 +262,8 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
             .computedStyle("background-color");
     expect(dotColor("running")).toBe("rgb(43, 172, 204)");
     expect(dotColor("completed")).toBe("rgb(52, 199, 89)");
-    expect(dotColor("error")).toBe("rgb(255, 59, 48)");
-    expect(dotColor("queued")).toBe("rgb(142, 142, 147)");
+    expect(dotColor("error")).toBe("rgb(244, 67, 54)");
+    expect(dotColor("queued")).toBe("rgb(73, 69, 79)");
     const runningDot = view.$(
         '[data-testid="strip-mixed"] [data-status="running"] [data-happy2-ui="agent-activity-strip-dot"]',
     );
@@ -303,7 +303,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
     expect(latest.element.textContent).toBe('grep -rn "sessionCreate" sources/modules');
     expect(latest.computedStyles(["color", "font-family", "text-overflow", "white-space"])).toEqual(
         {
-            color: "rgb(142, 142, 147)",
+            color: "rgb(73, 69, 79)",
             "font-family": monoFamily(),
             "text-overflow": "ellipsis",
             "white-space": "nowrap",
@@ -337,7 +337,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
     expect(
         meta.computedStyles(["color", "font-family", "font-size", "font-variant-numeric"]),
     ).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-family": monoFamily(),
         "font-size": "11px",
         "font-variant-numeric": "lining-nums tabular-nums",
@@ -383,7 +383,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
     expect(cwd.element.textContent).toBe("~/work/happy2");
     /* Plain ellipsis truncation only — no direction:rtl trick. */
     expect(cwd.computedStyles(["color", "direction", "text-overflow", "white-space"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         direction: "ltr",
         "text-overflow": "ellipsis",
         "white-space": "nowrap",

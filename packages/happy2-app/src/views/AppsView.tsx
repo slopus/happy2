@@ -24,6 +24,7 @@ import {
     type PluginNavigationSurface,
 } from "../pluginContributions";
 import { PluginInlineContribution } from "./PluginContributionRenderer";
+import { openExternalLink } from "../externalLink";
 
 export interface AppsViewProps {
     state: HappyState;
@@ -265,24 +266,6 @@ function renderManage(nav: PluginNavigationSurface, masks: PluginAssetMasks): Re
         />
     );
 }
-
-/**
- * Opens an app-requested external link only when it is a plain web URL. An
- * untrusted app can ask to open a link, so anything but http/https is refused,
- * and the new context is fully severed from Happy with noopener/noreferrer.
- */
-function openExternalLink(url: string): void {
-    let parsed: URL;
-    try {
-        parsed = new URL(url);
-    } catch {
-        return;
-    }
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
-    window.open(parsed.href, "_blank", "noopener,noreferrer");
-}
-
-export { openExternalLink };
 
 /** The stable list of app instances to show in the sidebar for the current viewer. */
 export function sidebarAppEntries(apps: readonly PluginAppSummary[]): readonly PluginAppSummary[] {

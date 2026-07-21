@@ -45,7 +45,7 @@ it("follows Happy's light and dark system palettes through shared component toke
     expect(
         view.$('[data-testid="dark-shell"]').computedStyles(["background-color", "color"]),
     ).toEqual({
-        "background-color": "rgb(24, 23, 28)",
+        "background-color": "rgb(33, 33, 33)",
         color: "rgb(255, 255, 255)",
     });
     expect(

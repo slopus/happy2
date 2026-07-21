@@ -183,7 +183,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
         font: { family: uiFont, lineHeight: 14, size: 11, weight: "500" },
         text: "48 MB",
     });
-    expect(size.computedStyle("color"), "size muted").toBe("rgb(142, 142, 147)");
+    expect(size.computedStyle("color"), "size muted").toBe("rgb(73, 69, 79)");
 
     /* ---- File glyph medallion (tile f1): centered 48px chip, 20px Icon --- */
 
@@ -208,7 +208,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
         "border-radius": "10px",
         "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
     });
 
     const icon = view.$(
@@ -219,7 +219,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
     // Centered in the 48px medallion: (48 - 20) / 2 = 14 (13 + 1px border).
     expect(icon.bounds().x - glyph.bounds().x, "icon left inset").toBe(14);
     expect(icon.bounds().y - glyph.bounds().y, "icon top inset").toBe(14);
-    expect(icon.computedStyle("stroke"), "icon stroke").toBe("rgb(142, 142, 147)");
+    expect(icon.computedStyle("stroke"), "icon stroke").toBe("rgb(73, 69, 79)");
 
     // Balanced glyph: alpha centroid on the medallion center (24, 24).
     const glyphInk = await ink(icon, glyph, "file glyph");

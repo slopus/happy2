@@ -276,7 +276,7 @@ it(
                     server.browser === "webkit"
                         ? entry.tone === "accent"
                             ? { x: -0.01, y: -0.09 }
-                            : { x: -0.01, y: -0.032 }
+                            : { x: -0.01, y: -0.006 }
                         : entry.tone === "accent"
                           ? { x: -0.013, y: -0.007 }
                           : { x: -0.011, y: -0.007 };
@@ -294,7 +294,7 @@ it(
                     server.browser === "webkit"
                         ? entry.tone === "accent"
                             ? 0.093
-                            : 0.164
+                            : 0.196
                         : entry.tone === "accent"
                           ? 0.192
                           : 0.195;
@@ -709,13 +709,16 @@ it("holds Badge family geometry, colors, and behavior", async () => {
             color: string;
         }
     > = {
-        neutral: { background: "rgb(245, 245, 245)", color: "rgb(142, 142, 147)" },
-        accent: { background: "rgba(0, 122, 255, 0.14)", color: "rgb(0, 122, 255)" },
-        success: { background: "rgba(52, 199, 89, 0.14)", color: "rgb(36, 138, 61)" },
-        warning: { background: "rgba(255, 149, 0, 0.14)", color: "rgb(201, 52, 0)" },
-        danger: { background: "rgba(255, 59, 48, 0.12)", color: "rgb(215, 0, 21)" },
-        info: { background: "rgba(0, 122, 255, 0.14)", color: "rgb(0, 122, 255)" },
-        outline: { background: "rgba(0, 0, 0, 0)", color: "rgb(142, 142, 147)" },
+        neutral: { background: "rgb(245, 245, 245)", color: "rgb(73, 69, 79)" },
+        accent: { background: "color(srgb 0 0.478431 1 / 0.14)", color: "rgb(0, 122, 255)" },
+        success: {
+            background: "color(srgb 0.203922 0.780392 0.34902 / 0.14)",
+            color: "rgb(52, 199, 89)",
+        },
+        warning: { background: "rgb(255, 248, 240)", color: "rgb(255, 149, 0)" },
+        danger: { background: "rgb(255, 240, 240)", color: "rgb(255, 107, 107)" },
+        info: { background: "color(srgb 0 0.478431 1 / 0.14)", color: "rgb(0, 122, 255)" },
+        outline: { background: "rgba(0, 0, 0, 0)", color: "rgb(73, 69, 79)" },
     };
     for (const variant of BADGE_VARIANTS) {
         const badge = view.$(`.g-${variant}`);
@@ -760,7 +763,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
         ).toBe("-0.6px");
     }
     expect(view.$(".g-outline").computedStyles(["border-top-color", "border-top-width"])).toEqual({
-        "border-top-color": "rgb(209, 209, 214)",
+        "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
     });
     expect(view.$(".g-default").element.getAttribute("data-variant")).toBe("neutral");
@@ -801,7 +804,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
         ).toEqual({
             "background-color": tone === "accent" ? "rgb(0, 122, 255)" : "rgb(245, 245, 245)",
             "border-radius": "999px",
-            color: tone === "accent" ? "rgb(255, 255, 255)" : "rgb(142, 142, 147)",
+            color: tone === "accent" ? "rgb(255, 255, 255)" : "rgb(73, 69, 79)",
             "font-family": mono,
             "font-size": "10.8px",
             "font-weight": "700",
@@ -850,7 +853,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
                 "line-height",
             ]),
     ).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-family": mono,
         "font-size": "11px",
         "font-weight": "700",
@@ -869,7 +872,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
     const active = view.$(".g-chip-active");
     expect(active.element.getAttribute("aria-pressed")).toBe("true");
     expect(active.computedStyles(["background-color", "border-top-color"])).toEqual({
-        "background-color": "rgba(0, 122, 255, 0.14)",
+        "background-color": "color(srgb 0 0.478431 1 / 0.14)",
         "border-top-color": "rgb(0, 122, 255)",
     });
     expect(
@@ -893,7 +896,7 @@ it("holds Badge family geometry, colors, and behavior", async () => {
         ).toEqual({
             "background-color": "rgb(245, 245, 245)",
             "border-radius": "4px",
-            color: "rgb(142, 142, 147)",
+            color: "rgb(73, 69, 79)",
             "font-family": mono,
             "font-size": "10.8px",
             "font-weight": "500",

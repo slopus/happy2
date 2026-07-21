@@ -23,7 +23,7 @@ const FOCUSABLE =
 /**
  * C-058 ModalOverlay — the single backdrop every modal-class surface sits on.
  *
- * One dim (`--happy2-scrim`), one stacking level (`--happy2-z-overlay`), fixed
+ * One dim (`Happy primary-background scrim`), one stacking level (`--happy2-z-overlay`), fixed
  * to the app window, and a flex box that hosts exactly one card (Modal,
  * Lightbox, editor panel, or transient type-ahead) inside a 24px safe-area
  * gutter. The default placement centers dialogs and forms; `top` anchors a

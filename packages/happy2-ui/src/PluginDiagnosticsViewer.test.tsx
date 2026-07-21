@@ -80,7 +80,7 @@ it("renders inert diagnostics with output, empty, loading, and error states", as
         view
             .$('[data-testid="failed"] [data-happy2-ui="plugin-diagnostics-failure"]')
             .computedStyle("color"),
-    ).toBe("rgb(255, 59, 48)");
+    ).toBe("rgb(244, 67, 54)");
     expect(
         view.$('[data-testid="failed"] [data-happy2-ui="plugin-diagnostics-detail"]').element
             .textContent,
