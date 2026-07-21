@@ -2,8 +2,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AuthService } from "../modules/auth/service.js";
 import type { PortShareService } from "../modules/port-share/service.js";
 import { PortShareError } from "../modules/port-share/types.js";
+import { portShareReturnTo } from "./portShareReturnTo.js";
 
-/** Registers member-facing port-share reads, disable actions, and one-hour browser access-token issuance. */
+/** Registers member-facing port-share reads, disable actions, browser authorization redirects, and one-hour access-token issuance. */
 export function registerPortShareRoutes(
     app: FastifyInstance,
     auth: AuthService,
@@ -50,6 +51,24 @@ export function registerPortShareRoutes(
                 actorUserId,
                 portShareId: pathIdentifier(request, "portShareId"),
             });
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
+    app.get("/v0/portShares/:portShareId/openPortShare", async (request, reply) => {
+        reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
+        try {
+            const actorUserId = await authenticatedUserId(request, reply, auth);
+            if (!actorUserId) return;
+            const query = request.query as { returnTo?: unknown };
+            const redirectUrl = await portShares.issueAccessRedemption({
+                actorUserId,
+                portShareId: pathIdentifier(request, "portShareId"),
+                returnTo: portShareReturnTo(query.returnTo),
+            });
+            return reply.redirect(redirectUrl);
         } catch (error) {
             const response = handled(reply, error);
             if (response) return response;

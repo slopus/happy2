@@ -108,9 +108,12 @@ Creation returns a friendly hostname such as
 `documentation-preview-a1b2c3.preview.example.com`. Access-token creation uses
 an empty body and returns a one-hour RS256 bearer token for the triggering user,
 share, and subdomain, plus `refreshAfter` set 15 minutes after issuance. Treat
-that token as secret. It can be used directly to test the shared endpoint; a
-browser can exchange it for the host-only HttpOnly cookie with
-`GET /.happy2/auth/session` on the returned share URL.
+that token as secret. It can be used directly to test the shared endpoint. When
+a browser opens the public share URL without a current preview cookie, Happy
+redirects through the main API session, verifies current share membership,
+returns a one-minute redemption token to the preview host, establishes the
+host-only HttpOnly cookie there, and redirects back to the requested preview
+path.
 
 ## Trust model
 

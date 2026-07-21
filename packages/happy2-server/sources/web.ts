@@ -240,7 +240,10 @@ function authenticationCookie(token: string, secure: boolean): string {
         `${authenticationCookieName}=${token}`,
         "HttpOnly",
         "Path=/",
-        "SameSite=Strict",
+        // A copied preview link may bounce from a separately hosted wildcard
+        // domain through this main origin. Lax sends the session on that safe
+        // top-level GET while continuing to withhold it from cross-site writes.
+        "SameSite=Lax",
         "Max-Age=34560000",
         ...(secure ? ["Secure"] : []),
     ].join("; ");

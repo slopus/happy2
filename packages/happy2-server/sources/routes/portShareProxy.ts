@@ -3,13 +3,15 @@ import type { ClientOptions } from "ws";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PortShareService } from "../modules/port-share/service.js";
 import { PortShareError } from "../modules/port-share/types.js";
+import { portShareReturnTo } from "./portShareReturnTo.js";
 
 export const portShareAuthenticationCookieName = "happy2_port_share";
 const PORT_SHARE_CONSTRAINT = "happy2PortShareHost";
 const PORT_SHARE_CONSTRAINT_VALUE = "port-share";
 const SESSION_PATH = "/.happy2/auth/session";
+const REDEEM_PATH = "/.happy2/auth/redeem";
 
-/** Registers hostname-constrained HTTP/WebSocket proxying and the bearer-to-HttpOnly-cookie browser exchange without exposing those routes on the app hostname. */
+/** Registers hostname-constrained proxying, browser authorization bounce, and host-only cookie redemption without exposing those routes on the app hostname. */
 export async function registerPortShareProxy(
     app: FastifyInstance,
     portShares: PortShareService,
@@ -68,6 +70,21 @@ export async function registerPortShareProxy(
             }
         },
     });
+    app.get(REDEEM_PATH, {
+        constraints: { [PORT_SHARE_CONSTRAINT]: PORT_SHARE_CONSTRAINT_VALUE },
+        handler: async (request, reply) => {
+            reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
+            try {
+                const input = redemptionInput(request);
+                const accessToken = await portShares.redeemAccess(request.host, input.token);
+                return reply
+                    .header("set-cookie", portShareCookie(accessToken, options.secureCookies))
+                    .redirect(input.returnTo);
+            } catch (error) {
+                return handled(reply, error);
+            }
+        },
+    });
     await app.register(proxy, {
         upstream: "",
         prefix: "/",
@@ -76,15 +93,28 @@ export async function registerPortShareProxy(
         httpMethods: ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"],
         websocket: true,
         preHandler: async (request, reply) => {
+            const bearer = bearerToken(request);
             try {
                 const authorized = await portShares.authorize(
                     request.host,
-                    bearerToken(request) ?? authenticationCookie(request),
+                    bearer ?? authenticationCookie(request),
                 );
                 upstreams.set(request, authorized.upstream);
                 identities.set(request, authorized.userId);
             } catch (error) {
-                handled(reply, error);
+                if (browserAuthorizationRequired(request, error, bearer)) {
+                    try {
+                        return await redirectToMainAuthorization(
+                            reply,
+                            request,
+                            portShares,
+                            options.appPublicUrl,
+                        );
+                    } catch (redirectError) {
+                        return handled(reply, redirectError);
+                    }
+                }
+                return handled(reply, error);
             }
         },
         replyOptions: {
@@ -117,6 +147,18 @@ function authenticationCookie(request: FastifyRequest): string | undefined {
     return undefined;
 }
 
+function redemptionInput(request: FastifyRequest): { token: string; returnTo: string } {
+    if (!request.query || typeof request.query !== "object" || Array.isArray(request.query))
+        throw new PortShareError("invalid", "Port-share redemption parameters are required");
+    const query = request.query as Record<string, unknown>;
+    if (Object.keys(query).length !== 2)
+        throw new PortShareError("invalid", "Port-share redemption parameters are invalid");
+    const token = query.token;
+    if (typeof token !== "string" || !/^[A-Za-z0-9._-]{1,4096}$/.test(token))
+        throw new PortShareError("invalid", "Port-share redemption token is invalid");
+    return { token, returnTo: portShareReturnTo(query.returnTo) };
+}
+
 function portShareCookie(token: string, secure: boolean): string {
     return [
         `${portShareAuthenticationCookieName}=${token}`,
@@ -135,6 +177,38 @@ function sessionCors(reply: FastifyReply, request: FastifyRequest, allowedOrigin
             .header("access-control-allow-origin", allowedOrigin)
             .header("access-control-allow-credentials", "true")
             .header("vary", "Origin");
+}
+
+function browserAuthorizationRequired(
+    request: FastifyRequest,
+    error: unknown,
+    bearer: string | undefined,
+): boolean {
+    return (
+        error instanceof PortShareError &&
+        error.code === "forbidden" &&
+        bearer === undefined &&
+        (request.method === "GET" || request.method === "HEAD") &&
+        request.headers.upgrade?.toLowerCase() !== "websocket"
+    );
+}
+
+async function redirectToMainAuthorization(
+    reply: FastifyReply,
+    request: FastifyRequest,
+    portShares: PortShareService,
+    appPublicUrl: string,
+) {
+    const portShareId = await portShares.activeShareIdForHost(request.host);
+    const url = new URL(
+        `/v0/portShares/${encodeURIComponent(portShareId)}/openPortShare`,
+        appPublicUrl,
+    );
+    url.searchParams.set("returnTo", portShareReturnTo(request.url));
+    return reply
+        .header("cache-control", "no-store")
+        .header("referrer-policy", "no-referrer")
+        .redirect(url.toString());
 }
 
 function upstreamHeaders(
@@ -173,6 +247,16 @@ function portShareWebSocketHeaders(identities: WeakMap<object, string>) {
 function handled(reply: FastifyReply, error: unknown) {
     if (!(error instanceof PortShareError)) throw error;
     return reply
-        .code(error.code === "not_found" ? 404 : error.code === "not_ready" ? 503 : 401)
+        .code(
+            error.code === "not_found"
+                ? 404
+                : error.code === "invalid"
+                  ? 400
+                  : error.code === "conflict"
+                    ? 409
+                    : error.code === "not_ready"
+                      ? 503
+                      : 401,
+        )
         .send({ error: error.code, message: error.message });
 }

@@ -22,8 +22,8 @@ select them manually.
 4. Call `happy2_port_share_probe` against `/` or the application's health path.
    If it fails, first test the same path locally inside the container, then fix
    the listener, route, or application error and probe again.
-5. Report the returned public URL. The Happy client handles browser
-   authentication when the user presses Open.
+5. Report the returned public URL. Opening it starts the browser authorization
+   bounce when the preview cookie is absent or expired.
 
 ## Direct authenticated requests
 

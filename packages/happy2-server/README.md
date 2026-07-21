@@ -147,11 +147,14 @@ select another chat or agent through its body.
 Every preview request requires a one-hour RS256 token bound to the user, share,
 and subdomain. Happy checks live chat membership and the exact current agent
 container binding when issuing that token; an issued token remains valid for its
-one-hour lifetime even if membership later changes. Tokens work as Bearer credentials or through
-the host-only `happy2_port_share` HttpOnly cookie established at
-`GET /.happy2/auth/session`; callers should renew tokens and the cookie after the
-returned 15-minute `refreshAfter` time. Happy strips both credentials before
-forwarding HTTP or WebSocket traffic to the agent container.
+one-hour lifetime even if membership later changes. Tokens work as Bearer
+credentials or through the host-only `happy2_port_share` HttpOnly cookie. A
+browser that opens the stable public share URL without a current preview cookie
+is redirected through the main API session for a fresh membership check, then
+back with a one-minute redemption token that establishes the preview cookie and
+returns to the originally requested path. Direct token callers should renew
+after the returned 15-minute `refreshAfter` time. Happy strips both credentials
+before forwarding HTTP or WebSocket traffic to the agent container.
 
 ## Server and user onboarding
 

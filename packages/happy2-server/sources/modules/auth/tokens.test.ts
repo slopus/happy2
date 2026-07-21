@@ -156,6 +156,29 @@ describe("plugin runtime capability tokens", () => {
         });
         await expect(service.verify(token)).rejects.toThrow();
     });
+
+    it("keeps one-minute port-share redemption credentials distinct from access tokens", async () => {
+        const config = defaultConfig();
+        const keys = generateKeyPairSync("rsa", {
+            modulusLength: 2048,
+            publicKeyEncoding: { type: "spki", format: "pem" },
+            privateKeyEncoding: { type: "pkcs8", format: "pem" },
+        });
+        const service = await TokenService.create(config, keys);
+        const claims = {
+            userId: "member-user",
+            portShareId: "share-id",
+            subdomain: "docs-a1b2c3",
+        };
+        const redemption = await service.issuePortShareRedemptionToken(claims);
+        const access = await service.issuePortShareAccessToken(claims);
+        const payload = decodeJwt(redemption);
+
+        expect(Number(payload.exp) - Number(payload.iat)).toBe(60);
+        await expect(service.verifyPortShareRedemptionToken(redemption)).resolves.toEqual(claims);
+        await expect(service.verifyPortShareAccessToken(redemption)).rejects.toThrow();
+        await expect(service.verifyPortShareRedemptionToken(access)).rejects.toThrow();
+    });
 });
 
 function expectCapabilityExpiresWithinFiveMinutes(token: string): void {

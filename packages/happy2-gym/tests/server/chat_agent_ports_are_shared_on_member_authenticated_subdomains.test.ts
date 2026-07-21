@@ -162,6 +162,7 @@ describe("chat agent port sharing", () => {
                 token: string;
                 expiresAt: string;
                 refreshAfter: string;
+                portShare: typeof share;
             };
             expect(share).toMatchObject({
                 chatId,
@@ -174,6 +175,7 @@ describe("chat agent port sharing", () => {
                 14 * 60_000,
             );
             expect(new Date(access.expiresAt).getTime() - Date.now()).toBeGreaterThan(59 * 60_000);
+            expect(access.portShare).toMatchObject(share);
             expect(output.duplicateStatus).toBe(409);
             expect(output.listed).toMatchObject({
                 portShares: [expect.objectContaining(share)],
@@ -205,7 +207,88 @@ describe("chat agent port sharing", () => {
 
             let serverUrl = await server.listen();
             const host = `${share.subdomain}.preview.gym.invalid`;
-            expect((await publicRequest(serverUrl, host, "/preview")).statusCode).toBe(401);
+            const copiedLink = await publicRequest(serverUrl, host, "/preview?copied=1");
+            expect(copiedLink.statusCode).toBe(302);
+            expect(copiedLink.headers["cache-control"]).toBe("no-store");
+            expect(copiedLink.headers["referrer-policy"]).toBe("no-referrer");
+            const mainAuthorization = new URL(copiedLink.headers.location!);
+            expect(mainAuthorization.origin).toBe("http://gym.invalid");
+            expect(mainAuthorization.pathname).toBe(`/v0/portShares/${share.id}/openPortShare`);
+            expect(mainAuthorization.searchParams.get("returnTo")).toBe("/preview?copied=1");
+            const mainAuthorizationPath = `${mainAuthorization.pathname}${mainAuthorization.search}`;
+            expect((await server.get(mainAuthorizationPath)).statusCode).toBe(401);
+            expect(
+                (
+                    await server.get(mainAuthorizationPath, {
+                        headers: { cookie: `happy2_auth_token=${outsider.token}` },
+                    })
+                ).statusCode,
+            ).toBe(404);
+            expect(
+                (
+                    await server.get(
+                        `/v0/portShares/${share.id}/openPortShare?returnTo=${encodeURIComponent("//evil.example/preview")}`,
+                        { headers: { cookie: `happy2_auth_token=${owner.token}` } },
+                    )
+                ).statusCode,
+            ).toBe(400);
+            const authorizedOpen = await server.get(mainAuthorizationPath, {
+                headers: { cookie: `happy2_auth_token=${owner.token}` },
+            });
+            expect(authorizedOpen.statusCode).toBe(302);
+            expect(authorizedOpen.headers["cache-control"]).toBe("no-store");
+            expect(authorizedOpen.headers["referrer-policy"]).toBe("no-referrer");
+            const redemption = new URL(authorizedOpen.headers.location!);
+            expect(redemption.origin).toBe(`http://${host}`);
+            expect(redemption.pathname).toBe("/.happy2/auth/redeem");
+            expect(redemption.searchParams.get("returnTo")).toBe("/preview?copied=1");
+            const redemptionToken = redemption.searchParams.get("token");
+            expect(redemptionToken).toBeTruthy();
+            expect(
+                (
+                    await publicRequest(
+                        serverUrl,
+                        "different.preview.gym.invalid",
+                        `${redemption.pathname}${redemption.search}`,
+                    )
+                ).statusCode,
+            ).toBe(401);
+            const invalidRedemption = new URL(redemption);
+            invalidRedemption.searchParams.set("returnTo", "//evil.example/preview");
+            expect(
+                (
+                    await publicRequest(
+                        serverUrl,
+                        host,
+                        `${invalidRedemption.pathname}${invalidRedemption.search}`,
+                    )
+                ).statusCode,
+            ).toBe(400);
+            expect(
+                (
+                    await publicRequest(serverUrl, host, "/redemption-is-not-access", {
+                        authorization: `Bearer ${redemptionToken}`,
+                    })
+                ).statusCode,
+            ).toBe(401);
+            const redeemed = await publicRequest(
+                serverUrl,
+                host,
+                `${redemption.pathname}${redemption.search}`,
+            );
+            expect(redeemed.statusCode).toBe(302);
+            expect(redeemed.headers.location).toBe("/preview?copied=1");
+            expect(redeemed.headers["cache-control"]).toBe("no-store");
+            expect(redeemed.headers["referrer-policy"]).toBe("no-referrer");
+            const copiedLinkCookie = redeemed.headers["set-cookie"];
+            expect(copiedLinkCookie).toContain("happy2_port_share=");
+            expect(
+                (
+                    await publicRequest(serverUrl, host, "/preview?copied=1", {
+                        cookie: copiedLinkCookie,
+                    })
+                ).body,
+            ).toBe("agent preview /preview?copied=1");
             expect(
                 (
                     await publicRequest(serverUrl, host, "/former-member", {

@@ -38,6 +38,7 @@ export interface PortShareAccessClaims {
     subdomain: string;
     userId: string;
 }
+export type PortShareRedemptionClaims = PortShareAccessClaims;
 export interface TokenKeyPair {
     privateKey?: string;
     publicKey: string;
@@ -317,6 +318,42 @@ export class TokenService {
             typeof payload.hst !== "string"
         )
             throw new Error("JWT has invalid port-share claims");
+        return {
+            userId: payload.sub,
+            portShareId: payload.shr,
+            subdomain: payload.hst,
+        };
+    }
+
+    async issuePortShareRedemptionToken(claims: PortShareRedemptionClaims): Promise<string> {
+        if (!this.privateKey) throw new Error("This server has no JWT signing key");
+        return new SignJWT({ shr: claims.portShareId, hst: claims.subdomain })
+            .setProtectedHeader({
+                alg: "RS256",
+                kid: this.config.jwt.keyId,
+                typ: "happy2-port-share-redemption",
+            })
+            .setIssuer(this.config.jwt.issuer)
+            .setAudience(`${this.config.jwt.audience}/port-share-redemption`)
+            .setSubject(claims.userId)
+            .setIssuedAt()
+            .setExpirationTime("1m")
+            .sign(this.privateKey);
+    }
+
+    async verifyPortShareRedemptionToken(token: string): Promise<PortShareRedemptionClaims> {
+        const { payload } = await jwtVerify(token, this.publicKey, {
+            issuer: this.config.jwt.issuer,
+            audience: `${this.config.jwt.audience}/port-share-redemption`,
+            algorithms: ["RS256"],
+            typ: "happy2-port-share-redemption",
+        });
+        if (
+            typeof payload.sub !== "string" ||
+            typeof payload.shr !== "string" ||
+            typeof payload.hst !== "string"
+        )
+            throw new Error("JWT has invalid port-share redemption claims");
         return {
             userId: payload.sub,
             portShareId: payload.shr,

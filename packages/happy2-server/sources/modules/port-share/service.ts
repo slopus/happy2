@@ -91,25 +91,62 @@ export class PortShareService {
         portShareId: string;
         chatId?: string;
     }): Promise<PortShareAccessToken> {
-        const share = await portShareAuthorizeUser(
-            this.executor,
-            input.actorUserId,
-            input.portShareId,
-        );
-        if (!share || (input.chatId && share.chatId !== input.chatId))
+        const share = await this.authorizedShare(input.actorUserId, input.portShareId);
+        if (input.chatId && share.chatId !== input.chatId)
             throw new PortShareError("not_found", "Active port share was not found");
-        this.bySubdomain.set(share.subdomain, share);
         const issuedAt = Date.now();
+        const token = await this.tokens.issuePortShareAccessToken({
+            userId: input.actorUserId,
+            portShareId: share.id,
+            subdomain: share.subdomain,
+        });
         return {
-            token: await this.tokens.issuePortShareAccessToken({
-                userId: input.actorUserId,
-                portShareId: share.id,
-                subdomain: share.subdomain,
-            }),
+            token,
             refreshAfter: new Date(issuedAt + 15 * 60_000).toISOString(),
             expiresAt: new Date(issuedAt + 60 * 60_000).toISOString(),
             portShare: this.publicShare(share),
         };
+    }
+
+    async issueAccessRedemption(input: {
+        actorUserId: string;
+        portShareId: string;
+        returnTo: string;
+    }): Promise<string> {
+        const share = await this.authorizedShare(input.actorUserId, input.portShareId);
+        const token = await this.tokens.issuePortShareRedemptionToken({
+            userId: input.actorUserId,
+            portShareId: share.id,
+            subdomain: share.subdomain,
+        });
+        const url = new URL("/.happy2/auth/redeem", this.publicShare(share).url);
+        url.searchParams.set("token", token);
+        url.searchParams.set("returnTo", input.returnTo);
+        return url.toString();
+    }
+
+    async redeemAccess(host: string | undefined, token: string | undefined): Promise<string> {
+        if (!token)
+            throw new PortShareError("forbidden", "Port-share redemption token is required");
+        let claims: Awaited<ReturnType<TokenService["verifyPortShareRedemptionToken"]>>;
+        try {
+            claims = await this.tokens.verifyPortShareRedemptionToken(token);
+        } catch {
+            throw new PortShareError(
+                "forbidden",
+                "Port-share redemption token is invalid or expired",
+            );
+        }
+        await this.claimedShare(host, claims);
+        return this.tokens.issuePortShareAccessToken(claims);
+    }
+
+    async activeShareIdForHost(host: string | undefined): Promise<string> {
+        const subdomain = this.subdomainForHost(host);
+        if (!subdomain) throw new PortShareError("not_found", "Port share was not found");
+        const share = await this.cachedShare(subdomain);
+        if (!share) throw new PortShareError("not_found", "Active port share was not found");
+        return share.id;
     }
 
     subdomainForHost(host: string | undefined): string | undefined {
@@ -124,8 +161,6 @@ export class PortShareService {
         host: string | undefined,
         token: string | undefined,
     ): Promise<{ portShare: PublicPortShare; upstream: string; userId: string }> {
-        const subdomain = this.subdomainForHost(host);
-        if (!subdomain) throw new PortShareError("not_found", "Port share was not found");
         if (!token) throw new PortShareError("forbidden", "Port-share access token is required");
         let claims: Awaited<ReturnType<TokenService["verifyPortShareAccessToken"]>>;
         try {
@@ -133,14 +168,7 @@ export class PortShareService {
         } catch {
             throw new PortShareError("forbidden", "Port-share access token is invalid or expired");
         }
-        if (claims.subdomain !== subdomain)
-            throw new PortShareError(
-                "forbidden",
-                "Port-share access token belongs to another host",
-            );
-        const cached = await this.cachedShare(subdomain);
-        if (!cached || cached.id !== claims.portShareId)
-            throw new PortShareError("not_found", "Active port share was not found");
+        const cached = await this.claimedShare(host, claims);
         const target = await this.targets.resolvePortShareTarget(
             cached.containerName,
             cached.containerPort,
@@ -165,6 +193,30 @@ export class PortShareService {
         url.hostname = `${share.subdomain}.${this.publicDomain}`;
         const { containerName: _, ...publicFields } = share;
         return { ...publicFields, url: url.toString().replace(/\/$/, "") };
+    }
+
+    private async authorizedShare(
+        actorUserId: string,
+        portShareId: string,
+    ): Promise<PortShareSummary> {
+        const share = await portShareAuthorizeUser(this.executor, actorUserId, portShareId);
+        if (!share) throw new PortShareError("not_found", "Active port share was not found");
+        this.bySubdomain.set(share.subdomain, share);
+        return share;
+    }
+
+    private async claimedShare(
+        host: string | undefined,
+        claims: { portShareId: string; subdomain: string },
+    ): Promise<PortShareSummary> {
+        const subdomain = this.subdomainForHost(host);
+        if (!subdomain) throw new PortShareError("not_found", "Port share was not found");
+        if (claims.subdomain !== subdomain)
+            throw new PortShareError("forbidden", "Port-share credential belongs to another host");
+        const share = await this.cachedShare(subdomain);
+        if (!share || share.id !== claims.portShareId)
+            throw new PortShareError("not_found", "Active port share was not found");
+        return share;
     }
 
     private async publish(

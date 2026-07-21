@@ -190,7 +190,7 @@ describe.sequential("the package runner", () => {
                 expect(sessionVerified.status).toBe(200);
                 const sessionCookie = sessionVerified.headers.get("set-cookie");
                 expect(sessionCookie).toBe(
-                    `happy2_auth_token=${sessionToken}; HttpOnly; Path=/; SameSite=Strict; Max-Age=34560000`,
+                    `happy2_auth_token=${sessionToken}; HttpOnly; Path=/; SameSite=Lax; Max-Age=34560000`,
                 );
                 expect(
                     (
@@ -217,7 +217,7 @@ describe.sequential("the package runner", () => {
                 expect(verified.status).toBe(200);
                 const cookie = verified.headers.get("set-cookie");
                 expect(cookie).toBe(
-                    `happy2_auth_token=${developmentToken}; HttpOnly; Path=/; SameSite=Strict; Max-Age=34560000`,
+                    `happy2_auth_token=${developmentToken}; HttpOnly; Path=/; SameSite=Lax; Max-Age=34560000`,
                 );
 
                 const cookieAuthenticated = await fetch(`${web.url}/v0/me`, {
