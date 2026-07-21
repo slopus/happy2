@@ -271,11 +271,25 @@ export function buildAppDocument(html: string, csp: McpAppCsp | undefined): stri
  */
 export function buildSandboxProxyUrl(hostOrigin: string): string {
     const origin = JSON.stringify(hostOrigin);
-    const proxyCsp = "default-src 'none'; script-src 'unsafe-inline'; frame-src 'self' blob:;";
+    // `style-src 'unsafe-inline'` is required only for the host-owned reset
+    // <style> below; it does not relax the inner View's separate CSP, which is
+    // built independently in `buildAppDocument`. The proxy document contains no
+    // untrusted content, so allowing its own inline style is sound.
+    const proxyCsp =
+        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self' blob:;";
+    // Host-owned full-height reset. The outer host frame fills its panel region
+    // and the inner View frame is sized `height:100%`, but that only resolves if
+    // the proxy's own html/body establish a full-height containing block. Without
+    // it the inner frame collapses to its intrinsic ~content height, leaving the
+    // rest of the panel blank. This resets the proxy document only; it never
+    // injects CSS into the untrusted MCP app document.
+    const reset =
+        `<style>html,body{width:100%;height:100%;margin:0;padding:0;` +
+        `overflow:hidden;background:transparent;}</style>`;
     const doc =
         `<!doctype html><meta charset="utf-8">` +
         `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(proxyCsp)}">` +
-        `<title>MCP App sandbox</title><body style="margin:0"><script>` +
+        `<title>MCP App sandbox</title>${reset}<body><script>` +
         `(function(){` +
         `var HOST=${origin};var OPAQUE=(HOST==="null"||!HOST);var TARGET=OPAQUE?"*":HOST;` +
         `var SANDBOX_PREFIX=${JSON.stringify(SANDBOX_METHOD_PREFIX)};` +

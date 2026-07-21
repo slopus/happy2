@@ -54,6 +54,7 @@ interface HarnessState {
     resource: McpAppBridgeResource;
     hostContext: Readonly<Record<string, unknown>>;
     displayMode: McpAppDisplayMode;
+    themeClass: string;
 }
 
 function harnessStore(initial: HarnessState) {
@@ -84,6 +85,20 @@ function logByTag(
     return undefined;
 }
 
+/** The most recent log entry for a tag, so a repeated notification is read from
+ * its latest payload rather than a stale earlier one. */
+function lastLogByTag(
+    log: { readonly mock: { readonly calls: ReadonlyArray<readonly unknown[]> } },
+    tag: string,
+): Record<string, unknown> | undefined {
+    let found: Record<string, unknown> | undefined;
+    for (const call of log.mock.calls) {
+        const data = (call[0] as McpAppLogEntry).data as Record<string, unknown>;
+        if (data.tag === tag) found = data;
+    }
+    return found;
+}
+
 function Harness(props: {
     store: ReturnType<typeof harnessStore>;
     onLog: (entry: McpAppLogEntry) => void;
@@ -95,7 +110,10 @@ function Harness(props: {
         props.store.getState,
     );
     return (
-        <div style={{ display: "flex", width: "100%", height: "100%" }}>
+        <div
+            className={snapshot.themeClass}
+            style={{ display: "flex", width: "100%", height: "100%" }}
+        >
             <McpAppBridgeFrame
                 availableDisplayModes={["inline", "fullscreen"]}
                 data-testid="bridge"
@@ -120,6 +138,7 @@ it("sends host-context-changed on a context revision without remounting, and ans
         resource: resource("a".repeat(64)),
         hostContext: instanceContext(1),
         displayMode: "inline",
+        themeClass: "happy2-theme-light",
     });
     view.render(
         () => <Harness onLog={log} onRequestDisplayMode={onRequestDisplayMode} store={store} />,
@@ -162,4 +181,59 @@ it("sends host-context-changed on a context revision without remounting, and ans
             view.$('[data-testid="bridge"] [data-happy2-ui="mcp-app-host-frame"]').element,
         ).not.toBe(frameBefore),
     );
+}, 120_000);
+
+it("sends standard style variables in initialize and re-delivers them on an explicit light->dark change without remounting", async () => {
+    const view = createRenderer();
+    const log = vi.fn((_entry: McpAppLogEntry) => undefined);
+    const onRequestDisplayMode = vi.fn((mode: McpAppDisplayMode) => mode);
+    const store = harnessStore({
+        resource: resource("a".repeat(64)),
+        hostContext: instanceContext(1),
+        displayMode: "inline",
+        themeClass: "happy2-theme-light",
+    });
+    view.render(
+        () => <Harness onLog={log} onRequestDisplayMode={onRequestDisplayMode} store={store} />,
+        { width: 480, height: 320 },
+    );
+    await view.ready();
+
+    // Initialize carries standard styles.variables, mapped from Happy's live
+    // light tokens (theme.css is the color source, so the surface reads white).
+    await vi.waitFor(() => expect(logByTag(log, "init")).toBeDefined(), { timeout: 10_000 });
+    const initCtx = logByTag(log, "init")!.ctx as Record<string, any>;
+    expect(initCtx.theme).toBe("light");
+    expect(initCtx.styles.variables["--color-background-primary"]).toBe("#ffffff");
+    expect(initCtx.styles.variables["--color-text-primary"]).toBe("#000000");
+    expect(initCtx.styles.variables["--color-ring-primary"]).toBe("#007aff");
+    expect(initCtx.styles.variables["--border-radius-full"]).toBe("999px");
+    expect(initCtx.styles.variables["--color-border-ghost"]).toBe("transparent");
+
+    const frameBefore = view.$(
+        '[data-testid="bridge"] [data-happy2-ui="mcp-app-host-frame"]',
+    ).element;
+
+    // An explicit ThemeScope light->dark toggle delivers host-context-changed
+    // with the dark theme + refreshed style variables, and keeps the iframe.
+    store.set({ themeClass: "happy2-theme-dark" });
+    await vi.waitFor(
+        () => {
+            const hcc = lastLogByTag(log, "hcc");
+            expect(hcc).toBeDefined();
+            expect((hcc!.params as Record<string, any>).theme).toBe("dark");
+        },
+        { timeout: 10_000 },
+    );
+    // Read theme and styles from the SAME latest payload so they are proven to
+    // ship together on one notification.
+    const hccParams = lastLogByTag(log, "hcc")!.params as Record<string, any>;
+    expect(hccParams.theme).toBe("dark");
+    expect(hccParams.styles.variables["--color-background-primary"]).toBe("#1c1c1e");
+    expect(hccParams.styles.variables["--color-text-primary"]).toBe("#ffffff");
+    expect(hccParams.styles.variables["--color-ring-primary"]).toBe("#0a84ff");
+    expect(
+        view.$('[data-testid="bridge"] [data-happy2-ui="mcp-app-host-frame"]').element,
+        "a theme change must not remount the frame",
+    ).toBe(frameBefore);
 }, 120_000);

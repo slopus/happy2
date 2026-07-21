@@ -127,13 +127,20 @@ function IndexApp() {
     return (
         <Shell>
             <header className="td-head">
-                <div>
-                    <h1 className="td-title">TODO Lists</h1>
-                    <p className="td-sub">
-                        {rows.length === 0
-                            ? "Create your first shared list"
-                            : `${rows.length} lists`}
-                    </p>
+                <div className="td-head-row">
+                    <div className="td-head-main">
+                        <h1 className="td-title">TODO Lists</h1>
+                        <p className="td-sub">
+                            {rows.length === 0
+                                ? "Create your first shared list"
+                                : "Shared with your workspace"}
+                        </p>
+                    </div>
+                    {rows.length > 0 ? (
+                        <span className="td-count">
+                            {rows.length} {rows.length === 1 ? "list" : "lists"}
+                        </span>
+                    ) : null}
                 </div>
             </header>
 

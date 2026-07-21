@@ -95,6 +95,24 @@ describe("mcpAppProtocol", () => {
         expect(doc).toContain("default-src 'none'");
     });
 
+    it("establishes a full-height proxy reset so the inner View frame fills the panel", () => {
+        const doc = decodeURIComponent(
+            buildSandboxProxyUrl("https://happy.example.com").slice("data:text/html,".length),
+        );
+        // The host-owned proxy document resets html/body to fill and clears
+        // browser-default margin, so the inner frame's height:100% resolves.
+        expect(doc).toContain(
+            "html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:transparent;}",
+        );
+        // The reset must be permitted by the proxy CSP without relaxing script or
+        // frame policy.
+        expect(doc).toContain("style-src 'unsafe-inline'");
+        expect(doc).toContain("default-src 'none'");
+        expect(doc).toContain("frame-src 'self' blob:");
+        // The inner View frame fills the now-full-height proxy body.
+        expect(doc).toContain("width:100%;height:100%;display:block;background:transparent");
+    });
+
     it("supports opaque/file hosts with source-window auth and wildcard targeting", () => {
         const decode = (url: string) => decodeURIComponent(url.slice("data:text/html,".length));
         const opaque = decode(buildSandboxProxyUrl("null"));

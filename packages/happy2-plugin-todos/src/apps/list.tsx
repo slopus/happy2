@@ -160,18 +160,35 @@ function ListApp() {
 
     const { list, items, activity } = snapshot;
     const remaining = list.itemCount - list.completedCount;
+    const progress =
+        list.itemCount === 0 ? 0 : Math.round((list.completedCount / list.itemCount) * 100);
 
     return (
         <Shell>
             <header className="td-head">
-                <div>
-                    <h1 className="td-title">{list.title}</h1>
-                    <p className="td-sub">
-                        {list.itemCount === 0
-                            ? "No tasks yet"
-                            : `${remaining} open · ${list.completedCount} done`}
-                    </p>
+                <div className="td-head-row">
+                    <div className="td-head-main">
+                        <h1 className="td-title">{list.title}</h1>
+                        <p className="td-sub">
+                            {list.itemCount === 0
+                                ? "No tasks yet"
+                                : `${remaining} open · ${list.completedCount} done`}
+                        </p>
+                    </div>
+                    {list.itemCount > 0 ? <span className="td-count">{progress}%</span> : null}
                 </div>
+                {list.itemCount > 0 ? (
+                    <div
+                        className="td-progress"
+                        role="progressbar"
+                        aria-label="Completed tasks"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={progress}
+                    >
+                        <div className="td-progress-fill" style={{ width: `${progress}%` }} />
+                    </div>
+                ) : null}
             </header>
 
             <div className="td-add">

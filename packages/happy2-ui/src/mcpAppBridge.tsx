@@ -32,6 +32,121 @@ const MIN_APP_HEIGHT = 120;
 const MAX_APP_HEIGHT = 800;
 
 /**
+ * The color, font-family, and radius subset of the standard MCP Apps style
+ * variables (the names `@modelcontextprotocol/ext-apps` 1.7.4 applies via
+ * `useHostStyles`), each mapped to the inherited Happy design token it mirrors.
+ * The bridge reads every mapped `--happy2-*` custom property as a live computed
+ * value on the hosting frame, so `theme.css` stays the single source of color
+ * truth and no raw palette value is duplicated here. The remaining standard keys
+ * (weights, sizes, line heights, border width, shadows) have no Happy token and
+ * are supplied as fixed literals below. A plugin app receives the resolved values
+ * as `styles.variables` and consumes them as `var(--color-*, fallback)`.
+ */
+const HOST_STYLE_VARIABLE_TOKENS: ReadonlyArray<readonly [standard: string, token: string]> = [
+    // Backgrounds: primary/secondary/tertiary surfaces, inverse fill, ghost hover,
+    // and the semantic soft fills.
+    ["--color-background-primary", "--happy2-bg-surface"],
+    ["--color-background-secondary", "--happy2-bg-raised"],
+    ["--color-background-tertiary", "--happy2-bg-inset"],
+    ["--color-background-inverse", "--happy2-action"],
+    ["--color-background-ghost", "--happy2-bg-hover"],
+    ["--color-background-info", "--happy2-info-soft"],
+    ["--color-background-danger", "--happy2-danger-soft"],
+    ["--color-background-success", "--happy2-success-soft"],
+    ["--color-background-warning", "--happy2-warning-soft"],
+    ["--color-background-disabled", "--happy2-bg-raised"],
+    // Text: primary/secondary/tertiary, text on inverse fills, and the semantics.
+    ["--color-text-primary", "--happy2-text"],
+    ["--color-text-secondary", "--happy2-text-secondary"],
+    ["--color-text-tertiary", "--happy2-text-muted"],
+    ["--color-text-inverse", "--happy2-action-text"],
+    ["--color-text-ghost", "--happy2-text-muted"],
+    ["--color-text-info", "--happy2-info"],
+    ["--color-text-danger", "--happy2-danger"],
+    ["--color-text-success", "--happy2-success"],
+    ["--color-text-warning", "--happy2-warning"],
+    ["--color-text-disabled", "--happy2-text-faint"],
+    // Borders: primary/secondary hairlines, inverse, and the semantics.
+    ["--color-border-primary", "--happy2-border"],
+    ["--color-border-secondary", "--happy2-border-strong"],
+    ["--color-border-tertiary", "--happy2-border"],
+    ["--color-border-inverse", "--happy2-action"],
+    ["--color-border-info", "--happy2-info"],
+    ["--color-border-danger", "--happy2-danger"],
+    ["--color-border-success", "--happy2-success"],
+    ["--color-border-warning", "--happy2-warning"],
+    ["--color-border-disabled", "--happy2-border"],
+    // Ring / accent: primary is the system blue used for focus and selection.
+    ["--color-ring-primary", "--happy2-accent"],
+    ["--color-ring-secondary", "--happy2-border-strong"],
+    ["--color-ring-inverse", "--happy2-action"],
+    ["--color-ring-info", "--happy2-info"],
+    ["--color-ring-danger", "--happy2-danger"],
+    ["--color-ring-success", "--happy2-success"],
+    ["--color-ring-warning", "--happy2-warning"],
+    // Typography families.
+    ["--font-sans", "--happy2-font-ui"],
+    ["--font-mono", "--happy2-font-mono"],
+    // Radii: map the standard scale onto Happy's control/window/card/shell/pill radii.
+    ["--border-radius-xs", "--happy2-radius-sm"],
+    ["--border-radius-sm", "--happy2-radius-sm"],
+    ["--border-radius-md", "--happy2-radius-window"],
+    ["--border-radius-lg", "--happy2-radius-md"],
+    ["--border-radius-xl", "--happy2-radius-shell"],
+    ["--border-radius-full", "--happy2-radius-pill"],
+];
+
+/**
+ * The remaining standard variables (ext-apps 1.7.4) that have no Happy token
+ * equivalent, set to sensible fixed literals so `styles.variables` covers the
+ * complete supported key set. These are non-palette values — a transparent ghost
+ * border, the type scale weights/sizes/line heights, the hairline border width,
+ * and neutral elevation shadows — so they do not duplicate a color the theme
+ * owns. Actual colors always come from `HOST_STYLE_VARIABLE_TOKENS`.
+ */
+const HOST_STYLE_VARIABLE_LITERALS: ReadonlyArray<readonly [standard: string, value: string]> = [
+    ["--color-border-ghost", "transparent"],
+    // Font weights.
+    ["--font-weight-normal", "400"],
+    ["--font-weight-medium", "500"],
+    ["--font-weight-semibold", "600"],
+    ["--font-weight-bold", "700"],
+    // Body text sizes.
+    ["--font-text-xs-size", "11px"],
+    ["--font-text-sm-size", "12px"],
+    ["--font-text-md-size", "14px"],
+    ["--font-text-lg-size", "16px"],
+    // Heading sizes.
+    ["--font-heading-xs-size", "13px"],
+    ["--font-heading-sm-size", "15px"],
+    ["--font-heading-md-size", "17px"],
+    ["--font-heading-lg-size", "20px"],
+    ["--font-heading-xl-size", "24px"],
+    ["--font-heading-2xl-size", "28px"],
+    ["--font-heading-3xl-size", "34px"],
+    // Body text line heights.
+    ["--font-text-xs-line-height", "16px"],
+    ["--font-text-sm-line-height", "18px"],
+    ["--font-text-md-line-height", "20px"],
+    ["--font-text-lg-line-height", "24px"],
+    // Heading line heights.
+    ["--font-heading-xs-line-height", "18px"],
+    ["--font-heading-sm-line-height", "20px"],
+    ["--font-heading-md-line-height", "22px"],
+    ["--font-heading-lg-line-height", "26px"],
+    ["--font-heading-xl-line-height", "30px"],
+    ["--font-heading-2xl-line-height", "34px"],
+    ["--font-heading-3xl-line-height", "40px"],
+    // Hairline border width.
+    ["--border-width-regular", "1px"],
+    // Neutral elevation shadows.
+    ["--shadow-hairline", "0 0 0 1px rgb(0 0 0 / 0.06)"],
+    ["--shadow-sm", "0 1px 2px rgb(0 0 0 / 0.08)"],
+    ["--shadow-md", "0 4px 12px rgb(0 0 0 / 0.12)"],
+    ["--shadow-lg", "0 12px 32px rgb(0 0 0 / 0.18)"],
+];
+
+/**
  * The normalized, transport-relevant resource shape the bridge frame needs. Both
  * the message-embedded `McpAppResource` (`meta.ui.*`) and the durable
  * `PluginAppResource` (flattened) map onto this by their respective owners, so
@@ -134,6 +249,11 @@ interface BridgeState {
  */
 export function McpAppBridgeFrame(props: McpAppBridgeFrameProps) {
     const [appHeight, setAppHeight] = useState<number | undefined>(undefined);
+    // Bumps whenever the theme the frame inherits actually changes (an explicit
+    // ThemeScope toggle or the OS color scheme), so the same running View gets a
+    // fresh theme + styles.variables via host-context-changed without a remount.
+    const [themeEpoch, setThemeEpoch] = useState(0);
+    const themeSignature = useRef<string | undefined>(undefined);
     const hostFrame = useRef<HTMLIFrameElement>(null);
     const bridge = useRef<BridgeState>({
         initializeAnswered: false,
@@ -218,12 +338,46 @@ export function McpAppBridgeFrame(props: McpAppBridgeFrameProps) {
             sendToolResult(hostFrame.current, bridge.current, props.result);
     }, [props.result]);
 
+    // Imperative theme integration: the theme the frame inherits is not React
+    // state, so an explicit ThemeScope class change or an OS color-scheme change
+    // is observed here and folded into `themeEpoch`. Only a real change of the
+    // resolved theme + styles signature bumps it, so unrelated class churn in the
+    // host tree does not thrash renders. Fully cleaned up on unmount.
+    useLayoutEffect(() => {
+        const frame = hostFrame.current;
+        if (!frame) return;
+        themeSignature.current = styleContextSignature(frame);
+        const onThemeMaybeChanged = () => {
+            const next = styleContextSignature(frame);
+            if (next === themeSignature.current) return;
+            themeSignature.current = next;
+            setThemeEpoch((epoch) => epoch + 1);
+        };
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        media.addEventListener("change", onThemeMaybeChanged);
+        const observer = new MutationObserver(onThemeMaybeChanged);
+        // A ThemeScope toggles `.happy2-theme-*` on a single stable ancestor of the
+        // frame (also tagged `.happy2-theme-scope`); watch only that element's own
+        // class rather than the whole document. Fall back to the document root when
+        // no explicit scope is present, where matchMedia already covers system
+        // changes. `subtree` is intentionally off so unrelated class churn is
+        // ignored.
+        const scope =
+            frame.closest(".happy2-theme-scope, .happy2-theme-dark, .happy2-theme-light") ??
+            document.documentElement;
+        observer.observe(scope, { attributeFilter: ["class"], attributes: true });
+        return () => {
+            media.removeEventListener("change", onThemeMaybeChanged);
+            observer.disconnect();
+        };
+    }, []);
+
     // Pushes a standard host-context-changed notification when the durable
-    // context payload or display mode changes on the SAME resource, so the View
-    // reconciles its `happy2/instance` context / dataRevision without a remount.
-    // Reads the latest props via an effect event so the effect depends only on
-    // the serialized context key.
-    const contextKey = hostContextKey(props.hostContext, props.displayMode);
+    // context payload, display mode, or inherited theme changes on the SAME
+    // resource, so the View reconciles its `happy2/instance` context/dataRevision
+    // and its theme + styles.variables without a remount. Reads the latest props
+    // via an effect event so the effect depends only on the serialized key.
+    const contextKey = hostContextKey(props.hostContext, props.displayMode, themeEpoch);
     const deliverHostContext = useEffectEvent(() => {
         sendHostContextChanged(hostFrame.current, bridge.current, props, contextKey);
     });
@@ -330,9 +484,14 @@ function sendToolResult(
 function hostContextKey(
     hostContext: object | undefined,
     displayMode: McpAppDisplayMode | undefined,
+    themeEpoch: number,
 ): string {
-    if (hostContext === undefined && displayMode === undefined) return "";
-    return JSON.stringify({ hostContext: hostContext ?? null, displayMode: displayMode ?? null });
+    if (hostContext === undefined && displayMode === undefined && themeEpoch === 0) return "";
+    return JSON.stringify({
+        hostContext: hostContext ?? null,
+        displayMode: displayMode ?? null,
+        themeEpoch,
+    });
 }
 
 /**
@@ -360,18 +519,29 @@ function sendHostContextChanged(
     postTo(
         frame,
         state.disposed,
-        jsonRpcNotification(McpAppMethod.hostContextChanged, hostContextPayload(props)),
+        jsonRpcNotification(McpAppMethod.hostContextChanged, hostContextPayload(props, frame)),
     );
 }
 
-/** The partial `HostContext` a durable owner projects (instance context + mode). */
-function hostContextPayload(props: McpAppBridgeFrameProps): Record<string, unknown> {
+/**
+ * The partial `HostContext` a durable owner projects: instance context + display
+ * mode, plus the live theme and standard `styles.variables` resolved from the
+ * frame so a theme change reconciles the running View's appearance.
+ */
+function hostContextPayload(
+    props: McpAppBridgeFrameProps,
+    frame: HTMLElement | null,
+): Record<string, unknown> {
+    const theme = resolveTheme(frame);
+    const styles = resolveStyleVariables(frame);
     return {
         ...props.hostContext,
         ...(props.displayMode ? { displayMode: props.displayMode } : {}),
         ...(props.availableDisplayModes
             ? { availableDisplayModes: props.availableDisplayModes }
             : {}),
+        ...(theme ? { theme } : {}),
+        ...(styles ? { styles: { variables: styles } } : {}),
     };
 }
 
@@ -625,6 +795,7 @@ function initializeResult(
               ? { width, maxHeight: MAX_APP_HEIGHT }
               : { maxWidth: 1280, maxHeight: MAX_APP_HEIGHT };
     const theme = resolveTheme(frame);
+    const styles = resolveStyleVariables(frame);
     const displayMode = props.displayMode ?? "inline";
     const availableDisplayModes = props.availableDisplayModes ?? [displayMode];
     return {
@@ -632,6 +803,12 @@ function initializeResult(
         hostInfo: { name: "Happy MCP App host", version: "1.0.0" },
         hostCapabilities: capabilities,
         hostContext: {
+            // Owner-supplied durable instance context (`happy2/instance`) and any
+            // vendor fields come first, so the host-owned fields below always take
+            // precedence over them. This matches `hostContextPayload`, keeping the
+            // initialize snapshot and later host-context-changed payloads
+            // consistent about who owns display/theme/styles.
+            ...props.hostContext,
             // `toolInfo.tool` must be a complete MCP Tool (with inputSchema); the
             // host only knows the tool name, so the optional field is omitted.
             displayMode,
@@ -640,10 +817,10 @@ function initializeResult(
             deviceCapabilities: { touch: false, hover: true },
             containerDimensions,
             ...(theme ? { theme } : {}),
+            // Standard MCP Apps style variables, mapped from Happy's live tokens so
+            // the app's first paint already matches the host appearance.
+            ...(styles ? { styles: { variables: styles } } : {}),
             ...localeContext(),
-            // Durable instance context (`happy2/instance`) and any owner-supplied
-            // vendor fields are merged last so the View sees them from the start.
-            ...props.hostContext,
         },
     };
 }
@@ -665,6 +842,42 @@ function resolveTheme(frame: HTMLElement | null): "light" | "dark" | undefined {
         // fall through to undefined
     }
     return undefined;
+}
+
+/**
+ * Resolves the standard MCP Apps `styles.variables` for the frame by reading each
+ * mapped `--happy2-*` custom property as an inherited computed value. This keeps
+ * `theme.css` the single color source: the bridge forwards whatever the current
+ * theme (system or an explicit ThemeScope) computed for the frame. Returns
+ * undefined when nothing can be read so the optional field is omitted.
+ */
+function resolveStyleVariables(frame: HTMLElement | null): Record<string, string> | undefined {
+    if (!frame) return undefined;
+    try {
+        const computed = window.getComputedStyle(frame);
+        const variables: Record<string, string> = {};
+        for (const [standard, token] of HOST_STYLE_VARIABLE_TOKENS) {
+            const value = computed.getPropertyValue(token).trim();
+            if (value) variables[standard] = value;
+        }
+        for (const [standard, literal] of HOST_STYLE_VARIABLE_LITERALS)
+            variables[standard] = literal;
+        return Object.keys(variables).length > 0 ? variables : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * A stable string identity of the frame's resolved theme + style variables, used
+ * only to decide whether an observed host mutation actually changed the
+ * appearance the View should see.
+ */
+function styleContextSignature(frame: HTMLElement | null): string {
+    return JSON.stringify({
+        theme: resolveTheme(frame) ?? null,
+        styles: resolveStyleVariables(frame) ?? null,
+    });
 }
 
 function localeContext(): { locale?: string; timeZone?: string } {
