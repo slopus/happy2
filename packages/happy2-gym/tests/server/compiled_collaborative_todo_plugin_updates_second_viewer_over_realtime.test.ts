@@ -112,6 +112,28 @@ describe("compiled collaborative TODO plugin realtime integration", () => {
                         bobApps.find(({ id: candidate }) => candidate === indexId)?.dataRevision,
                     ),
                 ).toBeGreaterThan(0);
+
+                const deleted = await asAlice.post(`/v0/apps/${indexId}/callTool`, {
+                    name: "todos_app_delete_list",
+                    arguments: { listId: id },
+                });
+                expect(deleted.statusCode, deleted.body).toBe(200);
+                expect(
+                    object(deleted.json().result.structuredContent, "deleted structured content"),
+                ).toMatchObject({
+                    deletedList: { id, title: "Shared launch" },
+                    indexRevision: expect.any(Number),
+                });
+
+                await frames.until(
+                    ({ data, name }) =>
+                        name === "sync" &&
+                        Array.isArray(object(data, "sync frame").areas) &&
+                        (object(data, "sync frame").areas as unknown[]).includes("apps"),
+                );
+                expect(
+                    (await visibleApps(asBob)).map(({ instanceKey }) => instanceKey),
+                ).not.toContain(`todos.list.${id}`);
             } finally {
                 abort.abort();
                 await frames.cancel();

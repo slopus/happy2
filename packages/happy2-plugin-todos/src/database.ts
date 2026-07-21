@@ -63,6 +63,14 @@ export interface TodoMutation<T> {
     readonly value: T;
 }
 
+export interface TodoListDeletion {
+    readonly indexRevision: number;
+    readonly value: {
+        readonly id: string;
+        readonly title: string;
+    };
+}
+
 export interface TodosDatabaseOptions {
     readonly idFactory?: () => string;
     readonly now?: () => Date;
@@ -246,6 +254,18 @@ export class TodosDatabase {
                 `Deleted “${string(existing.title, "Item title")}”.`,
             );
             return { id: itemId };
+        });
+    }
+
+    deleteList(listId: string): TodoListDeletion {
+        return this.#transaction(() => {
+            const list = this.#listSummary(listId);
+            const indexRevision = this.#incrementRevision("index", INDEX_SCOPE_ID);
+            this.#database
+                .prepare("DELETE FROM todo_revisions WHERE scope = 'list' AND scope_id = ?")
+                .run(listId);
+            this.#database.prepare("DELETE FROM todo_lists WHERE id = ?").run(listId);
+            return { indexRevision, value: { id: list.id, title: list.title } };
         });
     }
 

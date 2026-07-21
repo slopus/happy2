@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { TodoDataError, TodosDatabase } from "./database.js";
 
@@ -87,6 +88,44 @@ describe("TodosDatabase", () => {
             activity: [{ kind: "item_added" }, { kind: "list_created" }],
         });
         reopened.close();
+    });
+
+    it("deletes a list with its items, activity, and revision while advancing the index", () => {
+        const path = join(temporaryDirectory(), "todos.db");
+        const database = new TodosDatabase(path, { idFactory: idFactory() });
+        const retained = database.createList("Retained", "viewer-a").value;
+        const deleted = database.createList("Delete me", "viewer-a").value;
+        database.addItem(deleted.id, "Disposable task", "viewer-a");
+
+        expect(database.deleteList(deleted.id)).toEqual({
+            indexRevision: 4,
+            value: { id: deleted.id, title: "Delete me" },
+        });
+        expect(database.indexSnapshot()).toMatchObject({
+            revision: 4,
+            lists: [{ id: retained.id, title: "Retained" }],
+        });
+        expect(() => database.listSnapshot(deleted.id)).toThrow(
+            new TodoDataError(`TODO list ${deleted.id} was not found.`),
+        );
+        database.close();
+
+        const persisted = new DatabaseSync(path);
+        for (const table of ["todo_items", "todo_activity"] as const) {
+            expect(
+                persisted
+                    .prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE list_id = ?`)
+                    .get(deleted.id),
+            ).toMatchObject({ count: 0 });
+        }
+        expect(
+            persisted
+                .prepare(
+                    "SELECT COUNT(*) AS count FROM todo_revisions WHERE scope = 'list' AND scope_id = ?",
+                )
+                .get(deleted.id),
+        ).toMatchObject({ count: 0 });
+        persisted.close();
     });
 });
 

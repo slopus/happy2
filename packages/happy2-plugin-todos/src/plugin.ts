@@ -17,6 +17,7 @@ import {
     databasePath,
     type TodoIndexSnapshot,
     type TodoItem,
+    type TodoListDeletion,
     type TodoListSnapshot,
     type TodoListSummary,
     type TodoMutation,
@@ -30,7 +31,7 @@ const MODEL_ONLY_META = { ui: { visibility: ["model"] } } as const;
 
 type HostSurfaceClient = Pick<
     HostClient,
-    "putAppInstance" | "putContribution" | "updateAppInstanceContext"
+    "deleteAppInstance" | "putAppInstance" | "putContribution" | "updateAppInstanceContext"
 >;
 
 export interface TodosPluginOptions {
@@ -108,14 +109,13 @@ function registerModelTools(
             }),
     );
 
-    registerAppTool(
-        server,
+    server.registerTool(
         "todos_list_lists",
         {
             description:
                 "Lists every collaborative TODO list with item counts, completion counts, and revision information.",
             inputSchema: z.object({}).strict(),
-            _meta: appToolMetadata({ resourceUri: TODO_INDEX_URI, visibility: ["model"] }),
+            _meta: MODEL_ONLY_META,
             title: "List collaborative TODO lists",
         },
         (_input, extra) =>
@@ -144,6 +144,18 @@ function registerModelTools(
                 await surfaces.ensureList(snapshot.list, context);
                 return listResult(snapshot);
             }),
+    );
+
+    server.registerTool(
+        "todos_delete_list",
+        {
+            description:
+                "Permanently deletes one collaborative TODO list, all of its items, and its sidebar app.",
+            inputSchema: z.object({ listId: idSchema("The TODO list ID.") }).strict(),
+            _meta: MODEL_ONLY_META,
+            title: "Delete a collaborative TODO list",
+        },
+        ({ listId }, extra) => deleteList(database, surfaces, extra, listId),
     );
 
     server.registerTool(
@@ -244,7 +256,7 @@ function registerAppTools(
         {
             description: "Reconciles the durable collaborative TODO list selector.",
             inputSchema: z.object({}).strict(),
-            _meta: APP_ONLY_META,
+            _meta: appToolMetadata({ resourceUri: TODO_INDEX_URI, visibility: ["app"] }),
             title: "Reconcile TODO list selector",
         },
         (_input, extra) =>
@@ -258,7 +270,7 @@ function registerAppTools(
         {
             description: "Reconciles one durable collaborative TODO list.",
             inputSchema: z.object({ listId: idSchema("The TODO list ID.") }).strict(),
-            _meta: APP_ONLY_META,
+            _meta: appToolMetadata({ resourceUri: TODO_LIST_URI, visibility: ["app"] }),
             title: "Reconcile TODO list",
         },
         ({ listId }, extra) =>
@@ -286,6 +298,16 @@ function registerAppTools(
                 await surfaces.created(mutation, context.call);
                 return listCreatedResult(mutation.value, mutation);
             }),
+    );
+    server.registerTool(
+        "todos_app_delete_list",
+        {
+            description: "Deletes a list from the interactive TODO selector.",
+            inputSchema: z.object({ listId: idSchema("The TODO list ID.") }).strict(),
+            _meta: APP_ONLY_META,
+            title: "Delete TODO list from app",
+        },
+        ({ listId }, extra) => deleteList(database, surfaces, extra, listId),
     );
     server.registerTool(
         "todos_app_add_item",
@@ -405,6 +427,21 @@ class TodoSurfaces {
         );
     }
 
+    async deleted(deletion: TodoListDeletion, context: HappyCallContext): Promise<void> {
+        await this.ensureGlobal(context);
+        await this.#host.deleteAppInstance(
+            { instanceKey: listInstanceKey(deletion.value.id) },
+            context,
+        );
+        await this.#host.updateAppInstanceContext(
+            {
+                context: { dataRevision: deletion.indexRevision },
+                instanceKey: INDEX_INSTANCE_KEY,
+            },
+            context,
+        );
+    }
+
     async ensureList(list: TodoListSummary, context: HappyCallContext): Promise<void> {
         await this.#host.putAppInstance(
             {
@@ -514,6 +551,20 @@ class TodoSurfaces {
     }
 }
 
+async function deleteList(
+    database: TodosDatabase,
+    surfaces: TodoSurfaces,
+    extra: Parameters<typeof happyCallContext>[0],
+    listId: string,
+): Promise<CallToolResult> {
+    return safely(async () => {
+        const context = mutationContext(extra);
+        const deletion = database.deleteList(listId);
+        await surfaces.deleted(deletion, context.call);
+        return listDeletedResult(deletion);
+    });
+}
+
 async function mutate<T>(
     database: TodosDatabase,
     surfaces: TodoSurfaces,
@@ -561,6 +612,21 @@ function listCreatedResult(
         structuredContent: {
             indexRevision: mutation.indexRevision,
             list: listStructuredSummary(list),
+        },
+    };
+}
+
+function listDeletedResult(deletion: TodoListDeletion): CallToolResult {
+    return {
+        content: [
+            {
+                type: "text",
+                text: `Deleted collaborative TODO list “${deletion.value.title}”.`,
+            },
+        ],
+        structuredContent: {
+            deletedList: { ...deletion.value },
+            indexRevision: deletion.indexRevision,
         },
     };
 }

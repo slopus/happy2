@@ -52,15 +52,23 @@ describe("built collaborative TODO plugin", () => {
             ).toMatchObject({
                 ui: { resourceUri: "ui://happy2-todos/list.html", visibility: ["model"] },
             });
+            expect(tools.tools.find(({ name }) => name === "todos_list_lists")?._meta).toEqual({
+                ui: { visibility: ["model"] },
+            });
             expect(
                 tools.tools.find(({ name }) => name === "todos_app_index_snapshot")?._meta,
-            ).toMatchObject({ ui: { visibility: ["app"] } });
+            ).toMatchObject({
+                ui: { resourceUri: "ui://happy2-todos/index.html", visibility: ["app"] },
+            });
 
             const launch = await call(client, "todos_create_list", { title: "Launch" }, "alice");
             const docs = await call(client, "todos_create_list", { title: "Docs" }, "bob");
             const launchId = object(structured(launch).list, "launch list").id;
             expect(typeof launchId).toBe("string");
-            expect(object(structured(docs).list, "docs list").title).toBe("Docs");
+            const docsList = object(structured(docs).list, "docs list");
+            const docsId = docsList.id;
+            expect(docsList.title).toBe("Docs");
+            expect(typeof docsId).toBe("string");
 
             const added = await call(
                 client,
@@ -83,6 +91,16 @@ describe("built collaborative TODO plugin", () => {
                     expect.objectContaining({ title: "Docs", completedCount: 0, itemCount: 0 }),
                 ]),
             );
+
+            const deleted = await call(client, "todos_delete_list", { listId: docsId }, "alice");
+            expect(object(structured(deleted).deletedList, "deleted list")).toMatchObject({
+                id: docsId,
+                title: "Docs",
+            });
+            const afterDelete = await call(client, "todos_list_lists", {}, "bob");
+            expect(array(structured(afterDelete).lists, "lists")).toEqual([
+                expect.objectContaining({ id: launchId, title: "Launch" }),
+            ]);
 
             for (const uri of ["ui://happy2-todos/index.html", "ui://happy2-todos/list.html"]) {
                 const resource = await client.readResource({ uri });
@@ -115,6 +133,13 @@ describe("built collaborative TODO plugin", () => {
                     path === "/apps/updateInstanceContext" && body.instanceKey === "todos.index",
             );
             expect(indexUpdates.length).toBeGreaterThanOrEqual(4);
+            expect(
+                requests.some(
+                    ({ body, path }) =>
+                        path === "/apps/deleteInstance" &&
+                        body.instanceKey === `todos.list.${docsId}`,
+                ),
+            ).toBe(true);
             expect(requests.some(({ viewerToken }) => viewerToken === "token-alice")).toBe(true);
             expect(requests.some(({ viewerToken }) => viewerToken === "token-bob")).toBe(true);
             expect(

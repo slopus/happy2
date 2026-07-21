@@ -114,15 +114,24 @@ describe("collaborative TODO MCP server", () => {
         expect(tools.tools.find(({ name }) => name === "todos_create_list")?._meta).toMatchObject({
             ui: { resourceUri: "ui://happy2-todos/list.html", visibility: ["model"] },
         });
+        expect(tools.tools.find(({ name }) => name === "todos_list_lists")?._meta).toEqual({
+            ui: { visibility: ["model"] },
+        });
         expect(
             tools.tools.find(({ name }) => name === "todos_app_index_snapshot")?._meta,
         ).toMatchObject({
-            ui: { visibility: ["app"] },
+            ui: { resourceUri: "ui://happy2-todos/index.html", visibility: ["app"] },
         });
 
         const missingViewer = await call(session.client, "todos_create_list", { title: "Denied" });
         expect(missingViewer).toMatchObject({ isError: true });
         expect(text(missingViewer)).toContain("protected current viewer capability");
+
+        const missingViewerDelete = await call(session.client, "todos_delete_list", {
+            listId: "missing",
+        });
+        expect(missingViewerDelete).toMatchObject({ isError: true });
+        expect(text(missingViewerDelete)).toContain("protected current viewer capability");
 
         const created = await call(
             session.client,
@@ -143,6 +152,36 @@ describe("collaborative TODO MCP server", () => {
 
         const listed = await call(session.client, "todos_list_lists", {}, callMeta("viewer-a"));
         expect(text(listed)).toBe("Found 1 collaborative TODO list.");
+
+        const deleted = await call(
+            session.client,
+            "todos_delete_list",
+            { listId },
+            callMeta("viewer-a"),
+        );
+        expect(text(deleted)).toBe("Deleted collaborative TODO list “Fallback”.");
+        expect(structured(deleted)).toMatchObject({
+            deletedList: { id: listId, title: "Fallback" },
+            indexRevision: 2,
+        });
+        expect(
+            host.requests.find(
+                ({ body, path }) =>
+                    path === "/apps/deleteInstance" && body.instanceKey === `todos.list.${listId}`,
+            ),
+        ).toBeDefined();
+        expect(text(await call(session.client, "todos_list_lists", {}, callMeta("viewer-a")))).toBe(
+            "Found 0 collaborative TODO lists.",
+        );
+
+        const missingList = await call(
+            session.client,
+            "todos_delete_list",
+            { listId },
+            callMeta("viewer-a"),
+        );
+        expect(missingList).toMatchObject({ isError: true });
+        expect(text(missingList)).toBe(`TODO list ${listId} was not found.`);
     });
 });
 
