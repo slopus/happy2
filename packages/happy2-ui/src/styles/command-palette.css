@@ -1,7 +1,7 @@
 /*
  * C-060 CommandPalette — Slack-style ⌘K palette card.
  *
- * The card is a 640px raised surface on the 14px shell radius with a 1px strong
+ * The card is a 640px high surface on the 14px shell radius with a 1px modal
  * hairline and the shared elevated modal shadow. A fixed 60px input row (search
  * glyph · own text input · ESC cap · ghost close) sits over a scrollable body,
  * split by a 1px hairline. It renders the card only — no scrim or stacking — so
@@ -25,11 +25,11 @@
     height: 461px;
     max-height: 100%;
     overflow: hidden;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border-strong);
+    background: var(--surface-high);
+    border: 1px solid var(--modal-border);
     border-radius: var(--happy2-radius-shell);
     box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -43,13 +43,13 @@
     gap: 12px;
     height: 60px;
     padding: 0 16px 0 20px;
-    border-bottom: 1px solid var(--happy2-border);
+    border-bottom: 1px solid var(--divider);
 }
 
 .happy2-command-palette__icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-command-palette__input {
@@ -61,18 +61,18 @@
     background: transparent;
     border: none;
     outline: none;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-size: 16px;
     font-weight: 500;
     line-height: 40px;
     letter-spacing: -0.01em;
     font-synthesis: none;
-    caret-color: var(--happy2-accent);
+    caret-color: var(--text-link);
 }
 
 .happy2-command-palette__input::placeholder {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     opacity: 1;
 }
 
@@ -99,11 +99,11 @@
        transparent track. Firefox uses the standard properties; WebKit and
        Chromium use the pseudo-elements below, all from the same theme tokens. */
     scrollbar-width: thin;
-    scrollbar-color: var(--happy2-border-strong) transparent;
+    scrollbar-color: var(--modal-border) transparent;
 }
 
 .happy2-command-palette__body:hover {
-    scrollbar-color: var(--happy2-text-faint) transparent;
+    scrollbar-color: var(--text-secondary) transparent;
 }
 
 .happy2-command-palette__body::-webkit-scrollbar {
@@ -118,18 +118,18 @@
 /* The transparent border insets the thumb to a thin rounded bar while the
    scrollbar itself remains an easy desktop pointer target. */
 .happy2-command-palette__body::-webkit-scrollbar-thumb {
-    background-color: var(--happy2-border-strong);
+    background-color: var(--modal-border);
     background-clip: padding-box;
     border: 3px solid transparent;
     border-radius: var(--happy2-radius-pill);
 }
 
 .happy2-command-palette__body:hover::-webkit-scrollbar-thumb {
-    background-color: var(--happy2-text-faint);
+    background-color: var(--text-secondary);
 }
 
 .happy2-command-palette__body::-webkit-scrollbar-thumb:hover {
-    background-color: var(--happy2-text-muted);
+    background-color: var(--text-secondary);
 }
 
 .happy2-command-palette__body::-webkit-scrollbar-corner {

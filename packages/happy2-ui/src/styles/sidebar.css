@@ -16,8 +16,8 @@
     flex-direction: column;
     width: clamp(250px, 30vw, 360px);
     height: 100%;
-    background: var(--happy2-bg-app);
-    color: var(--happy2-text);
+    background: var(--groupped-background);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     overflow: hidden;
@@ -64,7 +64,7 @@
 .happy2-sidebar__title {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 800;
     letter-spacing: -0.01em;
@@ -75,20 +75,20 @@
 }
 
 .happy2-sidebar__title-suffix {
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
 }
 
 .happy2-sidebar__title-chevron {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     transform: translateY(var(--happy2-sidebar-chevron-optical-y, 0px));
 }
 
 .happy2-sidebar__subtitle {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
     line-height: 14px;
@@ -122,7 +122,7 @@
     border: 0;
     border-radius: var(--happy2-radius-sm);
     background: transparent;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     cursor: pointer;
     appearance: none;
     transition:
@@ -136,12 +136,12 @@
 }
 
 .happy2-sidebar__back:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text);
+    background: var(--surface-ripple);
+    color: var(--text);
 }
 
 .happy2-sidebar__back:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
@@ -241,7 +241,7 @@
 .happy2-sidebar__section-label {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 700;
@@ -266,7 +266,7 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     appearance: none;
     cursor: pointer;
     opacity: 0;
@@ -282,12 +282,12 @@
 }
 
 .happy2-sidebar__section-action:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text-secondary);
+    background: var(--surface-ripple);
+    color: var(--text-secondary);
 }
 
 .happy2-sidebar__section-action:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 1px;
 }
 
@@ -300,7 +300,7 @@
 }
 
 .happy2-sidebar__empty-description {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
     line-height: 15px;
@@ -327,7 +327,7 @@
     border: none;
     border-radius: var(--happy2-radius-sm);
     background: transparent;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     text-align: left;
@@ -339,17 +339,17 @@
 }
 
 .happy2-sidebar__item:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-sidebar__item:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
 .happy2-sidebar__item[data-active] {
-    background: var(--happy2-bg-raised);
-    color: var(--happy2-text);
+    background: var(--surface-selected);
+    color: var(--text);
 }
 
 .happy2-sidebar__item-leading {
@@ -358,11 +358,11 @@
     align-items: center;
     justify-content: center;
     width: 20px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-sidebar__item[data-active] .happy2-sidebar__item-leading {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-sidebar__item-label {
@@ -383,7 +383,7 @@
 }
 
 .happy2-sidebar__item[data-unread] {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-sidebar__item[data-unread] .happy2-sidebar__item-label {
@@ -391,7 +391,7 @@
 }
 
 .happy2-sidebar__item[data-kind="action"] {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 /* Archived channels stay in place and clickable but dim uniformly so the state
    reads distinctly from an ordinary resting (already secondary-grey) row. The
@@ -413,13 +413,13 @@
     height: 6px;
     margin: 0 6px;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 .happy2-sidebar__item-meta {
     display: block;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
     line-height: 16px;
@@ -429,7 +429,7 @@
 .happy2-sidebar__item-working {
     display: block;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 500;
@@ -446,12 +446,11 @@
 }
 
 .happy2-sidebar__item-status[data-status="ready"] {
-    background: var(--happy2-online);
+    background: var(--status-connected);
 }
 
 .happy2-sidebar__item-status[data-status="working"] {
-    background: var(--happy2-warning);
-    box-shadow: 0 0 0 3px var(--happy2-warning-soft);
+    background: var(--status-connecting);
 }
 
 /* ---- Footer ------------------------------------------------------------ */
@@ -462,7 +461,7 @@
     align-items: center;
     height: 56px;
     padding: 0 12px;
-    border-top: 1px solid var(--happy2-border);
+    border-top: 1px solid var(--divider);
 }
 
 /* Profile control pinned in the sidebar footer: avatar + name that opens the
@@ -478,7 +477,7 @@
     border: 0;
     border-radius: var(--happy2-radius-sm);
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     text-align: left;
@@ -488,11 +487,11 @@
 }
 
 .happy2-sidebar__profile:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-sidebar__profile:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 

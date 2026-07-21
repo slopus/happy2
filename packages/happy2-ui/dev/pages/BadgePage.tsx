@@ -130,7 +130,7 @@ export function BadgePage() {
                 <div style={{ ...row, gap: "8px" }}>
                     <span
                         style={{
-                            color: "var(--happy2-text)",
+                            color: "var(--text)",
                             font: "700 13px var(--happy2-font-ui)",
                         }}
                     >

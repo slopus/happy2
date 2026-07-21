@@ -14,7 +14,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -46,36 +46,36 @@
     align-items: flex-start;
     gap: 4px;
     padding: 12px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: 10px;
-    background: var(--happy2-bg-surface);
-    color: var(--happy2-text-secondary);
+    background: var(--surface);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     text-align: left;
     cursor: pointer;
 }
 
 .happy2-plugin-install-dialog__source-option:hover {
-    border-color: var(--happy2-border-strong);
+    border-color: var(--modal-border);
 }
 
 .happy2-plugin-install-dialog__source-option[aria-checked="true"] {
-    border-color: var(--happy2-accent);
-    background: var(--happy2-bg-raised);
-    color: var(--happy2-text);
+    border-color: var(--text-link);
+    background: var(--surface-high);
+    color: var(--text);
 }
 
 .happy2-plugin-install-dialog__source-label {
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-install-dialog__source-description {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-install-dialog__upload {
@@ -91,10 +91,10 @@
     gap: 8px;
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: 8px;
-    background: var(--happy2-bg-surface);
-    color: var(--happy2-text-secondary);
+    background: var(--surface);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-install-dialog__archive-name {
@@ -105,7 +105,7 @@
     min-width: 0;
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-install-dialog__archive-size {
@@ -113,14 +113,14 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 
 .happy2-plugin-install-dialog__hint {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 /* ---- Preparing step ----------------------------------------------------- */
@@ -135,7 +135,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-install-dialog__progress {
@@ -143,14 +143,14 @@
     height: 6px;
     border-radius: 999px;
     overflow: hidden;
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
 }
 
 .happy2-plugin-install-dialog__progress-fill {
     display: block;
     height: 100%;
     border-radius: 999px;
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 .happy2-plugin-install-dialog__progress-fill[data-indeterminate="true"] {
@@ -160,7 +160,7 @@
 .happy2-plugin-install-dialog__detail {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 
@@ -184,22 +184,22 @@
     gap: 12px;
     width: 100%;
     padding: 12px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: 10px;
-    background: var(--happy2-bg-surface);
-    color: var(--happy2-text);
+    background: var(--surface);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     text-align: left;
     cursor: pointer;
 }
 
 .happy2-plugin-install-dialog__candidate:hover {
-    border-color: var(--happy2-border-strong);
+    border-color: var(--modal-border);
 }
 
 .happy2-plugin-install-dialog__candidate[aria-selected="true"] {
-    border-color: var(--happy2-accent);
-    background: var(--happy2-bg-raised);
+    border-color: var(--text-link);
+    background: var(--surface-high);
 }
 
 .happy2-plugin-install-dialog__candidate-body {
@@ -224,7 +224,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-install-dialog__candidate-description {
@@ -233,7 +233,7 @@
     white-space: nowrap;
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-install-dialog__mono {
@@ -241,7 +241,7 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 
@@ -273,7 +273,7 @@
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-install-dialog__preview-reference {
@@ -283,13 +283,13 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-install-dialog__preview-description {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-install-dialog__capabilities {
@@ -306,8 +306,8 @@
     justify-content: center;
     border-radius: 8px;
     overflow: hidden;
-    background: var(--happy2-bg-raised);
-    color: var(--happy2-text-muted);
+    background: var(--surface-high);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-install-dialog__thumb-image {
@@ -329,7 +329,7 @@
     line-height: 16px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-install-dialog__skill {
@@ -337,22 +337,22 @@
     flex-direction: column;
     gap: 2px;
     padding: 8px 12px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: 8px;
-    background: var(--happy2-bg-surface);
+    background: var(--surface);
 }
 
 .happy2-plugin-install-dialog__skill-name {
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-install-dialog__skill-description {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-install-dialog__form {
@@ -367,7 +367,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -375,13 +375,13 @@
 .happy2-plugin-uninstall-dialog__message {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-uninstall-dialog__message code {
     font-family: var(--happy2-font-mono);
     font-size: 12px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-uninstall-dialog__actions {

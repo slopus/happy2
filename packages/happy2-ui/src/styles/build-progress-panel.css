@@ -20,10 +20,10 @@
     gap: 16px;
     width: 100%;
     padding: 20px;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -37,7 +37,7 @@
 }
 
 .happy2-build-progress__title {
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
@@ -53,7 +53,7 @@
 .happy2-build-progress__track {
     width: 100%;
     height: 8px;
-    background: var(--happy2-bg-inset);
+    background: var(--groupped-background);
     border-radius: var(--happy2-radius-pill);
     overflow: hidden;
 }
@@ -65,15 +65,15 @@
 .happy2-build-progress__fill {
     height: 100%;
     border-radius: inherit;
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 .happy2-build-progress[data-status="ready"] .happy2-build-progress__fill {
-    background: var(--happy2-success);
+    background: var(--success);
 }
 
 .happy2-build-progress[data-status="failed"] .happy2-build-progress__fill {
-    background: var(--happy2-danger);
+    background: var(--text-destructive);
 }
 
 /* ---- Status line ------------------------------------------------------ */
@@ -85,7 +85,7 @@
 }
 
 .happy2-build-progress__status-label {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
@@ -93,7 +93,7 @@
 
 .happy2-build-progress__percent {
     margin-left: auto;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 18px;
@@ -112,13 +112,13 @@
 .happy2-build-progress__current-icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-build-progress__current-text {
     flex: 1 1 auto;
     min-width: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
@@ -136,7 +136,7 @@
 }
 
 .happy2-build-progress__truncated {
-    color: var(--happy2-warning);
+    color: var(--warning);
     font-size: 11px;
     font-weight: 700;
     line-height: 14px;
@@ -149,9 +149,9 @@
     margin: 0;
     max-height: 160px;
     overflow: auto;
-    background: var(--happy2-bg-code);
+    background: var(--diff-context-bg);
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 18px;
@@ -178,7 +178,7 @@
 }
 
 .happy2-build-progress__error-text {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;
@@ -199,7 +199,7 @@
     flex: none;
     width: 20px;
     height: 20px;
-    border: 2px solid var(--happy2-border-strong);
-    border-top-color: var(--happy2-accent);
+    border: 2px solid var(--surface-pressed-overlay);
+    border-top-color: var(--text-link);
     border-radius: var(--happy2-radius-pill);
 }

@@ -343,12 +343,12 @@ it("holds Rail geometry, states, and optical alignment", { timeout: 240_000 }, a
         "flex-direction": "column",
     });
 
-    /* Active state: accent-soft fill, accent-strong icon, solid label. */
+    /* Active state: selected system fill, Happy link-color icon, solid label. */
     expect(active.element.getAttribute("aria-current")).toBe("page");
     expect(inbox.element.getAttribute("aria-current")).toBeNull();
     expect(active.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(0, 122, 255, 0.14)",
-        color: "rgb(0, 122, 255)",
+        "background-color": "rgb(198, 198, 200)",
+        color: "rgb(43, 172, 204)",
     });
     expect(
         view

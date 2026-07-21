@@ -15,7 +15,7 @@
     gap: 24px;
     width: 100%;
     font-family: var(--happy2-font-ui);
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-settings__group {
@@ -39,7 +39,7 @@
 .happy2-plugin-settings__group-description {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-settings__list {
@@ -56,13 +56,13 @@
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
 }
 
 .happy2-plugin-settings__row[data-hidden] {
-    background: var(--happy2-bg-app);
+    background: var(--groupped-background);
 }
 
 .happy2-plugin-settings__glyph {
@@ -70,7 +70,7 @@
     flex: none;
     align-items: center;
     justify-content: center;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-settings__label {
@@ -93,7 +93,7 @@
 .happy2-plugin-settings__description {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -102,7 +102,7 @@
 .happy2-plugin-settings__error {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 .happy2-plugin-settings__controls {

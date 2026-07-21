@@ -22,10 +22,10 @@
     gap: 16px;
     width: 380px;
     padding: 16px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    background: var(--happy2-bg-raised);
-    color: var(--happy2-text);
+    background: var(--surface-high);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -46,7 +46,7 @@
 
 .happy2-status-picker__section-label {
     display: block;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 700;
     line-height: 14px;
@@ -69,9 +69,9 @@
     width: 100%;
     height: 36px;
     padding: var(--happy2-sp-pad);
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
 }
 
 /*
@@ -87,9 +87,9 @@
     left: var(--happy2-sp-pad);
     box-sizing: border-box;
     width: calc((100% - 2 * var(--happy2-sp-pad)) / var(--happy2-sp-count));
-    border: 1px solid var(--happy2-border-strong);
+    border: 1px solid var(--surface-pressed-overlay);
     border-radius: var(--happy2-sp-inner-radius);
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
     transform: translateX(calc(var(--happy2-sp-index) * 100%));
     transition: transform 160ms ease;
 }
@@ -112,7 +112,7 @@
     border: 0;
     border-radius: var(--happy2-sp-inner-radius);
     background: transparent;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     font-size: 13px;
@@ -125,15 +125,15 @@
 }
 
 .happy2-status-picker__segment[data-active] {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-status-picker__segment:not([data-active]):hover {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-status-picker__segment:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -1px;
 }
 
@@ -147,19 +147,19 @@
     width: 8px;
     height: 8px;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-text-muted);
+    background: var(--status-default);
 }
 
 .happy2-status-picker__dot[data-availability="online"] {
-    background: var(--happy2-success);
+    background: var(--status-connected);
 }
 
 .happy2-status-picker__dot[data-availability="away"] {
-    background: var(--happy2-warning);
+    background: var(--warning-critical);
 }
 
 .happy2-status-picker__dot[data-availability="dnd"] {
-    background: var(--happy2-danger);
+    background: var(--status-error);
 }
 
 /*
@@ -185,13 +185,13 @@
     width: 100%;
     height: 40px;
     padding: 0 8px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
 }
 
 .happy2-status-picker__field:focus-within {
-    border-color: var(--happy2-border-strong);
+    border-color: var(--surface-pressed-overlay);
 }
 
 /* Fixed, explicitly sized emoji slot (label and glyph stay decoupled). */
@@ -202,7 +202,7 @@
     justify-content: center;
     width: 24px;
     height: 24px;
-    color: var(--happy2-text-muted);
+    color: var(--input-placeholder);
     font-family: var(--happy2-font-emoji);
     font-size: 18px;
     line-height: 24px;
@@ -219,18 +219,18 @@
     appearance: none;
     -webkit-appearance: none;
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--input-text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     font-size: 13px;
     font-weight: 500;
     line-height: 38px;
     letter-spacing: 0;
-    caret-color: var(--happy2-accent);
+    caret-color: var(--radio-active);
 }
 
 .happy2-status-picker__input::placeholder {
-    color: var(--happy2-text-muted);
+    color: var(--input-placeholder);
     opacity: 1;
 }
 
@@ -244,7 +244,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;

@@ -185,7 +185,7 @@ it("holds SegmentedControl dimensions, layout, colors, and pill placement", asyn
             ]),
             `${id} pill`,
         ).toEqual({
-            "background-color": "rgb(240, 240, 242)",
+            "background-color": "rgb(248, 248, 248)",
             "border-radius": "1px",
             "border-top-color": "rgb(209, 209, 214)",
             "box-sizing": "border-box",

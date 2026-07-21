@@ -125,7 +125,7 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
     ).toEqual({
         "background-color": "rgb(246, 248, 250)",
         "border-bottom-width": "1px",
-        "border-top-color": "rgb(234, 234, 234)",
+        "border-top-color": "rgb(224, 224, 224)",
         "border-top-left-radius": "8px",
         "border-top-width": "1px",
         "box-sizing": "border-box",
@@ -154,8 +154,8 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgb(245, 245, 245)",
-        "border-bottom-color": "rgb(234, 234, 234)",
+        "background-color": "rgb(242, 242, 247)",
+        "border-bottom-color": "rgb(224, 224, 224)",
         "border-bottom-width": "1px",
         "box-sizing": "border-box",
         display: "flex",
@@ -220,7 +220,7 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
         ]),
     ).toEqual({
         "background-color": "rgb(230, 255, 237)",
-        color: "rgb(40, 167, 69)",
+        color: "rgb(36, 41, 46)",
         "font-family": monoFamily,
         "font-size": "12px",
         "font-weight": "400",
@@ -230,13 +230,13 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
     });
     expect(del.computedStyles(["background-color", "color"])).toEqual({
         "background-color": "rgb(255, 238, 240)",
-        color: "rgb(220, 53, 69)",
+        color: "rgb(36, 41, 46)",
     });
     expect(context.computedStyles(["background-color", "color"])).toEqual({
         "background-color": "rgba(0, 0, 0, 0)",
         color: "rgb(142, 142, 147)",
     });
-    expect(meta.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(meta.computedStyle("color")).toBe("rgb(88, 96, 105)");
 
     /* — number gutter: 32px, faint, right-aligned — */
     const number = view.$(
@@ -246,7 +246,7 @@ it("holds DiffSnippet geometry, colors, typography, and scrolling", async () => 
     expect(number.bounds().width).toBe(32);
     expect(number.offsets().left).toBe(0);
     expect(number.computedStyles(["color", "padding-right", "text-align", "width"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(149, 157, 165)",
         "padding-right": "6px",
         "text-align": "right",
         width: "32px",

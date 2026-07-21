@@ -6,7 +6,7 @@
 }
 
 .happy2-development-token-modal__description {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-size: 13px;
     font-weight: 400;

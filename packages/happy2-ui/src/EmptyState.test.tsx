@@ -208,7 +208,7 @@ it("holds panel EmptyState geometry, medallion centering, and typography", async
     expect(button.element.tagName).toBe("BUTTON");
     expect(button.height()).toBe(36);
     expect(button.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+        "background-color": "rgb(248, 248, 248)",
         color: "rgb(0, 0, 0)",
     });
     expect(button.textMetrics().text).toBe("Start a conversation");

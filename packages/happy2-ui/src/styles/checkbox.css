@@ -13,7 +13,7 @@
     align-items: center;
     gap: 8px;
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     cursor: pointer;
@@ -49,10 +49,10 @@
     justify-content: center;
     width: 18px;
     height: 18px;
-    border: 1px solid var(--happy2-border-strong);
+    border: 1px solid var(--radio-inactive);
     border-radius: var(--happy2-radius-sm);
-    background-color: var(--happy2-bg-inset);
-    color: var(--happy2-text-on-accent);
+    background-color: var(--input-background);
+    color: var(--button-primary-tint);
     transition:
         background-color 120ms ease,
         border-color 120ms ease;
@@ -60,17 +60,17 @@
 
 .happy2-checkbox:not([data-checked]):not([data-indeterminate]):hover:not([data-disabled])
     .happy2-checkbox__box {
-    border-color: var(--happy2-text-muted);
+    border-color: var(--radio-inactive);
 }
 
 .happy2-checkbox[data-checked] .happy2-checkbox__box,
 .happy2-checkbox[data-indeterminate] .happy2-checkbox__box {
-    border-color: var(--happy2-accent);
-    background-color: var(--happy2-accent);
+    border-color: var(--radio-active);
+    background-color: var(--radio-active);
 }
 
 .happy2-checkbox:focus-within .happy2-checkbox__box {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -86,7 +86,7 @@
 }
 
 .happy2-checkbox__label {
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 500;
     line-height: 20px;

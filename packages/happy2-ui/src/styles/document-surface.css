@@ -4,11 +4,11 @@
     min-height: 0;
     height: 100%;
     width: 100%;
-    background: var(--happy2-bg-surface);
+    background: var(--surface);
 }
 
 .happy2-document-surface__header {
-    border-bottom: 1px solid var(--happy2-border);
+    border-bottom: 1px solid var(--divider);
 }
 
 .happy2-document-surface__title {
@@ -19,26 +19,26 @@
     border-radius: var(--happy2-radius-sm);
     background: transparent;
     font: 600 15px/1.4 var(--happy2-font-ui);
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-document-surface__title:hover:not(:read-only) {
-    border-color: var(--happy2-border);
+    border-color: var(--divider);
 }
 
 .happy2-document-surface__title:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
 .happy2-document-surface__save {
     font: 400 12px/1.4 var(--happy2-font-ui);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
 .happy2-document-surface__save[data-state="error"] {
-    color: var(--happy2-danger-strong);
+    color: var(--text-destructive);
 }
 
 .happy2-document-surface__participant {
@@ -49,7 +49,7 @@
     height: 22px;
     border-radius: var(--happy2-radius-pill);
     font: 600 11px/1 var(--happy2-font-ui);
-    color: var(--happy2-text-on-fill);
+    color: var(--button-primary-tint);
 }
 
 .happy2-document-surface__body {
@@ -67,10 +67,10 @@
     justify-content: center;
     padding: 24px;
     font: 400 13px/1.5 var(--happy2-font-ui);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     text-align: center;
 }
 
 .happy2-document-surface__status[data-happy2-tone="danger"] {
-    color: var(--happy2-danger-strong);
+    color: var(--text-destructive);
 }

@@ -12,10 +12,10 @@
     box-sizing: border-box;
     display: block;
     overflow: hidden;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    background: var(--happy2-bg-surface);
-    color: var(--happy2-text);
+    background: var(--surface);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
 }
 
@@ -35,9 +35,9 @@
     box-sizing: border-box;
     height: 40px;
     padding: 0 16px;
-    background: var(--happy2-bg-surface);
-    box-shadow: inset 0 -1px 0 var(--happy2-border-strong);
-    color: var(--happy2-text-muted);
+    background: var(--surface);
+    box-shadow: inset 0 -1px 0 var(--surface-pressed-overlay);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
@@ -65,8 +65,8 @@
     height: 48px;
     padding: 0 16px;
     background: transparent;
-    box-shadow: inset 0 -1px 0 var(--happy2-border);
-    color: var(--happy2-text);
+    box-shadow: inset 0 -1px 0 var(--divider);
+    color: var(--text);
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
@@ -110,11 +110,11 @@
 }
 
 .happy2-data-table__row:hover .happy2-data-table__td {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-data-table__row[data-selected] .happy2-data-table__td {
-    background: var(--happy2-accent-soft);
+    background: var(--surface-selected);
 }
 
 /* Row actions ----------------------------------------------------------- */
@@ -168,16 +168,16 @@
     box-sizing: border-box;
     width: 18px;
     height: 18px;
-    border: 1px solid var(--happy2-border-strong);
+    border: 1px solid var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-sm);
-    background: var(--happy2-bg-inset);
-    color: var(--happy2-text-on-accent);
+    background: var(--groupped-background);
+    color: var(--button-primary-tint);
 }
 
 .happy2-data-table__check[data-checked] .happy2-data-table__check-box,
 .happy2-data-table__check[data-indeterminate] .happy2-data-table__check-box {
     border-color: transparent;
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 .happy2-data-table__check-bar {
@@ -188,7 +188,7 @@
 }
 
 .happy2-data-table__check:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -199,5 +199,5 @@
     padding: 32px 16px;
     text-align: center;
     vertical-align: middle;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }

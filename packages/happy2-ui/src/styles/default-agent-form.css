@@ -20,7 +20,7 @@
 
 .happy2-default-agent-form__description {
     margin: 0;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-size: 13px;
     line-height: 20px;
@@ -33,7 +33,7 @@
 
 .happy2-default-agent-form__error {
     margin: 0;
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
     font-family: var(--happy2-font-ui);
     font-size: 13px;
     line-height: 20px;

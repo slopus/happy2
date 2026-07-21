@@ -6,7 +6,7 @@
  * filling the control for native open/keyboard/click, a measurable value
  * `<span>`, and a tuned chevron Icon. The value span and chevron are separate,
  * non-overlapping flex items so each paints in its own box. Tokens only — every
- * color, radius, and font is a `var(--happy2-*)`; the chevron glyph mass is owned
+ * color, radius, and font is a `var(--*)`; the chevron glyph mass is owned
  * and corrected by the Icon path data, so this file only pins its box.
  */
 
@@ -20,7 +20,7 @@
     flex-direction: column;
     gap: 6px;
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -39,7 +39,7 @@
 
 .happy2-select__label {
     display: block;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-size: 12px;
     font-weight: 600;
@@ -57,19 +57,19 @@
     width: 100%;
     margin: 0;
     padding: 0;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--input-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
     transition: border-color 120ms ease;
 }
 
 .happy2-select[data-error] .happy2-select__control {
-    border-color: var(--happy2-danger);
+    border-color: var(--box-error-border);
 }
 
 .happy2-select__control:focus-within {
-    border-color: var(--happy2-border-strong);
-    outline: var(--happy2-focus-ring);
+    border-color: var(--surface-pressed-overlay);
+    outline: 2px solid var(--radio-active);
     outline-offset: 1px;
 }
 
@@ -79,7 +79,7 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--input-text);
     font-family: var(--happy2-font-ui);
     font-weight: 500;
     letter-spacing: 0;
@@ -89,7 +89,7 @@
 }
 
 .happy2-select__value[data-placeholder] {
-    color: var(--happy2-text-muted);
+    color: var(--input-placeholder);
 }
 
 /* ---- Chevron ----------------------------------------------------------- */
@@ -98,7 +98,7 @@
     flex: none;
     display: flex;
     align-items: center;
-    color: var(--happy2-text-muted);
+    color: var(--input-placeholder);
     pointer-events: none;
 }
 
@@ -115,7 +115,7 @@
     border: none;
     outline: none;
     opacity: 0;
-    color: var(--happy2-text);
+    color: var(--input-text);
     font-family: var(--happy2-font-ui);
     cursor: pointer;
     appearance: none;
@@ -129,8 +129,8 @@
 
 /* Keep the popup list on the Happy surface where the engine allows it. */
 .happy2-select__native option {
-    background: var(--happy2-bg-raised);
-    color: var(--happy2-text);
+    background: var(--surface-high);
+    color: var(--input-text);
 }
 
 /* ---- Sizes (heights on the 4px grid) ----------------------------------- */
@@ -181,7 +181,7 @@
 
 .happy2-select__message {
     display: block;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-size: 12px;
     font-weight: 500;
@@ -191,5 +191,5 @@
 }
 
 .happy2-select[data-error] .happy2-select__message {
-    color: var(--happy2-danger);
+    color: var(--box-error-text);
 }

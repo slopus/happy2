@@ -20,10 +20,10 @@
     gap: 8px;
     min-width: 0;
     padding: 16px;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -45,7 +45,7 @@
     flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
@@ -64,28 +64,28 @@
 }
 
 .happy2-stat-tile[data-tone="neutral"] .happy2-stat-tile__icon {
-    background: var(--happy2-bg-inset);
-    color: var(--happy2-text-secondary);
+    background: var(--groupped-background);
+    color: var(--text-secondary);
 }
 
 .happy2-stat-tile[data-tone="accent"] .happy2-stat-tile__icon {
-    background: var(--happy2-accent-soft);
-    color: var(--happy2-accent-strong);
+    background: var(--surface-selected);
+    color: var(--text-link);
 }
 
 .happy2-stat-tile[data-tone="success"] .happy2-stat-tile__icon {
-    background: var(--happy2-success-soft);
-    color: var(--happy2-success-strong);
+    background: var(--surface-high);
+    color: var(--success);
 }
 
 .happy2-stat-tile[data-tone="warning"] .happy2-stat-tile__icon {
-    background: var(--happy2-warning-soft);
-    color: var(--happy2-warning-strong);
+    background: var(--box-warning-background);
+    color: var(--box-warning-text);
 }
 
 .happy2-stat-tile[data-tone="danger"] .happy2-stat-tile__icon {
-    background: var(--happy2-danger-soft);
-    color: var(--happy2-danger-strong);
+    background: var(--box-error-background);
+    color: var(--warning-critical);
 }
 
 /* ---- Value ----------------------------------------------------------- */
@@ -95,7 +95,7 @@
     flex: none;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 28px;
     font-weight: 700;
     line-height: 32px;
@@ -123,15 +123,15 @@
 }
 
 .happy2-stat-tile__delta[data-trend="up"] {
-    color: var(--happy2-success);
+    color: var(--success);
 }
 
 .happy2-stat-tile__delta[data-trend="down"] {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 .happy2-stat-tile__delta[data-trend="flat"] {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-stat-tile__delta-arrow {
@@ -157,7 +157,7 @@
     flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;

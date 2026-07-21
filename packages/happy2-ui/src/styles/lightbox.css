@@ -25,7 +25,7 @@
     align-items: center;
     justify-content: center;
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -36,8 +36,8 @@
     flex-direction: column;
     max-width: 880px;
     overflow: hidden;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border-strong);
+    background: var(--surface-high);
+    border: 1px solid var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-shell);
     box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
 }
@@ -51,7 +51,7 @@
     gap: 12px;
     min-height: 52px;
     padding: 10px 12px 10px 16px;
-    border-bottom: 1px solid var(--happy2-border);
+    border-bottom: 1px solid var(--divider);
 }
 
 .happy2-lightbox__caption {
@@ -66,7 +66,7 @@
     flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
@@ -76,7 +76,7 @@
 
 .happy2-lightbox__caption-detail {
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 500;
@@ -100,7 +100,7 @@
     justify-content: center;
     min-height: 0;
     max-height: 620px;
-    background: var(--happy2-bg-code);
+    background: var(--diff-context-bg);
 }
 
 .happy2-lightbox__image {

@@ -13,7 +13,7 @@ function Crumb() {
         <span
             style={{
                 alignItems: "center",
-                color: "var(--happy2-text-secondary)",
+                color: "var(--text-secondary)",
                 display: "inline-flex",
                 font: "700 13px var(--happy2-font-ui)",
                 gap: "6px",
@@ -73,7 +73,7 @@ export function TitleBarPage() {
                 stage="chrome"
             >
                 <div style={column}>
-                    <div style={{ border: "1px solid var(--happy2-border)", width: "960px" }}>
+                    <div style={{ border: "1px solid var(--divider)", width: "960px" }}>
                         <TitleBar
                             leading={<Crumb />}
                             onSearchChange={setValue}
@@ -95,7 +95,7 @@ export function TitleBarPage() {
                 <div style={column}>
                     <div
                         style={{
-                            border: "1px solid var(--happy2-border)",
+                            border: "1px solid var(--divider)",
                             position: "relative",
                             width: "960px",
                         }}
@@ -121,7 +121,7 @@ export function TitleBarPage() {
             >
                 <div
                     style={{
-                        background: "var(--happy2-bg-app)",
+                        background: "var(--groupped-background)",
                         height: "120px",
                         position: "relative",
                         width: "720px",
@@ -138,7 +138,7 @@ export function TitleBarPage() {
                 number="04"
                 stage="chrome"
             >
-                <div style={{ border: "1px solid var(--happy2-border)", width: "720px" }}>
+                <div style={{ border: "1px solid var(--divider)", width: "720px" }}>
                     <TitleBar
                         leading={<Crumb />}
                         onSearchChange={setValue}

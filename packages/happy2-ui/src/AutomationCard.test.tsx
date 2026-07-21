@@ -28,16 +28,16 @@ const SECONDARY = "rgb(142, 142, 147)";
 const MUTED = "rgb(142, 142, 147)";
 const SURFACE = "rgb(255, 255, 255)";
 const BORDER = "rgb(234, 234, 234)";
-const ON_TRACK = "rgb(0, 122, 255)";
-const OFF_TRACK = "rgb(245, 245, 245)";
-const SECONDARY_BTN = "rgb(240, 240, 242)";
+const ON_TRACK = "rgb(52, 199, 89)";
+const OFF_TRACK = "rgb(221, 221, 221)";
+const SECONDARY_BTN = "rgb(248, 248, 248)";
 
 const badgeColors = {
-    info: { bg: "rgba(0, 122, 255, 0.14)", fg: "rgb(0, 122, 255)" },
-    accent: { bg: "rgba(0, 122, 255, 0.14)", fg: "rgb(0, 122, 255)" },
-    warning: { bg: "rgba(255, 149, 0, 0.14)", fg: "rgb(201, 52, 0)" },
-    success: { bg: "rgba(52, 199, 89, 0.14)", fg: "rgb(36, 138, 61)" },
-    danger: { bg: "rgba(255, 59, 48, 0.12)", fg: "rgb(215, 0, 21)" },
+    info: { bg: "rgb(248, 248, 248)", fg: "rgb(0, 122, 255)" },
+    accent: { bg: "rgb(198, 198, 200)", fg: "rgb(43, 172, 204)" },
+    warning: { bg: "rgb(255, 248, 240)", fg: "rgb(255, 149, 0)" },
+    success: { bg: "rgb(248, 248, 248)", fg: "rgb(52, 199, 89)" },
+    danger: { bg: "rgb(255, 240, 240)", fg: "rgb(255, 59, 48)" },
 } as const;
 
 /*

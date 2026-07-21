@@ -19,7 +19,7 @@
     align-items: center;
     justify-content: center;
     margin: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     text-align: center;
@@ -46,10 +46,10 @@
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--input-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-empty-state[data-size="panel"] .happy2-empty-state__media {
@@ -65,7 +65,7 @@
 .happy2-empty-state__title {
     max-width: 360px;
     margin: 16px 0 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -81,7 +81,7 @@
 .happy2-empty-state__description {
     max-width: 320px;
     margin: 6px 0 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;

@@ -4,7 +4,7 @@
  * A settings card that composes SegmentedControl, Select, Switch, and FormRow.
  * Geometry is integer on the 4px grid: 20px card padding, a 20px gap between the
  * two policy sections split by a 1px hairline rule, 16px rhythm inside a section,
- * and a 4px title→help gap. Every color, radius, and font is a --happy2-* token; the
+ * and a 4px title→help gap. Every color, radius, and font is a --* token; the
  * composed primitives own their own glyph tuning, so this file only lays them
  * out and neutralizes the FormRow divider/padding to keep one clean card rhythm.
  */
@@ -15,10 +15,10 @@
     flex-direction: column;
     gap: 20px;
     padding: 20px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    background: var(--happy2-bg-surface);
-    color: var(--happy2-text);
+    background: var(--surface);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -39,7 +39,7 @@
 
 .happy2-policy-control__title {
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-size: 13px;
     font-weight: 600;
@@ -49,7 +49,7 @@
 
 .happy2-policy-control__help {
     margin: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-size: 12px;
     font-weight: 400;
@@ -63,7 +63,7 @@
     height: 1px;
     margin: 0;
     border: 0;
-    background: var(--happy2-border);
+    background: var(--divider);
 }
 
 /*

@@ -27,10 +27,10 @@
     min-height: 44px;
     margin: 0;
     padding: 12px 14px;
-    border: 1px solid var(--happy2-border-strong);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    background-color: var(--happy2-bg-inset);
-    color: var(--happy2-text);
+    background-color: var(--surface-high);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     text-align: left;
@@ -39,48 +39,48 @@
 /* ---- Tone identity: soft fill, hairline border, leading-icon color -------- */
 
 .happy2-banner[data-tone="info"] {
-    border-color: var(--happy2-info);
-    background-color: var(--happy2-info-soft);
+    border-color: var(--radio-active);
+    background-color: var(--surface-high);
 }
 
 .happy2-banner[data-tone="info"] .happy2-banner__icon {
-    color: var(--happy2-info);
+    color: var(--radio-active);
 }
 
 .happy2-banner[data-tone="success"] {
-    border-color: var(--happy2-success);
-    background-color: var(--happy2-success-soft);
+    border-color: var(--success);
+    background-color: var(--surface-high);
 }
 
 .happy2-banner[data-tone="success"] .happy2-banner__icon {
-    color: var(--happy2-success);
+    color: var(--success);
 }
 
 .happy2-banner[data-tone="warning"] {
-    border-color: var(--happy2-warning);
-    background-color: var(--happy2-warning-soft);
+    border-color: var(--box-warning-border);
+    background-color: var(--box-warning-background);
 }
 
 .happy2-banner[data-tone="warning"] .happy2-banner__icon {
-    color: var(--happy2-warning);
+    color: var(--box-warning-text);
 }
 
 .happy2-banner[data-tone="danger"] {
-    border-color: var(--happy2-danger);
-    background-color: var(--happy2-danger-soft);
+    border-color: var(--box-error-border);
+    background-color: var(--box-error-background);
 }
 
 .happy2-banner[data-tone="danger"] .happy2-banner__icon {
-    color: var(--happy2-danger);
+    color: var(--box-error-text);
 }
 
 .happy2-banner[data-tone="neutral"] {
-    border-color: var(--happy2-border-strong);
-    background-color: var(--happy2-bg-inset);
+    border-color: var(--divider);
+    background-color: var(--surface-high);
 }
 
 .happy2-banner[data-tone="neutral"] .happy2-banner__icon {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 /* ---- Leading icon slot ---------------------------------------------------- */
@@ -106,7 +106,7 @@
 
 .happy2-banner__title {
     display: block;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
@@ -114,7 +114,7 @@
 
 .happy2-banner__message {
     display: block;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;
@@ -142,7 +142,7 @@
     border: 0;
     border-radius: var(--happy2-radius-sm);
     background: transparent;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
     transition:
         background-color 120ms ease,
@@ -150,11 +150,11 @@
 }
 
 .happy2-banner__dismiss:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text);
+    background: var(--surface-ripple);
+    color: var(--text);
 }
 
 .happy2-banner__dismiss:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }

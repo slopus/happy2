@@ -213,7 +213,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
     expect(track.computedStyle("overflow-x")).toBe("hidden");
     /* Fill width is exactly 45% of the track within 1px, accent-colored. */
     expect(Math.abs(fill.width() - 0.45 * track.width())).toBeLessThanOrEqual(1);
-    expect(fill.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
+    expect(fill.computedStyle("background-color")).toBe("rgb(43, 172, 204)");
 
     /* Ready: fill forced to the full track width, success-colored. */
     const readyTrack = view.$('[data-testid="bp-ready"] [data-happy2-ui="build-progress-track"]');
@@ -304,7 +304,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
         '[data-testid="bp-failed"] [data-happy2-ui="build-progress-truncated"]',
     );
     expect(truncated.element.textContent?.trim()).toBe("Earlier log truncated");
-    expect(truncated.computedStyle("color")).toBe("rgb(255, 149, 0)");
+    expect(truncated.computedStyle("color")).toBe("rgb(142, 142, 147)");
     /* No truncation note when logTruncated is not set. */
     expect(
         view.container.querySelector(
@@ -350,7 +350,7 @@ it("holds BuildProgressPanel layout, progress geometry, typography, log, and fai
         spinner.computedStyles(["border-radius", "border-top-color", "border-top-width"]),
     ).toEqual({
         "border-radius": "999px",
-        "border-top-color": "rgb(0, 122, 255)",
+        "border-top-color": "rgb(43, 172, 204)",
         "border-top-width": "2px",
     });
     /* Static ring paints an unclipped, geometrically centered contour. */

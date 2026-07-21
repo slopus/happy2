@@ -20,16 +20,16 @@
     max-width: 680px;
     margin: 0;
     overflow: hidden;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
 
 .happy2-approval-card[data-resolution="pending"] {
-    border-color: var(--happy2-warning-soft);
+    border-color: var(--box-warning-background);
 }
 
 /* ---- Resolution banner ------------------------------------------------ */
@@ -40,7 +40,7 @@
     gap: 8px;
     height: 32px;
     padding: 0 16px;
-    border-bottom: 1px solid var(--happy2-border);
+    border-bottom: 1px solid var(--divider);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 700;
@@ -50,13 +50,13 @@
 }
 
 .happy2-approval-card[data-resolution="approved"] .happy2-approval-card__banner {
-    background: var(--happy2-success-soft);
-    color: var(--happy2-success-strong);
+    background: var(--surface-high);
+    color: var(--success);
 }
 
 .happy2-approval-card[data-resolution="denied"] .happy2-approval-card__banner {
-    background: var(--happy2-danger-soft);
-    color: var(--happy2-danger-strong);
+    background: var(--box-error-background);
+    color: var(--warning-critical);
 }
 
 .happy2-approval-card__banner-label {
@@ -93,19 +93,19 @@
     justify-content: center;
     width: 26px;
     height: 26px;
-    background: var(--happy2-warning-soft);
+    background: var(--box-warning-background);
     border-radius: 8px;
-    color: var(--happy2-warning);
+    color: var(--warning);
 }
 
 .happy2-approval-card[data-resolution="approved"] .happy2-approval-card__chip {
-    background: var(--happy2-success-soft);
-    color: var(--happy2-success);
+    background: var(--surface-high);
+    color: var(--success);
 }
 
 .happy2-approval-card[data-resolution="denied"] .happy2-approval-card__chip {
-    background: var(--happy2-danger-soft);
-    color: var(--happy2-danger);
+    background: var(--box-error-background);
+    color: var(--text-destructive);
 }
 
 .happy2-approval-card__agent {
@@ -118,7 +118,7 @@
 
 .happy2-approval-card__agent-name {
     display: block;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
@@ -127,7 +127,7 @@
 
 .happy2-approval-card__title {
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -136,7 +136,7 @@
 
 .happy2-approval-card__reason {
     margin: 4px 0 0;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;
@@ -147,10 +147,10 @@
     margin: 10px 0 0;
     padding: 6px 10px;
     overflow: hidden;
-    background: var(--happy2-bg-code);
-    border: 1px solid var(--happy2-border);
+    background: var(--diff-context-bg);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     font-weight: 500;
@@ -174,7 +174,7 @@
 
 .happy2-approval-card__detail-label {
     display: block;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 10px;
     font-weight: 700;
@@ -191,7 +191,7 @@
 
 .happy2-approval-card__impact {
     margin: 4px 0 0;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;
@@ -211,7 +211,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    border-top: 1px solid var(--happy2-border);
+    border-top: 1px solid var(--divider);
 }
 
 .happy2-approval-card__state {
@@ -219,15 +219,15 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-approval-card[data-resolution="approved"] .happy2-approval-card__state > .happy2-icon {
-    color: var(--happy2-success);
+    color: var(--success);
 }
 
 .happy2-approval-card[data-resolution="denied"] .happy2-approval-card__state > .happy2-icon {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 .happy2-approval-card__state-label {
@@ -253,7 +253,7 @@
     background: transparent;
     border: none;
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     cursor: pointer;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
@@ -263,12 +263,12 @@
 }
 
 .happy2-approval-card__toggle:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text);
+    background: var(--surface-ripple);
+    color: var(--text);
 }
 
 .happy2-approval-card__toggle:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: var(--radio-active);
     outline-offset: 2px;
 }
 

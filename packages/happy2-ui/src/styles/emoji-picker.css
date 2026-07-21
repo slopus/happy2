@@ -1,7 +1,7 @@
 /*
- * C-043 EmojiPicker — reaction-picker popover on the raised surface.
+ * C-043 EmojiPicker — reaction-picker popover on the high surface.
  *
- * Contract: a raised card (--happy2-bg-raised) with a 1px strong hairline, 10px
+ * Contract: a high card with a 1px modal hairline, 10px
  * card radius, and a soft drop shadow. 8px padding wraps a search field over
  * an emoji grid of fixed, equal 36px slots (grid-template-columns is set inline
  * from the `columns` prop). Every emoji — unicode char or custom image — sits
@@ -20,11 +20,11 @@
     flex-direction: column;
     gap: 8px;
     padding: 8px;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border-strong);
+    background: var(--surface-high);
+    border: 1px solid var(--modal-border);
     border-radius: var(--happy2-radius-md);
     box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -58,7 +58,7 @@
     /* Aligns the label to the emoji artwork, inset 6px inside the 36px cell. */
     padding: 0 6px;
     overflow: hidden;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 700;
@@ -106,11 +106,11 @@
 }
 
 .happy2-emoji-picker__cell:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-emoji-picker__cell:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
@@ -180,7 +180,7 @@
     align-items: center;
     min-height: 36px;
     padding: 0 6px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
     line-height: 20px;

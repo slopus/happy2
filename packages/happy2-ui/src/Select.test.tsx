@@ -285,7 +285,7 @@ it("holds Select geometry, tokens, typography, chevron centering, and value cent
             ),
             `${id} chevron box vertical centering`,
         ).toBeLessThanOrEqual(0.1);
-        expect(chevronBox.computedStyle("color"), `${id} chevron color`).toBe("rgb(142, 142, 147)");
+        expect(chevronBox.computedStyle("color"), `${id} chevron color`).toBe("rgb(153, 153, 153)");
 
         /* Chevron glyph ink is the tuned chevron-down Icon (Icon.test.tsx
          * proves ≤0.6px both axes at sizes 14/16); assert it renders centered
@@ -412,7 +412,7 @@ it("holds Select placeholder, error, disabled, focus, truncation, and fullWidth 
     );
     expect(placeholderRoot.element.getAttribute("data-placeholder")).toBe("");
     expect(placeholderValue.textMetrics().text).toBe("Select a role…");
-    expect(placeholderValue.computedStyle("color"), "placeholder color").toBe("rgb(142, 142, 147)");
+    expect(placeholderValue.computedStyle("color"), "placeholder color").toBe("rgb(153, 153, 153)");
     expect((placeholderSelect.element as HTMLSelectElement).value).toBe("");
     expect((await placeholderValue.visibleMetrics()).pixelCount, "placeholder ink").toBeGreaterThan(
         0,

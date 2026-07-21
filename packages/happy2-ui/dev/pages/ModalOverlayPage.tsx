@@ -20,8 +20,8 @@ function WindowFrame(props: { children: ReactNode; width: number; height: number
                 overflow: "hidden",
                 transform: "translateZ(0)",
                 borderRadius: "8px",
-                border: "1px solid var(--happy2-border-strong)",
-                background: "var(--happy2-bg-app)",
+                border: "1px solid var(--surface-pressed-overlay)",
+                background: "var(--groupped-background)",
             }}
         >
             {props.children}
@@ -42,8 +42,8 @@ function TopWindowFrame(props: { children: ReactNode; width: number; height: num
                 height: `${props.height}px`,
                 overflow: "hidden",
                 borderRadius: "8px",
-                background: "var(--happy2-bg-app)",
-                boxShadow: "inset 0 0 0 1px var(--happy2-border-strong)",
+                background: "var(--groupped-background)",
+                boxShadow: "inset 0 0 0 1px var(--surface-pressed-overlay)",
             }}
         >
             {props.children}

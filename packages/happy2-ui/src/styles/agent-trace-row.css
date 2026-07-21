@@ -22,23 +22,23 @@
     height: 28px;
     margin: 0;
     padding: 0 8px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
     background: transparent;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
-    color: var(--happy2-text);
+    color: var(--text);
     text-align: left;
     white-space: nowrap;
     cursor: pointer;
 }
 
 .happy2-agent-trace-row:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-agent-trace-row:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: var(--radio-active);
     outline-offset: 1px;
 }
 
@@ -47,22 +47,22 @@
     width: 5px;
     height: 5px;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 .happy2-agent-trace-row[data-status="complete"] .happy2-agent-trace-row__dot {
-    background: var(--happy2-success);
+    background: var(--success);
 }
 
 .happy2-agent-trace-row[data-status="failed"] .happy2-agent-trace-row__dot {
-    background: var(--happy2-danger);
+    background: var(--text-destructive);
 }
 
 .happy2-agent-trace-row__icon {
     display: flex;
     flex: none;
     align-items: center;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-trace-row__title {
@@ -73,13 +73,13 @@
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 /* The settled row reads as a link to the trace panel. */
 .happy2-agent-trace-row[data-status="complete"] .happy2-agent-trace-row__title,
 .happy2-agent-trace-row[data-status="failed"] .happy2-agent-trace-row__title {
-    color: var(--happy2-accent-strong);
+    color: var(--text-link);
 }
 
 .happy2-agent-trace-row__detail {
@@ -93,7 +93,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-trace-row__count {
@@ -104,5 +104,5 @@
     font-weight: 500;
     line-height: 16px;
     font-variant-numeric: lining-nums tabular-nums;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }

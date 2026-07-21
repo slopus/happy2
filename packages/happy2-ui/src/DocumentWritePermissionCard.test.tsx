@@ -58,7 +58,7 @@ it("holds pending layout: amber treatment, document identity, and working decisi
         "overflow-x": "hidden",
     });
     expect(root.computedStyle("font-family")).toBe(uiFamily());
-    expect(root.computedStyle("border-top-color")).toBe("rgba(255, 149, 0, 0.14)");
+    expect(root.computedStyle("border-top-color")).toBe("rgb(255, 149, 0)");
     expect(root.element.getAttribute("data-status")).toBe("pending");
 
     // No banner while pending; the edit chip wears the warning tone.
@@ -185,7 +185,7 @@ it("disables decisions while busy and renders clearly terminal resolutions", asy
 
     // Approved: mint banner, success state line, no action buttons.
     expect(banner("approved").element.textContent).toContain("Approved");
-    expect(banner("approved").computedStyle("color")).toBe("rgb(36, 138, 61)");
+    expect(banner("approved").computedStyle("color")).toBe("rgb(52, 199, 89)");
     expect(banner("approved").bounds().height).toBe(32);
     expect(state("approved").element.textContent).toBe(
         "Approved — the changes were applied to Launch plan",
@@ -196,7 +196,7 @@ it("disables decisions while busy and renders clearly terminal resolutions", asy
 
     // Denied: danger banner and a neutral terminal line.
     expect(banner("denied").element.textContent).toContain("Denied");
-    expect(banner("denied").computedStyle("color")).toBe("rgb(215, 0, 21)");
+    expect(banner("denied").computedStyle("color")).toBe("rgb(255, 59, 48)");
     expect(state("denied").element.textContent).toBe("Denied — the document was not changed");
 
     // Failed: danger banner carries the bounded diagnostic in the state line.

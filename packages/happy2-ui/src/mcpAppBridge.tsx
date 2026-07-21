@@ -35,7 +35,7 @@ const MAX_APP_HEIGHT = 800;
  * The color, font-family, and radius subset of the standard MCP Apps style
  * variables (the names `@modelcontextprotocol/ext-apps` 1.7.4 applies via
  * `useHostStyles`), each mapped to the inherited Happy design token it mirrors.
- * The bridge reads every mapped `--happy2-*` custom property as a live computed
+ * The bridge reads every mapped `--*` custom property as a live computed
  * value on the hosting frame, so `theme.css` stays the single source of color
  * truth and no raw palette value is duplicated here. The remaining standard keys
  * (weights, sizes, line heights, border width, shadows) have no Happy token and
@@ -45,45 +45,45 @@ const MAX_APP_HEIGHT = 800;
 const HOST_STYLE_VARIABLE_TOKENS: ReadonlyArray<readonly [standard: string, token: string]> = [
     // Backgrounds: primary/secondary/tertiary surfaces, inverse fill, ghost hover,
     // and the semantic soft fills.
-    ["--color-background-primary", "--happy2-bg-surface"],
-    ["--color-background-secondary", "--happy2-bg-raised"],
-    ["--color-background-tertiary", "--happy2-bg-inset"],
-    ["--color-background-inverse", "--happy2-action"],
-    ["--color-background-ghost", "--happy2-bg-hover"],
-    ["--color-background-info", "--happy2-info-soft"],
-    ["--color-background-danger", "--happy2-danger-soft"],
-    ["--color-background-success", "--happy2-success-soft"],
-    ["--color-background-warning", "--happy2-warning-soft"],
-    ["--color-background-disabled", "--happy2-bg-raised"],
+    ["--color-background-primary", "--surface"],
+    ["--color-background-secondary", "--surface-high"],
+    ["--color-background-tertiary", "--surface-pressed"],
+    ["--color-background-inverse", "--button-primary-background"],
+    ["--color-background-ghost", "--surface-ripple"],
+    ["--color-background-info", "--surface-high"],
+    ["--color-background-danger", "--box-error-background"],
+    ["--color-background-success", "--surface-high"],
+    ["--color-background-warning", "--box-warning-background"],
+    ["--color-background-disabled", "--surface-pressed"],
     // Text: primary/secondary/tertiary, text on inverse fills, and the semantics.
-    ["--color-text-primary", "--happy2-text"],
-    ["--color-text-secondary", "--happy2-text-secondary"],
-    ["--color-text-tertiary", "--happy2-text-muted"],
-    ["--color-text-inverse", "--happy2-action-text"],
-    ["--color-text-ghost", "--happy2-text-muted"],
-    ["--color-text-info", "--happy2-info"],
-    ["--color-text-danger", "--happy2-danger"],
-    ["--color-text-success", "--happy2-success"],
-    ["--color-text-warning", "--happy2-warning"],
-    ["--color-text-disabled", "--happy2-text-faint"],
+    ["--color-text-primary", "--text"],
+    ["--color-text-secondary", "--text-secondary"],
+    ["--color-text-tertiary", "--text-secondary"],
+    ["--color-text-inverse", "--button-primary-tint"],
+    ["--color-text-ghost", "--text-secondary"],
+    ["--color-text-info", "--radio-active"],
+    ["--color-text-danger", "--text-destructive"],
+    ["--color-text-success", "--success"],
+    ["--color-text-warning", "--box-warning-text"],
+    ["--color-text-disabled", "--text-secondary"],
     // Borders: primary/secondary hairlines, inverse, and the semantics.
-    ["--color-border-primary", "--happy2-border"],
-    ["--color-border-secondary", "--happy2-border-strong"],
-    ["--color-border-tertiary", "--happy2-border"],
-    ["--color-border-inverse", "--happy2-action"],
-    ["--color-border-info", "--happy2-info"],
-    ["--color-border-danger", "--happy2-danger"],
-    ["--color-border-success", "--happy2-success"],
-    ["--color-border-warning", "--happy2-warning"],
-    ["--color-border-disabled", "--happy2-border"],
+    ["--color-border-primary", "--divider"],
+    ["--color-border-secondary", "--surface-pressed-overlay"],
+    ["--color-border-tertiary", "--divider"],
+    ["--color-border-inverse", "--button-primary-background"],
+    ["--color-border-info", "--radio-active"],
+    ["--color-border-danger", "--text-destructive"],
+    ["--color-border-success", "--success"],
+    ["--color-border-warning", "--box-warning-border"],
+    ["--color-border-disabled", "--divider"],
     // Ring / accent: primary is the system blue used for focus and selection.
-    ["--color-ring-primary", "--happy2-accent"],
-    ["--color-ring-secondary", "--happy2-border-strong"],
-    ["--color-ring-inverse", "--happy2-action"],
-    ["--color-ring-info", "--happy2-info"],
-    ["--color-ring-danger", "--happy2-danger"],
-    ["--color-ring-success", "--happy2-success"],
-    ["--color-ring-warning", "--happy2-warning"],
+    ["--color-ring-primary", "--radio-active"],
+    ["--color-ring-secondary", "--surface-pressed-overlay"],
+    ["--color-ring-inverse", "--button-primary-background"],
+    ["--color-ring-info", "--radio-active"],
+    ["--color-ring-danger", "--text-destructive"],
+    ["--color-ring-success", "--success"],
+    ["--color-ring-warning", "--box-warning-border"],
     // Typography families.
     ["--font-sans", "--happy2-font-ui"],
     ["--font-mono", "--happy2-font-mono"],
@@ -846,7 +846,7 @@ function resolveTheme(frame: HTMLElement | null): "light" | "dark" | undefined {
 
 /**
  * Resolves the standard MCP Apps `styles.variables` for the frame by reading each
- * mapped `--happy2-*` custom property as an inherited computed value. This keeps
+ * mapped `--*` custom property as an inherited computed value. This keeps
  * `theme.css` the single color source: the bridge forwards whatever the current
  * theme (system or an explicit ThemeScope) computed for the frame. Returns
  * undefined when nothing can be read so the optional field is omitted.

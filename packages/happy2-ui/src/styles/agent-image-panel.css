@@ -20,7 +20,7 @@
     flex: 1 1 0%;
     min-height: 0;
     gap: 16px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -45,13 +45,13 @@
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-agent-image-panel__subtitle {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-image-panel__actions {
@@ -93,11 +93,11 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-image-panel__subline[data-tone="danger"] {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 /* ---- Status + progress ------------------------------------------------ */
@@ -123,7 +123,7 @@
     height: 4px;
     min-width: 0;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-bg-inset);
+    background: var(--groupped-background);
     overflow: hidden;
 }
 
@@ -131,7 +131,7 @@
     position: absolute;
     inset: 0 auto 0 0;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-brand-gradient);
+    background: var(--text-link);
     transition: width 240ms ease;
 }
 
@@ -140,7 +140,7 @@
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     line-height: 14px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 

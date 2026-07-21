@@ -18,7 +18,7 @@
     /* Standard single-field width; `fullWidth` stretches to the container. */
     width: 240px;
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -42,7 +42,7 @@
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 600;
     line-height: 16px;
@@ -50,7 +50,7 @@
 }
 
 .happy2-text-field__required {
-    color: var(--happy2-danger);
+    color: var(--box-error-text);
 }
 
 /* ---- Control box ------------------------------------------------------- */
@@ -60,8 +60,8 @@
     align-items: center;
     width: 100%;
     margin: 0;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--input-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
     transition: border-color 120ms ease;
 }
@@ -103,18 +103,18 @@
 }
 
 .happy2-text-field__control:focus-within {
-    border-color: var(--happy2-border-strong);
-    outline: var(--happy2-focus-ring);
+    border-color: var(--surface-pressed-overlay);
+    outline: 2px solid var(--radio-active);
     outline-offset: 1px;
 }
 
 .happy2-text-field__control[data-invalid] {
-    border-color: var(--happy2-danger);
+    border-color: var(--box-error-border);
 }
 
 /* Invalid + focused keeps the danger identity in the ring. */
 .happy2-text-field__control[data-invalid]:focus-within {
-    outline-color: var(--happy2-danger);
+    outline-color: var(--box-error-border);
 }
 
 .happy2-text-field[data-disabled] .happy2-text-field__control {
@@ -126,7 +126,7 @@
 .happy2-text-field__icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--input-placeholder);
 }
 
 /* ---- Input / textarea -------------------------------------------------- */
@@ -141,16 +141,16 @@
     outline: none;
     appearance: none;
     -webkit-appearance: none;
-    color: var(--happy2-text);
+    color: var(--input-text);
     font-family: var(--happy2-font-ui);
     font-weight: 500;
     letter-spacing: 0;
     font-synthesis: none;
-    caret-color: var(--happy2-accent);
+    caret-color: var(--radio-active);
 }
 
 .happy2-text-field__input::placeholder {
-    color: var(--happy2-text-muted);
+    color: var(--input-placeholder);
     opacity: 1;
 }
 
@@ -218,9 +218,9 @@ textarea.happy2-text-field__input {
 }
 
 .happy2-text-field__message[data-tone="hint"] {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-text-field__message[data-tone="error"] {
-    color: var(--happy2-danger);
+    color: var(--box-error-text);
 }

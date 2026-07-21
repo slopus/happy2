@@ -11,9 +11,9 @@ import { FormRow } from "./FormRow";
 import { createRenderer } from "./testing";
 type Engine = "chromium" | "firefox" | "webkit";
 /* Fixed text colors so every engine reports the same rgb(). */
-const TEXT = "rgb(0, 0, 0)"; // --happy2-text  #000000
-const MUTED = "rgb(142, 142, 147)"; // --happy2-text-muted #8e8e93
-const HAIRLINE = "rgb(234, 234, 234)"; // --happy2-border
+const TEXT = "rgb(0, 0, 0)"; // --text  #000000
+const MUTED = "rgb(142, 142, 147)"; // --text-secondary #8e8e93
+const HAIRLINE = "rgb(234, 234, 234)"; // --divider
 type Renderer = ReturnType<typeof createRenderer>;
 /*
  * Alpha-weighted ink centroid of `partSelector`, expressed as an offset from

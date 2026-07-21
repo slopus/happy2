@@ -114,12 +114,9 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
     expect(hero.offsets()).toMatchObject({ left: 0, top: 0, bottom: 0 });
     expect(panel.offsets()).toMatchObject({ left: 544, right: 0, top: 0, bottom: 0 });
 
-    /* Hero paints the brand-gradient fallback (no backgroundUrl), a transparent
-     * base color, and carries the 1px seam hairline on its right edge. */
+    /* Happy's fallback hero is the primary black fill, with its divider on the
+     * form edge. */
     expect(hero.element.getAttribute("data-has-image")).toBeNull();
-    const heroBg = hero.computedStyle("background-image");
-    expect(heroBg).not.toBe("none");
-    expect(heroBg).toContain("linear-gradient");
     expect(
         hero.computedStyles([
             "background-color",
@@ -128,13 +125,13 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
             "border-right-width",
         ]),
     ).toEqual({
-        "background-color": "rgba(0, 0, 0, 0)",
-        "background-size": "cover",
+        "background-color": "rgb(0, 0, 0)",
+        "background-size": "auto",
         "border-right-color": "rgb(234, 234, 234)",
         "border-right-width": "1px",
     });
 
-    /* Panel: fixed 480 column, 48px inset, solid app surface. */
+    /* Panel: fixed 480 column, 48px inset, Happy's grouped surface. */
     expect(
         panel.computedStyles([
             "background-color",
@@ -148,7 +145,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
             "width",
         ]),
     ).toEqual({
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "box-sizing": "border-box",
         display: "flex",
         "flex-direction": "column",
@@ -174,7 +171,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
         color: "rgb(255, 255, 255)",
         display: "flex",
     });
-    expect(mark.computedStyle("background-image")).toContain("linear-gradient");
+    expect(mark.computedStyle("background-color")).toBe("rgb(0, 0, 0)");
     /* Wordmark sits after the 28px mark + 12px gap. */
     expect(brandName.offsets().left).toBe(40);
     expect(brandName.computedStyle("color")).toBe("rgb(0, 0, 0)");
@@ -226,7 +223,7 @@ it("holds AuthScreen split geometry, panel layout, typography, and optical brand
             "text-transform",
         ]),
     ).toEqual({
-        color: "rgb(0, 122, 255)",
+        color: "rgb(43, 172, 204)",
         "font-size": "12px",
         "font-weight": "700",
         "letter-spacing": "0.96px",
@@ -323,7 +320,7 @@ it("holds AuthScreen loading, generated-image hero, custom mark, and minimal for
             <AuthScreen
                 backgroundUrl="data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='8'%20height='8'%3E%3Crect%20width='8'%20height='8'%20fill='%238b7cf7'/%3E%3C/svg%3E"
                 brand={{
-                    mark: <Icon color="var(--happy2-text-on-accent)" name="zap" size={16} />,
+                    mark: <Icon color="var(--button-primary-tint)" name="zap" size={16} />,
                     name: "Relay",
                 }}
                 data-testid="image"
@@ -376,9 +373,9 @@ it("holds AuthScreen loading, generated-image hero, custom mark, and minimal for
         ]),
     ).toEqual({
         "border-radius": "999px",
-        "border-top-color": "rgb(0, 122, 255)",
+        "border-top-color": "rgb(43, 172, 204)",
         "border-top-width": "2px",
-        "border-left-color": "rgb(209, 209, 214)",
+        "border-left-color": "rgb(234, 234, 234)",
         "box-sizing": "border-box",
     });
     /* Static ring paints an unclipped, geometrically centered contour (the
@@ -421,8 +418,8 @@ it("holds AuthScreen loading, generated-image hero, custom mark, and minimal for
     expect(imageHero.element.getAttribute("data-has-image")).toBe("");
     const imageBg = imageHero.computedStyle("background-image");
     expect(imageBg).toContain("data:image");
-    expect(imageBg).not.toContain("linear-gradient"); /* the URL overrides the gradient fallback */
-    expect(imageHero.computedStyle("background-size")).toBe("cover");
+    expect(imageBg).not.toContain("linear-gradient"); /* the URL overrides Happy's flat fallback */
+    expect(imageHero.computedStyle("background-size")).toBe("auto");
 
     /* Custom mark: the app-supplied glyph renders in place of the default spark,
      * still inside the 28px chip. */

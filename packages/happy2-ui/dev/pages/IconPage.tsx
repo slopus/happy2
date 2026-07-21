@@ -24,9 +24,9 @@ function GlyphCell(props: { name: IconName }) {
                 alignItems: "center",
                 gap: "8px",
                 padding: "12px 4px 10px",
-                border: "1px solid var(--happy2-border)",
+                border: "1px solid var(--divider)",
                 borderRadius: "8px",
-                background: "var(--happy2-bg-surface)",
+                background: "var(--surface)",
             }}
         >
             <div
@@ -34,7 +34,7 @@ function GlyphCell(props: { name: IconName }) {
                     display: "flex",
                     alignItems: "flex-end",
                     gap: "10px",
-                    color: "var(--happy2-text-secondary)",
+                    color: "var(--text-secondary)",
                 }}
             >
                 {SIZES.map((size) => (
@@ -47,7 +47,7 @@ function GlyphCell(props: { name: IconName }) {
                     fontSize: "9px",
                     lineHeight: "12px",
                     letterSpacing: "0.04em",
-                    color: "var(--happy2-text-muted)",
+                    color: "var(--text-secondary)",
                 }}
             >
                 {props.name}
@@ -104,7 +104,7 @@ export function IconPage() {
                             display: "flex",
                             alignItems: "center",
                             gap: "20px",
-                            color: "var(--happy2-text)",
+                            color: "var(--text)",
                         }}
                     >
                         {([12, 14, 16, 18, 20] as const).map((size) => (
@@ -122,7 +122,7 @@ export function IconPage() {
                                     style={{
                                         fontFamily: "var(--happy2-font-mono)",
                                         fontSize: "9px",
-                                        color: "var(--happy2-text-faint)",
+                                        color: "var(--text-secondary)",
                                     }}
                                 >
                                     {size}
@@ -141,13 +141,13 @@ export function IconPage() {
                 stage="surface"
             >
                 <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                    <span style={{ color: "var(--happy2-text)" }}>
+                    <span style={{ color: "var(--text)" }}>
                         <Icon name="check-circle" size={20} />
                     </span>
-                    <span style={{ color: "var(--happy2-text-secondary)" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>
                         <Icon name="check-circle" size={20} />
                     </span>
-                    <span style={{ color: "var(--happy2-text-muted)" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>
                         <Icon name="check-circle" size={20} />
                     </span>
                     <Icon name="check-circle" size={20} color="#8b7cf7" />
@@ -170,9 +170,9 @@ export function IconPage() {
                             gap: "12px",
                             padding: "12px 16px",
                             borderRadius: "8px",
-                            background: "var(--happy2-bg-chrome)",
-                            border: "1px solid var(--happy2-border)",
-                            color: "var(--happy2-text-secondary)",
+                            background: "var(--header-background)",
+                            border: "1px solid var(--divider)",
+                            color: "var(--text-secondary)",
                         }}
                     >
                         {OPTICAL_ROW.map((name) => (

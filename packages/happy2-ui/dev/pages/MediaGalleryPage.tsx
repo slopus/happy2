@@ -179,9 +179,9 @@ export function MediaGalleryPage() {
                                             display: "grid",
                                             placeItems: "center",
                                             height: "120px",
-                                            border: "1px dashed var(--happy2-border-strong)",
+                                            border: "1px dashed var(--surface-pressed-overlay)",
                                             borderRadius: "10px",
-                                            color: "var(--happy2-text-muted)",
+                                            color: "var(--text-secondary)",
                                             fontFamily: "var(--happy2-font-ui)",
                                             fontSize: "13px",
                                         }}

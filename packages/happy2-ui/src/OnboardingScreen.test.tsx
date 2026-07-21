@@ -176,16 +176,15 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
         "overflow-y": "hidden",
     });
 
-    /* ---- Background + scrim layers fill the root ----------------------- */
+    /* ---- Background layers stay neutral under Happy's centered surface --- */
 
     const bg = view.$('[data-happy2-ui="onboarding-bg"]');
     const scrim = view.$('[data-happy2-ui="onboarding-scrim"]');
     expect(bg.element.getAttribute("data-has-image")).toBeNull();
     expect(bg.offsets()).toMatchObject({ left: 0, right: 0, top: 0, bottom: 0 });
     expect(bg.computedStyle("background-image")).toBe("none");
-    expect(bg.computedStyle("background-size")).toBe("cover");
-    expect(scrim.offsets()).toMatchObject({ left: 0, right: 0, top: 0, bottom: 0 });
-    expect(scrim.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0.32)");
+    expect(bg.computedStyle("background-size")).toBe("auto");
+    expect(scrim.computedStyle("display")).toBe("none");
 
     /* ---- Card: centered on both axes, 480×600 -------------------------- */
 
@@ -248,7 +247,7 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
         display: "flex",
         "justify-content": "center",
     });
-    expect(mark.computedStyle("background-image")).toContain("linear-gradient");
+    expect(mark.computedStyle("background-color")).toBe("rgb(0, 0, 0)");
     expect(brandName.offsets().left).toBe(40); /* 28 mark + 12 gap, relative to brand */
     expect(brandName.computedStyle("color")).toBe("rgb(0, 0, 0)");
     const nameMetrics = brandName.textMetrics();
@@ -287,9 +286,9 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
         '[data-happy2-ui="onboarding-step"][data-state="upcoming"] [data-happy2-ui="onboarding-step-dot"]',
     );
     expect(completeDot.computedStyle("background-color")).toBe("rgb(52, 199, 89)");
-    expect(currentDot.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
+    expect(currentDot.computedStyle("background-color")).toBe("rgb(43, 172, 204)");
     expect(upcomingDot.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0)");
-    expect(upcomingDot.computedStyle("border-top-color")).toBe("rgb(142, 142, 147)");
+    expect(upcomingDot.computedStyle("border-top-color")).toBe("rgb(234, 234, 234)");
 
     const completeLabel = view.$(
         '[data-happy2-ui="onboarding-step"][data-state="complete"] [data-happy2-ui="onboarding-step-label"]',
@@ -326,7 +325,7 @@ it("holds OnboardingScreen centered card, step rail, typography, and optical bra
             "text-transform",
         ]),
     ).toEqual({
-        color: "rgb(0, 122, 255)",
+        color: "rgb(43, 172, 204)",
         "font-size": "12px",
         "font-weight": "700",
         "letter-spacing": "0.96px",
@@ -497,7 +496,7 @@ it("keeps loading and form card rects identical while holding width variants", a
             <OnboardingScreen
                 backgroundUrl="data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='8'%20height='8'%3E%3Crect%20width='8'%20height='8'%20fill='%238b7cf7'/%3E%3C/svg%3E"
                 brand={{
-                    mark: <Icon color="var(--happy2-text-on-accent)" name="zap" size={16} />,
+                    mark: <Icon color="var(--button-primary-tint)" name="zap" size={16} />,
                     name: "Relay",
                 }}
                 copy="Choose the base image and defaults new agents inherit."
@@ -553,9 +552,9 @@ it("keeps loading and form card rects identical while holding width variants", a
         ]),
     ).toEqual({
         "border-radius": "999px",
-        "border-top-color": "rgb(0, 122, 255)",
+        "border-top-color": "rgb(43, 172, 204)",
         "border-top-width": "2px",
-        "border-left-color": "rgb(209, 209, 214)",
+        "border-left-color": "rgb(234, 234, 234)",
         "box-sizing": "border-box",
     });
     const ring = await spinner.visibleMetrics();

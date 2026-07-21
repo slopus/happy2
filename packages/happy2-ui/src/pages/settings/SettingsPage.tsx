@@ -211,7 +211,7 @@ export function SettingsPage(props: SettingsPageProps) {
                                                     role="status"
                                                     style={{
                                                         alignItems: "center",
-                                                        color: "var(--happy2-text-muted)",
+                                                        color: "var(--text-secondary)",
                                                         display: "flex",
                                                         flex: "0 0 20px",
                                                         fontFamily: "var(--happy2-font-ui)",

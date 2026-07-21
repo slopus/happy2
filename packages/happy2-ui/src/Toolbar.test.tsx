@@ -34,7 +34,7 @@ function stage(testid: string, children: ReactNode) {
         <div
             data-testid={testid}
             style={{
-                background: "var(--happy2-bg-surface)",
+                background: "var(--surface)",
                 boxSizing: "border-box",
                 height: "100%",
                 width: "100%",
@@ -182,9 +182,9 @@ it(
         ).toEqual({
             "align-items": "center",
             "background-color": "rgba(0, 0, 0, 0)",
-            "border-bottom-color": "rgb(234, 234, 234)",
-            "border-bottom-style": "solid",
-            "border-bottom-width": "1px",
+            "border-bottom-color": "rgb(0, 0, 0)",
+            "border-bottom-style": "none",
+            "border-bottom-width": "0px",
             "box-sizing": "border-box",
             color: "rgb(0, 0, 0)",
             display: "flex",
@@ -206,8 +206,8 @@ it(
         /* Left-aligned against the 16px content edge (no leading slot). */
         expect(title.bounds().x - rFull.bounds().x, "s-full title left edge").toBe(16);
         expect(title.bounds().height, "s-full title line box").toBe(20);
-        /* Heading (20 + 16) is centered in the 47px lane: title top at 5.5. */
-        expect(title.bounds().y - rFull.bounds().y, "s-full title top").toBe(5.5);
+        /* Heading (20 + 16) is centered in the undivided 48px lane: title top at 6. */
+        expect(title.bounds().y - rFull.bounds().y, "s-full title top").toBe(6);
         expect(
             title.computedStyles([
                 "color",
@@ -239,7 +239,7 @@ it(
         expect(subtitle.element.textContent).toBe("24 people · 3 admins");
         expect(subtitle.bounds().x - rFull.bounds().x, "s-full subtitle left edge").toBe(16);
         expect(subtitle.bounds().height, "s-full subtitle line box").toBe(16);
-        expect(subtitle.bounds().y - rFull.bounds().y, "s-full subtitle top").toBe(25.5);
+        expect(subtitle.bounds().y - rFull.bounds().y, "s-full subtitle top").toBe(26);
         expect(
             subtitle.computedStyles(["color", "font-size", "font-weight", "line-height"]),
         ).toEqual({
@@ -316,14 +316,14 @@ it(
         expect(firstButton.bounds().height).toBe(28);
         /* Actions cluster is vertically centered in the lane (28px control). */
         expect(actions.bounds().height).toBe(28);
-        expect(actions.bounds().y - rFull.bounds().y).toBeCloseTo((47 - 28) / 2, 3);
+        expect(actions.bounds().y - rFull.bounds().y).toBeCloseTo((48 - 28) / 2, 3);
         /* ---- Title only: title rides the exact lane center ------------------ */
         const rTitle = root("s-title");
         expect(rTitle.bounds()).toEqual({ x: 16, y: 16, width: 388, height: 48 });
         const soloTitle = part("s-title", "title");
         expect(soloTitle.element.textContent).toBe("Audit log");
-        /* Single 20px line box centered in the 47px lane: (47 - 20) / 2. */
-        expect(soloTitle.bounds().y - rTitle.bounds().y, "s-title title top").toBe(13.5);
+        /* Single 20px line box centered in the undivided 48px lane: (48 - 20) / 2. */
+        expect(soloTitle.bounds().y - rTitle.bounds().y, "s-title title top").toBe(14);
         expect(soloTitle.bounds().x - rTitle.bounds().x, "s-title title left edge").toBe(16);
         expect(
             view.container.querySelectorAll(sel("s-title", "subtitle")).length,
@@ -389,9 +389,9 @@ it(
         expect(rTall.computedStyle("height")).toBe("56px");
         const tallTitle = part("s-tall", "title");
         const tallSubtitle = part("s-tall", "subtitle");
-        /* Heading (36) centered in the 55px lane: title top (55 - 36) / 2 = 9.5. */
-        expect(tallTitle.bounds().y - rTall.bounds().y, "s-tall title top").toBe(9.5);
-        expect(tallSubtitle.bounds().y - rTall.bounds().y, "s-tall subtitle top").toBe(29.5);
+        /* Heading (36) centered in the undivided 56px lane: title top is 10. */
+        expect(tallTitle.bounds().y - rTall.bounds().y, "s-tall title top").toBe(10);
+        expect(tallSubtitle.bounds().y - rTall.bounds().y, "s-tall subtitle top").toBe(30);
         const tallTitleInk = await textInk("s-tall", "title");
         expect(Math.abs(tallTitleInk.dy), "s-tall title vertical centroid").toBeLessThanOrEqual(
             0.75,

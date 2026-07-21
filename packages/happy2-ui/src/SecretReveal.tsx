@@ -23,7 +23,7 @@ export type SecretRevealProps = {
 const MASK = "•".repeat(24);
 /**
  * C-042 SecretReveal — one-time token/secret display. A card with a header
- * (label + mono meta) and a reveal/copy action pair, a `--happy2-bg-code` well
+ * (label + mono meta) and a reveal/copy action pair, a diff-context well
  * holding the mono token (a fixed dot mask when hidden, the wrapping token when
  * revealed), and an optional warning Banner. Props-only, desktop-only: the
  * masked/revealed and copied states are driven entirely by props so a fixture

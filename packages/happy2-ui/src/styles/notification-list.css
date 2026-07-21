@@ -18,10 +18,10 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    background: var(--happy2-bg-surface);
-    color: var(--happy2-text);
+    background: var(--surface);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -54,7 +54,7 @@
     right: 0;
     left: 0;
     height: 1px;
-    background: var(--happy2-border);
+    background: var(--divider);
     content: "";
 }
 
@@ -64,7 +64,7 @@
     align-items: center;
     justify-content: center;
     min-height: 44px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
 }
@@ -82,7 +82,7 @@
     padding: 0 16px;
     border: 0;
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     text-align: left;
@@ -99,24 +99,24 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: var(--happy2-border);
+    background: var(--divider);
     content: "";
 }
 
 .happy2-notification-row:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-notification-row[data-unread] {
-    background: var(--happy2-accent-soft);
+    background: var(--surface-selected);
 }
 
 .happy2-notification-row[data-unread]:hover {
-    background-image: linear-gradient(var(--happy2-bg-hover), var(--happy2-bg-hover));
+    background-image: linear-gradient(var(--surface-ripple), var(--surface-ripple));
 }
 
 .happy2-notification-row:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: var(--radio-active);
     outline-offset: -2px;
 }
 
@@ -134,7 +134,7 @@
     width: 8px;
     height: 8px;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 /* ---- Media: avatar + kind glyph --------------------------------------- */
@@ -167,8 +167,8 @@
     bottom: -3px;
     width: 18px;
     height: 18px;
-    border: 2px solid var(--happy2-bg-surface);
-    background: var(--happy2-bg-raised);
+    border: 2px solid var(--surface);
+    background: var(--surface-pressed);
 }
 
 /* Standalone tile for actor-less notifications: fills the 36px media lane. */
@@ -179,33 +179,33 @@
 }
 
 .happy2-notification-row__kind[data-tone="accent"] {
-    --nl-kind-color: var(--happy2-accent-strong);
-    --nl-kind-soft: var(--happy2-accent-soft);
+    --nl-kind-color: var(--text-link);
+    --nl-kind-soft: var(--surface-selected);
 }
 
 .happy2-notification-row__kind[data-tone="info"] {
-    --nl-kind-color: var(--happy2-info);
-    --nl-kind-soft: var(--happy2-info-soft);
+    --nl-kind-color: var(--status-connecting);
+    --nl-kind-soft: var(--surface-selected);
 }
 
 .happy2-notification-row__kind[data-tone="success"] {
-    --nl-kind-color: var(--happy2-success-strong);
-    --nl-kind-soft: var(--happy2-success-soft);
+    --nl-kind-color: var(--success);
+    --nl-kind-soft: var(--surface-high);
 }
 
 .happy2-notification-row__kind[data-tone="warning"] {
-    --nl-kind-color: var(--happy2-warning-strong);
-    --nl-kind-soft: var(--happy2-warning-soft);
+    --nl-kind-color: var(--box-warning-text);
+    --nl-kind-soft: var(--box-warning-background);
 }
 
 .happy2-notification-row__kind[data-tone="danger"] {
-    --nl-kind-color: var(--happy2-danger-strong);
-    --nl-kind-soft: var(--happy2-danger-soft);
+    --nl-kind-color: var(--warning-critical);
+    --nl-kind-soft: var(--box-error-background);
 }
 
 .happy2-notification-row__kind[data-tone="neutral"] {
-    --nl-kind-color: var(--happy2-text-secondary);
-    --nl-kind-soft: var(--happy2-bg-raised);
+    --nl-kind-color: var(--text-secondary);
+    --nl-kind-soft: var(--surface-pressed);
 }
 
 /* ---- Body: text + context -------------------------------------------- */
@@ -220,7 +220,7 @@
 
 .happy2-notification-row__text {
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 14px;
     font-weight: 500;
     line-height: 20px;
@@ -233,17 +233,17 @@
 }
 
 .happy2-notification-row__actor {
-    color: var(--happy2-text);
+    color: var(--text);
     font-weight: 700;
 }
 
 .happy2-notification-row__mention {
-    color: var(--happy2-accent-strong);
+    color: var(--text-link);
     font-weight: 600;
 }
 
 .happy2-notification-row__code {
-    background: var(--happy2-bg-inset);
+    background: var(--groupped-background);
     border-radius: 4px;
     padding: 0 4px;
     font-family: var(--happy2-font-mono);
@@ -251,13 +251,13 @@
 }
 
 .happy2-notification-row__link {
-    color: var(--happy2-accent);
+    color: var(--text-link);
     text-decoration: none;
 }
 
 .happy2-notification-row__context {
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
@@ -269,7 +269,7 @@
 
 .happy2-notification-row__time {
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 500;
@@ -285,7 +285,7 @@
     justify-content: center;
     min-height: 96px;
     padding: 24px 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
     line-height: 20px;

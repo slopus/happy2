@@ -19,7 +19,7 @@
     width: 100%;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
-    color: var(--happy2-text);
+    color: var(--text);
     -webkit-user-select: none;
     user-select: none;
 }
@@ -35,11 +35,11 @@
 }
 
 .happy2-file-tree__row:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-file-tree__row[data-selected] {
-    background: var(--happy2-accent-soft);
+    background: var(--surface-selected);
 }
 
 /* ---- Disclosure ------------------------------------------------------- */
@@ -63,12 +63,12 @@
     padding: 0;
     border: none;
     background: transparent;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
 }
 
 .happy2-file-tree__chevron:hover {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 /* ---- Entry ------------------------------------------------------------ */
@@ -93,7 +93,7 @@
 .happy2-file-tree__icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-file-tree__name {
@@ -101,7 +101,7 @@
     flex: 1;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
@@ -111,19 +111,19 @@
 }
 
 .happy2-file-tree__row[data-kind="directory"] .happy2-file-tree__name {
-    color: var(--happy2-text);
+    color: var(--text);
     font-weight: 600;
 }
 
 .happy2-file-tree__row[data-selected] .happy2-file-tree__name {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-file-tree__status {
     display: block;
     flex: none;
     min-width: 14px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 700;
@@ -138,22 +138,22 @@
 .happy2-file-tree__row[data-status="added"] .happy2-file-tree__status,
 .happy2-file-tree__row[data-status="untracked"] .happy2-file-tree__name,
 .happy2-file-tree__row[data-status="untracked"] .happy2-file-tree__status {
-    color: var(--happy2-success);
+    color: var(--success);
 }
 
 .happy2-file-tree__row[data-status="modified"] .happy2-file-tree__name,
 .happy2-file-tree__row[data-status="modified"] .happy2-file-tree__status {
-    color: var(--happy2-warning);
+    color: var(--warning);
 }
 
 .happy2-file-tree__row[data-status="renamed"] .happy2-file-tree__name,
 .happy2-file-tree__row[data-status="renamed"] .happy2-file-tree__status {
-    color: var(--happy2-info);
+    color: var(--status-connecting);
 }
 
 .happy2-file-tree__row[data-status="deleted"] .happy2-file-tree__name,
 .happy2-file-tree__row[data-status="deleted"] .happy2-file-tree__status {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 .happy2-file-tree__row[data-status="deleted"] .happy2-file-tree__name {
@@ -163,7 +163,7 @@
 .happy2-file-tree__row[data-status="ignored"] .happy2-file-tree__icon,
 .happy2-file-tree__row[data-status="ignored"] .happy2-file-tree__name,
 .happy2-file-tree__row[data-status="ignored"] .happy2-file-tree__status {
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
 }
 
 /* ---- Paging, loading, and empty affordances -------------------------- */
@@ -176,7 +176,7 @@
     padding: 0 10px;
     border: none;
     background: transparent;
-    color: var(--happy2-accent);
+    color: var(--text-link);
     font-family: var(--happy2-font-ui);
     font-size: 12px;
     font-weight: 600;
@@ -186,7 +186,7 @@
 }
 
 .happy2-file-tree__more:hover {
-    color: var(--happy2-accent-strong);
+    color: var(--text-link);
 }
 
 .happy2-file-tree__loading,
@@ -195,7 +195,7 @@
     align-items: center;
     min-height: 28px;
     padding: 0 10px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;

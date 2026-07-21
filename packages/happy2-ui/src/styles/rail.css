@@ -72,7 +72,7 @@
     background: transparent;
     border: none;
     border-radius: 8px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     appearance: none;
@@ -83,18 +83,18 @@
 }
 
 .happy2-rail__item:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text-secondary);
+    background: var(--surface-ripple);
+    color: var(--text-secondary);
 }
 
 .happy2-rail__item:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
 .happy2-rail__item[data-active] {
-    background: var(--happy2-accent-soft);
-    color: var(--happy2-accent-strong);
+    background: var(--surface-selected);
+    color: var(--text-link);
 }
 
 .happy2-rail__item-icon {
@@ -133,7 +133,7 @@
 }
 
 .happy2-rail__item[data-active] .happy2-rail__item-label {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 /* ---- Footer ------------------------------------------------------------ */
@@ -171,18 +171,18 @@
     border: 0;
     border-radius: var(--happy2-radius-pill);
     background: transparent;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     appearance: none;
     cursor: pointer;
 }
 
 .happy2-rail__appearance-toggle:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text-secondary);
+    background: var(--surface-ripple);
+    color: var(--text-secondary);
 }
 
 .happy2-rail__appearance-toggle:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -202,10 +202,10 @@
     height: 36px;
     margin: 0;
     padding: 0;
-    background: var(--happy2-action);
+    background: var(--button-primary-background);
     border: 0;
     border-radius: var(--happy2-radius-pill);
-    color: var(--happy2-action-text);
+    color: var(--button-primary-tint);
     appearance: none;
     cursor: pointer;
     transition:
@@ -214,7 +214,7 @@
 }
 
 .happy2-rail__primary:hover {
-    background: var(--happy2-action-strong);
+    background: var(--button-primary-background);
 }
 
 .happy2-rail__primary:active {
@@ -222,7 +222,7 @@
 }
 
 .happy2-rail__primary:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -252,6 +252,6 @@
 }
 
 .happy2-rail__footer-action:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }

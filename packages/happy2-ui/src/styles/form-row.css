@@ -4,15 +4,15 @@
  * Geometry is on the 4px grid: 16px vertical padding, a 4px label→description
  * gap, a 24px text→control gutter inline and a 12px stack gap. A single 1px
  * hairline bottom divider lets rows tile into a settings list. Colors and type
- * come only from --happy2-* tokens.
+ * come only from --* tokens.
  */
 
 .happy2-form-row {
     box-sizing: border-box;
     display: flex;
     padding: 16px 0;
-    border-bottom: 1px solid var(--happy2-border);
-    color: var(--happy2-text);
+    border-bottom: 1px solid var(--divider);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
 }
 
@@ -53,7 +53,7 @@
 .happy2-form-row__label {
     display: block;
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-size: 13px;
     font-synthesis: none;
@@ -64,7 +64,7 @@
 .happy2-form-row__description {
     display: block;
     margin: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-size: 12px;
     font-synthesis: none;

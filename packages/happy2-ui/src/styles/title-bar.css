@@ -46,7 +46,7 @@
        The 56px lane centers the 32px search well on integer coordinates. */
     padding: 0 12px;
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--header-tint);
     font-family: var(--happy2-font-ui);
     /* Explicit chrome text metrics: bare text slotted into the lanes gets a
        deterministic line box — Gecko's `line-height: normal` builds a taller
@@ -123,8 +123,8 @@
     min-width: 0;
     height: 32px;
     padding: 0 3px 0 8px;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--input-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
@@ -134,15 +134,15 @@
 }
 
 .happy2-search-field:focus-within {
-    border-color: var(--happy2-border-strong);
-    outline: var(--happy2-focus-ring);
+    border-color: var(--divider);
+    outline: 2px solid var(--radio-active);
     outline-offset: 1px;
 }
 
 .happy2-search-field__icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-search-field__input {
@@ -154,18 +154,18 @@
     background: transparent;
     border: none;
     outline: none;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-size: 12px;
     font-weight: 500;
     line-height: 30px;
     letter-spacing: 0;
     font-synthesis: none;
-    caret-color: var(--happy2-accent);
+    caret-color: var(--text-link);
 }
 
 .happy2-search-field__input::placeholder {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     opacity: 1;
 }
 

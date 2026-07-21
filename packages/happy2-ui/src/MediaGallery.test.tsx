@@ -152,7 +152,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
             // 1px inset hairline (see media-gallery.css) — the thumb keeps a
             // clean integer 4:3 border box because it carries no layout border.
             "box-shadow": "rgb(234, 234, 234) 0px 0px 0px 1px inset",
-            "background-color": "rgb(240, 240, 242)",
+            "background-color": "rgb(248, 248, 248)",
         });
     }
 
@@ -204,7 +204,7 @@ it("holds MediaGallery grid geometry, tile anatomy, overlays, and footer typogra
             "color",
         ]),
     ).toEqual({
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-radius": "10px",
         "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",

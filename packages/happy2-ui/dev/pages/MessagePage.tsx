@@ -22,8 +22,8 @@ function channelFrame(children: ReactNode, height?: string) {
     return (
         <div
             style={{
-                background: "var(--happy2-bg-app)",
-                border: "1px solid var(--happy2-border)",
+                background: "var(--groupped-background)",
+                border: "1px solid var(--divider)",
                 borderRadius: "10px",
                 display: "flex",
                 flexDirection: "column",

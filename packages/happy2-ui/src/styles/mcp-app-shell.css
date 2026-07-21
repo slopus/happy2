@@ -16,10 +16,10 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     overflow: hidden;
@@ -34,20 +34,20 @@
     height: 40px;
     flex: none;
     padding: 0 12px;
-    border-bottom: 1px solid var(--happy2-border);
-    background: var(--happy2-bg-raised);
+    border-bottom: 1px solid var(--divider);
+    background: var(--surface-high);
 }
 
 .happy2-mcp-app__glyph {
     display: flex;
     flex: none;
-    color: var(--happy2-accent);
+    color: var(--text-link);
 }
 
 .happy2-mcp-app__title {
     flex: 1 1 auto;
     min-width: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
@@ -66,7 +66,7 @@
 .happy2-mcp-app__frame {
     display: flex;
     width: 100%;
-    background: var(--happy2-bg-surface);
+    background: var(--surface);
 }
 
 /* A durable app page/overlay fills the region its parent allocates instead of a
@@ -92,7 +92,7 @@
 }
 
 .happy2-mcp-app__frame[data-bordered] .happy2-mcp-app__host-frame {
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     /* Inner radius parallels the 10px card corner minus the 1px border + 8px
        pad inset (see DESIGN.md "Nested rounded corners"): max(0, 10 - 9) = 1px. */
     border-radius: 1px;
@@ -109,7 +109,7 @@
 }
 
 .happy2-mcp-app__loading-text {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     line-height: 18px;
 }
@@ -123,8 +123,8 @@
     flex: none;
     width: 16px;
     height: 16px;
-    border: 2px solid var(--happy2-border-strong);
-    border-top-color: var(--happy2-accent);
+    border: 2px solid var(--divider);
+    border-top-color: var(--text-link);
     border-radius: var(--happy2-radius-pill);
 }
 
@@ -137,7 +137,7 @@
 .happy2-mcp-app__error-text {
     flex: 1 1 auto;
     min-width: 0;
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
     font-size: 13px;
     line-height: 18px;
 }

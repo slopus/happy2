@@ -1,12 +1,9 @@
 /*
- * Happy (2) design tokens.
+ * Happy's active iOS theme, flattened for CSS consumers.
  *
- * The palette follows the original Happy app: neutral iOS-like surfaces,
- * black/white primary actions, blue for selection, and familiar system
- * semantic colours. The default follows the operating-system colour scheme.
- * Components consume only these custom properties, which keeps the complete
- * UI in one coherent theme without a React theme provider or a duplicate
- * light-mode component tree.
+ * Every colour property below corresponds directly to a property in
+ * packages/happy-app/sources/theme.ts. Do not add aliases, gradients, or
+ * derived palette values here: components should name the Happy role they use.
  */
 
 @font-face {
@@ -31,230 +28,388 @@
 .happy2-theme-light {
     color-scheme: light;
 
-    /* Original Happy light appearance. */
-    --happy2-bg-chrome: #ffffff;
-    --happy2-bg-app: #f5f5f5;
-    --happy2-bg-surface: #ffffff;
-    --happy2-bg-raised: #f0f0f2;
-    --happy2-bg-inset: #f5f5f5;
-    --happy2-bg-hover: rgb(0 0 0 / 0.06);
-    --happy2-bg-code: #f6f8fa;
-    --happy2-bg-window: none;
+    --text: #000000;
+    --text-destructive: #ff3b30;
+    --text-secondary: #8e8e93;
+    --text-link: #2baccc;
+    --delete-action: #ff6b6b;
+    --warning-critical: #ff3b30;
+    --warning: #8e8e93;
+    --success: #34c759;
+    --surface: #ffffff;
+    --surface-ripple: rgb(0 0 0 / 0.08);
+    --surface-pressed: #f0f0f2;
+    --surface-selected: #c6c6c8;
+    --surface-pressed-overlay: #d1d1d6;
+    --surface-high: #f8f8f8;
+    --surface-highest: #f0f0f0;
+    --divider: #eaeaea;
+    --shadow-color: rgb(0 0 0 / 0.1);
+    --shadow-opacity: 0.1;
 
-    /* Chat message bubbles. Own (outgoing) sits on a quiet dark charcoal fill
-       with white text; incoming humans use a neutral raised fill on the
-       surface; agents render on the surface without a bubble. own-inset tints
-       inline code so it stays legible on the dark fill. */
-    --happy2-bubble-own: #3a3a36;
-    --happy2-bubble-own-text: #ffffff;
-    --happy2-bubble-own-inset: rgb(255 255 255 / 0.16);
-    --happy2-bubble-neutral: #f0f0f2;
+    --groupped-background: #f2f2f7;
+    --groupped-chevron: #c7c7cc;
+    --groupped-section-title: #8e8e93;
+    --header-background: #ffffff;
+    --header-tint: #18171c;
+    --switch-track-active: #34c759;
+    --switch-track-inactive: #dddddd;
+    --switch-thumb-active: #ffffff;
+    --switch-thumb-inactive: #767577;
+    --fab-background: #000000;
+    --fab-background-pressed: #1a1a1a;
+    --fab-icon: #ffffff;
+    --radio-active: #007aff;
+    --radio-inactive: #c0c0c0;
+    --radio-dot: #007aff;
+    --modal-border: rgb(0 0 0 / 0.1);
+    --button-primary-background: #000000;
+    --button-primary-tint: #ffffff;
+    --button-primary-disabled: #c0c0c0;
+    --button-secondary-tint: #666666;
+    --input-background: #f5f5f5;
+    --input-text: #000000;
+    --input-placeholder: #999999;
+    --box-warning-background: #fff8f0;
+    --box-warning-border: #ff9500;
+    --box-warning-text: #ff9500;
+    --box-error-background: #fff0f0;
+    --box-error-border: #ff3b30;
+    --box-error-text: #ff3b30;
 
-    /* Maximum width for the centered chat column and its composer. Wide enough
-       to feel roomy on a desktop window; it only centers once the surface grows
-       past this, otherwise the column spans the available width. */
-    --happy2-chat-measure: 1040px;
+    --status-connected: #34c759;
+    --status-connecting: #007aff;
+    --status-disconnected: #999999;
+    --status-error: #ff3b30;
+    --status-default: #8e8e93;
+    --permission-default: #8e8e93;
+    --permission-accept-edits: #007aff;
+    --permission-bypass: #ff9500;
+    --permission-plan: #34c759;
+    --permission-read-only: #8b8b8d;
+    --permission-safe-yolo: #ff6b35;
+    --permission-yolo: #dc143c;
+    --permission-button-allow-background: #34c759;
+    --permission-button-allow-text: #ffffff;
+    --permission-button-deny-background: #ff3b30;
+    --permission-button-deny-text: #ffffff;
+    --permission-button-allow-all-background: #007aff;
+    --permission-button-allow-all-text: #ffffff;
+    --permission-button-inactive-background: #e5e5ea;
+    --permission-button-inactive-border: #d1d1d6;
+    --permission-button-inactive-text: #8e8e93;
+    --permission-button-selected-background: #f2f2f7;
+    --permission-button-selected-border: #d1d1d6;
+    --permission-button-selected-text: #3c3c43;
 
-    --happy2-border: #eaeaea;
-    --happy2-border-strong: #d1d1d6;
+    --diff-outline: #e0e0e0;
+    --diff-success: #28a745;
+    --diff-error: #dc3545;
+    --diff-added-bg: #e6ffed;
+    --diff-added-border: #34d058;
+    --diff-added-text: #24292e;
+    --diff-removed-bg: #ffeef0;
+    --diff-removed-border: #d73a49;
+    --diff-removed-text: #24292e;
+    --diff-context-bg: #f6f8fa;
+    --diff-context-text: #586069;
+    --diff-line-number-bg: #f6f8fa;
+    --diff-line-number-text: #959da5;
+    --diff-hunk-header-bg: #f1f8ff;
+    --diff-hunk-header-text: #005cc5;
+    --diff-leading-space-dot: #e8e8e8;
+    --diff-inline-added-bg: #acffa6;
+    --diff-inline-added-text: #0a3f0a;
+    --diff-inline-removed-bg: #ffcecb;
+    --diff-inline-removed-text: #5a0a05;
 
-    --happy2-text: #000000;
-    --happy2-text-secondary: #8e8e93;
-    --happy2-text-muted: #8e8e93;
-    --happy2-text-faint: #8e8e93;
-    --happy2-text-on-accent: #ffffff;
-    --happy2-text-on-fill: #ffffff;
-
-    /* Selection and links are the original Happy blue, while primary actions
-       remain the app's deliberately monochrome black controls. */
-    --happy2-accent: #007aff;
-    --happy2-accent-strong: #007aff;
-    --happy2-accent-soft: rgb(0 122 255 / 0.14);
-    --happy2-action: #000000;
-    --happy2-action-strong: #1a1a1a;
-    --happy2-action-text: #ffffff;
-    --happy2-pink: #2baccc;
-    --happy2-brand-gradient: linear-gradient(135deg, #000000, #2baccc);
-
-    --happy2-success: #34c759;
-    --happy2-success-strong: #248a3d;
-    --happy2-success-soft: rgb(52 199 89 / 0.14);
-    --happy2-warning: #ff9500;
-    --happy2-warning-strong: #c93400;
-    --happy2-warning-soft: rgb(255 149 0 / 0.14);
-    --happy2-danger: #ff3b30;
-    --happy2-danger-strong: #d70015;
-    --happy2-danger-soft: rgb(255 59 48 / 0.12);
-    --happy2-info: #007aff;
-    --happy2-info-soft: rgb(0 122 255 / 0.14);
-    --happy2-online: #34c759;
-
-    --happy2-diff-add: #28a745;
-    --happy2-diff-add-bg: #e6ffed;
-    --happy2-diff-del: #dc3545;
-    --happy2-diff-del-bg: #ffeef0;
-
-    --happy2-tone-violet: linear-gradient(135deg, #007aff, #5856d6);
-    --happy2-tone-ember: linear-gradient(135deg, #ff9500, #ff3b30);
-    --happy2-tone-mint: linear-gradient(135deg, #34c759, #30b0c7);
-    --happy2-tone-ocean: linear-gradient(135deg, #2baccc, #007aff);
-    --happy2-tone-rose: linear-gradient(135deg, #ff6b6b, #af52de);
-    --happy2-tone-amber: linear-gradient(135deg, #ffcc00, #ff9500);
-    --happy2-tone-slate: linear-gradient(135deg, #8e8e93, #48484a);
-    --happy2-tone-brand: linear-gradient(135deg, #000000, #2baccc);
+    --user-message-background: #f0eee6;
+    --user-message-text: #000000;
+    --agent-message-text: #000000;
+    --agent-event-text: #666666;
+    --syntax-keyword: #1d4ed8;
+    --syntax-string: #059669;
+    --syntax-comment: #6b7280;
+    --syntax-number: #0891b2;
+    --syntax-function: #9333ea;
+    --syntax-bracket-1: #ff6b6b;
+    --syntax-bracket-2: #4ecdc4;
+    --syntax-bracket-3: #45b7d1;
+    --syntax-bracket-4: #f7b731;
+    --syntax-bracket-5: #5f27cd;
+    --syntax-default: #374151;
+    --git-branch-text: #6b7280;
+    --git-file-count-text: #6b7280;
+    --git-added-text: #22c55e;
+    --git-removed-text: #ef4444;
+    --terminal-background: #1e1e1e;
+    --terminal-prompt: #34c759;
+    --terminal-command: #e0e0e0;
+    --terminal-stdout: #e0e0e0;
+    --terminal-stderr: #ffb86c;
+    --terminal-error: #ff5555;
+    --terminal-empty-output: #6272a4;
 
     --happy2-font-ui: "happy2 Figtree", system-ui, sans-serif;
     --happy2-font-mono: "happy2 Mono", ui-monospace, monospace;
     --happy2-font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
-
     --happy2-radius-sm: 6px;
     --happy2-radius-md: 10px;
     --happy2-radius-window: 8px;
     --happy2-radius-shell: 14px;
     --happy2-radius-pill: 999px;
-
-    --happy2-focus-ring: 2px solid #007aff;
-    --happy2-scrim: rgb(0 0 0 / 0.32);
-    --happy2-scrollbar: rgb(142 142 147 / 0.4);
+    --happy2-chat-measure: 1040px;
     --happy2-z-overlay: 1000;
-}
-
-/* ThemeScope intentionally has no layout box: it is a stable token boundary
- * around an app tree, not another application shell. */
-.happy2-theme-scope {
-    display: contents;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
         color-scheme: dark;
-
-        /* Original Happy dark appearance. */
-        --happy2-bg-chrome: #18171c;
-        --happy2-bg-app: #000000;
-        --happy2-bg-surface: #1c1c1e;
-        --happy2-bg-raised: #2c2c2e;
-        --happy2-bg-inset: #303030;
-        --happy2-bg-hover: rgb(255 255 255 / 0.08);
-        --happy2-bg-code: #161b22;
-        --happy2-bg-window: none;
-
-        --happy2-bubble-own: #48484a;
-        --happy2-bubble-own-text: #ffffff;
-        --happy2-bubble-own-inset: rgb(255 255 255 / 0.18);
-        --happy2-bubble-neutral: #2c2c2e;
-
-        --happy2-border: #38383a;
-        --happy2-border-strong: #48484a;
-
-        --happy2-text: #ffffff;
-        --happy2-text-secondary: #8e8e93;
-        --happy2-text-muted: #8e8e93;
-        --happy2-text-faint: #98989d;
-        --happy2-text-on-accent: #ffffff;
-        --happy2-text-on-fill: #000000;
-
-        --happy2-accent: #0a84ff;
-        --happy2-accent-strong: #0a84ff;
-        --happy2-accent-soft: rgb(10 132 255 / 0.22);
-        --happy2-action: #ffffff;
-        --happy2-action-strong: #f0f0f0;
-        --happy2-action-text: #000000;
-        --happy2-pink: #2baccc;
-        --happy2-brand-gradient: linear-gradient(135deg, #ffffff, #2baccc);
-
-        --happy2-success: #32d74b;
-        --happy2-success-strong: #32d74b;
-        --happy2-success-soft: rgb(50 215 75 / 0.16);
-        --happy2-warning: #ff9f0a;
-        --happy2-warning-strong: #ffab00;
-        --happy2-warning-soft: rgb(255 159 10 / 0.15);
-        --happy2-danger: #ff453a;
-        --happy2-danger-strong: #ff6b6b;
-        --happy2-danger-soft: rgb(255 69 58 / 0.15);
-        --happy2-info: #0a84ff;
-        --happy2-info-soft: rgb(10 132 255 / 0.18);
-        --happy2-online: #32d74b;
-
-        --happy2-diff-add: #3fb950;
-        --happy2-diff-add-bg: #0d2e1f;
-        --happy2-diff-del: #f85149;
-        --happy2-diff-del-bg: #3f1b23;
-
-        --happy2-tone-violet: linear-gradient(135deg, #0a84ff, #5e5ce6);
-        --happy2-tone-ember: linear-gradient(135deg, #ff9f0a, #ff453a);
-        --happy2-tone-mint: linear-gradient(135deg, #32d74b, #30d5c8);
-        --happy2-tone-ocean: linear-gradient(135deg, #2baccc, #0a84ff);
-        --happy2-tone-rose: linear-gradient(135deg, #ff6b6b, #bf5af2);
-        --happy2-tone-amber: linear-gradient(135deg, #ffd60a, #ff9f0a);
-        --happy2-tone-slate: linear-gradient(135deg, #98989d, #48484a);
-        --happy2-tone-brand: linear-gradient(135deg, #ffffff, #2baccc);
-
-        --happy2-focus-ring: 2px solid #0a84ff;
-        --happy2-scrim: rgb(0 0 0 / 0.52);
-        --happy2-scrollbar: rgb(142 142 147 / 0.4);
+        --text: #ffffff;
+        --text-destructive: #ff453a;
+        --text-secondary: #8e8e93;
+        --text-link: #2baccc;
+        --delete-action: #ff6b6b;
+        --warning-critical: #ff453a;
+        --warning: #8e8e93;
+        --success: #32d74b;
+        --surface: #18171c;
+        --surface-ripple: rgb(255 255 255 / 0.08);
+        --surface-pressed: #2c2c2e;
+        --surface-selected: #2c2c2e;
+        --surface-pressed-overlay: #2c2c2e;
+        --surface-high: #2c2c2e;
+        --surface-highest: #38383a;
+        --divider: #38383a;
+        --shadow-color: rgb(0 0 0 / 0.1);
+        --shadow-opacity: 0.1;
+        --groupped-background: #1c1c1e;
+        --groupped-chevron: #48484a;
+        --groupped-section-title: #8e8e93;
+        --header-background: #18171c;
+        --header-tint: #ffffff;
+        --switch-track-active: #34c759;
+        --switch-track-inactive: #3a393f;
+        --switch-thumb-active: #ffffff;
+        --switch-thumb-inactive: #767577;
+        --fab-background: #ffffff;
+        --fab-background-pressed: #f0f0f0;
+        --fab-icon: #000000;
+        --radio-active: #0a84ff;
+        --radio-inactive: #48484a;
+        --radio-dot: #0a84ff;
+        --modal-border: rgb(255 255 255 / 0.1);
+        --button-primary-background: #000000;
+        --button-primary-tint: #ffffff;
+        --button-primary-disabled: #c0c0c0;
+        --button-secondary-tint: #8e8e93;
+        --input-background: #1c1c1e;
+        --input-text: #ffffff;
+        --input-placeholder: #8e8e93;
+        --box-warning-background: rgb(255 159 10 / 0.15);
+        --box-warning-border: #ff9f0a;
+        --box-warning-text: #ffab00;
+        --box-error-background: rgb(255 69 58 / 0.15);
+        --box-error-border: #ff453a;
+        --box-error-text: #ff6b6b;
+        --status-connected: #34c759;
+        --status-connecting: #ffffff;
+        --status-disconnected: #8e8e93;
+        --status-error: #ff453a;
+        --status-default: #8e8e93;
+        --permission-default: #8e8e93;
+        --permission-accept-edits: #0a84ff;
+        --permission-bypass: #ff9f0a;
+        --permission-plan: #32d74b;
+        --permission-read-only: #98989d;
+        --permission-safe-yolo: #ff7a4c;
+        --permission-yolo: #ff453a;
+        --permission-button-allow-background: #32d74b;
+        --permission-button-allow-text: #ffffff;
+        --permission-button-deny-background: #ff453a;
+        --permission-button-deny-text: #ffffff;
+        --permission-button-allow-all-background: #0a84ff;
+        --permission-button-allow-all-text: #ffffff;
+        --permission-button-inactive-background: #2c2c2e;
+        --permission-button-inactive-border: #38383a;
+        --permission-button-inactive-text: #8e8e93;
+        --permission-button-selected-background: #1c1c1e;
+        --permission-button-selected-border: #38383a;
+        --permission-button-selected-text: #ffffff;
+        --diff-outline: #30363d;
+        --diff-success: #3fb950;
+        --diff-error: #f85149;
+        --diff-added-bg: #0d2e1f;
+        --diff-added-border: #3fb950;
+        --diff-added-text: #c9d1d9;
+        --diff-removed-bg: #3f1b23;
+        --diff-removed-border: #f85149;
+        --diff-removed-text: #c9d1d9;
+        --diff-context-bg: #161b22;
+        --diff-context-text: #8b949e;
+        --diff-line-number-bg: #161b22;
+        --diff-line-number-text: #6e7681;
+        --diff-hunk-header-bg: #161b22;
+        --diff-hunk-header-text: #58a6ff;
+        --diff-leading-space-dot: #2a2a2a;
+        --diff-inline-added-bg: #2a5a2a;
+        --diff-inline-added-text: #7aff7a;
+        --diff-inline-removed-bg: #5a2a2a;
+        --diff-inline-removed-text: #ff7a7a;
+        --user-message-background: #2c2c2e;
+        --user-message-text: #ffffff;
+        --agent-message-text: #ffffff;
+        --agent-event-text: #8e8e93;
+        --syntax-keyword: #569cd6;
+        --syntax-string: #ce9178;
+        --syntax-comment: #6a9955;
+        --syntax-number: #b5cea8;
+        --syntax-function: #dcdcaa;
+        --syntax-bracket-1: #ffd700;
+        --syntax-bracket-2: #da70d6;
+        --syntax-bracket-3: #179fff;
+        --syntax-bracket-4: #ff8c00;
+        --syntax-bracket-5: #00ff00;
+        --syntax-default: #d4d4d4;
+        --git-branch-text: #8e8e93;
+        --git-file-count-text: #8e8e93;
+        --git-added-text: #34c759;
+        --git-removed-text: #ff453a;
+        --terminal-background: #1e1e1e;
+        --terminal-prompt: #32d74b;
+        --terminal-command: #e0e0e0;
+        --terminal-stdout: #e0e0e0;
+        --terminal-stderr: #ffb86c;
+        --terminal-error: #ff6b6b;
+        --terminal-empty-output: #7b7b93;
     }
 }
 
-/* Explicit preview/test override. Product surfaces do not set this class: the
- * media query above is the runtime source of truth. */
+/* Explicit preview/test override. */
 .happy2-theme-dark {
     color-scheme: dark;
-    --happy2-bg-chrome: #18171c;
-    --happy2-bg-app: #000000;
-    --happy2-bg-surface: #1c1c1e;
-    --happy2-bg-raised: #2c2c2e;
-    --happy2-bg-inset: #303030;
-    --happy2-bg-hover: rgb(255 255 255 / 0.08);
-    --happy2-bg-code: #161b22;
-    --happy2-bg-window: none;
-    --happy2-bubble-own: #48484a;
-    --happy2-bubble-own-text: #ffffff;
-    --happy2-bubble-own-inset: rgb(255 255 255 / 0.18);
-    --happy2-bubble-neutral: #2c2c2e;
-    --happy2-border: #38383a;
-    --happy2-border-strong: #48484a;
-    --happy2-text: #ffffff;
-    --happy2-text-secondary: #8e8e93;
-    --happy2-text-muted: #8e8e93;
-    --happy2-text-faint: #98989d;
-    --happy2-text-on-accent: #ffffff;
-    --happy2-text-on-fill: #000000;
-    --happy2-accent: #0a84ff;
-    --happy2-accent-strong: #0a84ff;
-    --happy2-accent-soft: rgb(10 132 255 / 0.22);
-    --happy2-action: #ffffff;
-    --happy2-action-strong: #f0f0f0;
-    --happy2-action-text: #000000;
-    --happy2-pink: #2baccc;
-    --happy2-brand-gradient: linear-gradient(135deg, #ffffff, #2baccc);
-    --happy2-success: #32d74b;
-    --happy2-success-strong: #32d74b;
-    --happy2-success-soft: rgb(50 215 75 / 0.16);
-    --happy2-warning: #ff9f0a;
-    --happy2-warning-strong: #ffab00;
-    --happy2-warning-soft: rgb(255 159 10 / 0.15);
-    --happy2-danger: #ff453a;
-    --happy2-danger-strong: #ff6b6b;
-    --happy2-danger-soft: rgb(255 69 58 / 0.15);
-    --happy2-info: #0a84ff;
-    --happy2-info-soft: rgb(10 132 255 / 0.18);
-    --happy2-online: #32d74b;
-    --happy2-diff-add: #3fb950;
-    --happy2-diff-add-bg: #0d2e1f;
-    --happy2-diff-del: #f85149;
-    --happy2-diff-del-bg: #3f1b23;
-    --happy2-tone-violet: linear-gradient(135deg, #0a84ff, #5e5ce6);
-    --happy2-tone-ember: linear-gradient(135deg, #ff9f0a, #ff453a);
-    --happy2-tone-mint: linear-gradient(135deg, #32d74b, #30d5c8);
-    --happy2-tone-ocean: linear-gradient(135deg, #2baccc, #0a84ff);
-    --happy2-tone-rose: linear-gradient(135deg, #ff6b6b, #bf5af2);
-    --happy2-tone-amber: linear-gradient(135deg, #ffd60a, #ff9f0a);
-    --happy2-tone-slate: linear-gradient(135deg, #98989d, #48484a);
-    --happy2-tone-brand: linear-gradient(135deg, #ffffff, #2baccc);
-    --happy2-focus-ring: 2px solid #0a84ff;
-    --happy2-scrim: rgb(0 0 0 / 0.52);
-    --happy2-scrollbar: rgb(142 142 147 / 0.4);
+    --text: #ffffff;
+    --text-destructive: #ff453a;
+    --text-secondary: #8e8e93;
+    --text-link: #2baccc;
+    --delete-action: #ff6b6b;
+    --warning-critical: #ff453a;
+    --warning: #8e8e93;
+    --success: #32d74b;
+    --surface: #18171c;
+    --surface-ripple: rgb(255 255 255 / 0.08);
+    --surface-pressed: #2c2c2e;
+    --surface-selected: #2c2c2e;
+    --surface-pressed-overlay: #2c2c2e;
+    --surface-high: #2c2c2e;
+    --surface-highest: #38383a;
+    --divider: #38383a;
+    --shadow-color: rgb(0 0 0 / 0.1);
+    --shadow-opacity: 0.1;
+    --groupped-background: #1c1c1e;
+    --groupped-chevron: #48484a;
+    --groupped-section-title: #8e8e93;
+    --header-background: #18171c;
+    --header-tint: #ffffff;
+    --switch-track-active: #34c759;
+    --switch-track-inactive: #3a393f;
+    --switch-thumb-active: #ffffff;
+    --switch-thumb-inactive: #767577;
+    --fab-background: #ffffff;
+    --fab-background-pressed: #f0f0f0;
+    --fab-icon: #000000;
+    --radio-active: #0a84ff;
+    --radio-inactive: #48484a;
+    --radio-dot: #0a84ff;
+    --modal-border: rgb(255 255 255 / 0.1);
+    --button-primary-background: #000000;
+    --button-primary-tint: #ffffff;
+    --button-primary-disabled: #c0c0c0;
+    --button-secondary-tint: #8e8e93;
+    --input-background: #1c1c1e;
+    --input-text: #ffffff;
+    --input-placeholder: #8e8e93;
+    --box-warning-background: rgb(255 159 10 / 0.15);
+    --box-warning-border: #ff9f0a;
+    --box-warning-text: #ffab00;
+    --box-error-background: rgb(255 69 58 / 0.15);
+    --box-error-border: #ff453a;
+    --box-error-text: #ff6b6b;
+    --status-connected: #34c759;
+    --status-connecting: #ffffff;
+    --status-disconnected: #8e8e93;
+    --status-error: #ff453a;
+    --status-default: #8e8e93;
+    --permission-default: #8e8e93;
+    --permission-accept-edits: #0a84ff;
+    --permission-bypass: #ff9f0a;
+    --permission-plan: #32d74b;
+    --permission-read-only: #98989d;
+    --permission-safe-yolo: #ff7a4c;
+    --permission-yolo: #ff453a;
+    --permission-button-allow-background: #32d74b;
+    --permission-button-allow-text: #ffffff;
+    --permission-button-deny-background: #ff453a;
+    --permission-button-deny-text: #ffffff;
+    --permission-button-allow-all-background: #0a84ff;
+    --permission-button-allow-all-text: #ffffff;
+    --permission-button-inactive-background: #2c2c2e;
+    --permission-button-inactive-border: #38383a;
+    --permission-button-inactive-text: #8e8e93;
+    --permission-button-selected-background: #1c1c1e;
+    --permission-button-selected-border: #38383a;
+    --permission-button-selected-text: #ffffff;
+    --diff-outline: #30363d;
+    --diff-success: #3fb950;
+    --diff-error: #f85149;
+    --diff-added-bg: #0d2e1f;
+    --diff-added-border: #3fb950;
+    --diff-added-text: #c9d1d9;
+    --diff-removed-bg: #3f1b23;
+    --diff-removed-border: #f85149;
+    --diff-removed-text: #c9d1d9;
+    --diff-context-bg: #161b22;
+    --diff-context-text: #8b949e;
+    --diff-line-number-bg: #161b22;
+    --diff-line-number-text: #6e7681;
+    --diff-hunk-header-bg: #161b22;
+    --diff-hunk-header-text: #58a6ff;
+    --diff-leading-space-dot: #2a2a2a;
+    --diff-inline-added-bg: #2a5a2a;
+    --diff-inline-added-text: #7aff7a;
+    --diff-inline-removed-bg: #5a2a2a;
+    --diff-inline-removed-text: #ff7a7a;
+    --user-message-background: #2c2c2e;
+    --user-message-text: #ffffff;
+    --agent-message-text: #ffffff;
+    --agent-event-text: #8e8e93;
+    --syntax-keyword: #569cd6;
+    --syntax-string: #ce9178;
+    --syntax-comment: #6a9955;
+    --syntax-number: #b5cea8;
+    --syntax-function: #dcdcaa;
+    --syntax-bracket-1: #ffd700;
+    --syntax-bracket-2: #da70d6;
+    --syntax-bracket-3: #179fff;
+    --syntax-bracket-4: #ff8c00;
+    --syntax-bracket-5: #00ff00;
+    --syntax-default: #d4d4d4;
+    --git-branch-text: #8e8e93;
+    --git-file-count-text: #8e8e93;
+    --git-added-text: #34c759;
+    --git-removed-text: #ff453a;
+    --terminal-background: #1e1e1e;
+    --terminal-prompt: #32d74b;
+    --terminal-command: #e0e0e0;
+    --terminal-stdout: #e0e0e0;
+    --terminal-stderr: #ffb86c;
+    --terminal-error: #ff6b6b;
+    --terminal-empty-output: #7b7b93;
+}
+
+/* ThemeScope intentionally has no layout box. */
+.happy2-theme-scope {
+    display: contents;
 }
 
 .happy2-box {

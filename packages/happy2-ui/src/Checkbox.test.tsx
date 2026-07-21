@@ -137,7 +137,7 @@ it("holds Checkbox geometry, colors, glyph centering, and typography across stat
     const boxSpec = {
         unchecked: {
             "background-color": "rgb(245, 245, 245)",
-            "border-top-color": "rgb(209, 209, 214)",
+            "border-top-color": "rgb(192, 192, 192)",
         },
         active: {
             "background-color": "rgb(0, 122, 255)",

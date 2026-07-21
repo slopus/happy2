@@ -180,9 +180,9 @@ it("holds StatTile card geometry, typography, and trend deltas", async () => {
     expect(chip.bounds()).toMatchObject({ width: 28, height: 28 });
     expect(chip.offsets()).toMatchObject({ top: 0, right: 0, bottom: 0 }); /* pinned top-right */
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgba(0, 122, 255, 0.14)",
+        "background-color": "rgb(198, 198, 200)",
         "border-radius": "6px",
-        color: "rgb(0, 122, 255)",
+        color: "rgb(43, 172, 204)",
     });
     const chipIcon = view.$(
         '[data-testid="st-full"] [data-happy2-ui="stat-tile-icon"] [data-happy2-ui="icon"]',
@@ -328,11 +328,11 @@ it("holds StatTile tones and content states", async () => {
     /* ---- Tones: chip fill + glyph colour per tone ------------------------ */
 
     const toneChips: Record<string, { background: string; color: string }> = {
-        neutral: { background: "rgb(245, 245, 245)", color: "rgb(142, 142, 147)" },
-        accent: { background: "rgba(0, 122, 255, 0.14)", color: "rgb(0, 122, 255)" },
-        success: { background: "rgba(52, 199, 89, 0.14)", color: "rgb(36, 138, 61)" },
-        warning: { background: "rgba(255, 149, 0, 0.14)", color: "rgb(201, 52, 0)" },
-        danger: { background: "rgba(255, 59, 48, 0.12)", color: "rgb(215, 0, 21)" },
+        neutral: { background: "rgb(242, 242, 247)", color: "rgb(142, 142, 147)" },
+        accent: { background: "rgb(198, 198, 200)", color: "rgb(43, 172, 204)" },
+        success: { background: "rgb(248, 248, 248)", color: "rgb(52, 199, 89)" },
+        warning: { background: "rgb(255, 248, 240)", color: "rgb(255, 149, 0)" },
+        danger: { background: "rgb(255, 240, 240)", color: "rgb(255, 59, 48)" },
     };
     for (const [id, tone] of tones.map(([id, tone]) => [id, tone] as const)) {
         const chip = view.$(`[data-testid="${id}"] [data-happy2-ui="stat-tile-icon"]`);

@@ -2,7 +2,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -10,7 +10,7 @@
 .happy2-document-delete-dialog__message {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-document-delete-dialog__actions {

@@ -18,7 +18,7 @@
     flex-direction: column;
     gap: 12px;
     width: 100%;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -51,11 +51,11 @@
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-permission-checklist__description {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }

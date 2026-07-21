@@ -36,8 +36,8 @@
     height: 100%;
     overflow: hidden;
     margin: 0;
-    background: var(--happy2-bg-chrome);
-    color: var(--happy2-text);
+    background: var(--header-background);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -47,17 +47,12 @@
 .happy2-onboarding-screen__bg {
     position: absolute;
     inset: 0;
-    background-color: transparent;
-    background-image: var(--happy2-bg-window);
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: cover;
 }
 
 .happy2-onboarding-screen__scrim {
     position: absolute;
     inset: 0;
-    background: var(--happy2-scrim);
+    display: none;
 }
 
 /* ---- Card ------------------------------------------------------------- */
@@ -70,9 +65,9 @@
     width: 480px;
     height: min(600px, calc(100% - 48px));
     padding: 40px;
-    border: 1px solid var(--happy2-border-strong);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-shell);
-    background: var(--happy2-bg-surface);
+    background: var(--surface);
     box-shadow: 0 24px 60px rgb(0 0 0 / 0.45);
 }
 
@@ -98,12 +93,12 @@
     height: 28px;
     overflow: hidden;
     border-radius: 8px;
-    background: var(--happy2-brand-gradient);
-    color: var(--happy2-text-on-accent);
+    background: var(--button-primary-background);
+    color: var(--button-primary-tint);
 }
 
 .happy2-onboarding-screen__brand-name {
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -138,16 +133,16 @@
 }
 
 .happy2-onboarding-screen__step-dot[data-state="complete"] {
-    background: var(--happy2-success);
-    color: var(--happy2-text-on-fill);
+    background: var(--success);
+    color: var(--button-primary-tint);
 }
 
 .happy2-onboarding-screen__step-dot[data-state="current"] {
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 .happy2-onboarding-screen__step-dot[data-state="upcoming"] {
-    border: 2px solid var(--happy2-text-faint);
+    border: 2px solid var(--divider);
     background: transparent;
 }
 
@@ -162,15 +157,15 @@
 }
 
 .happy2-onboarding-screen__step-label[data-state="complete"] {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-onboarding-screen__step-label[data-state="current"] {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-onboarding-screen__step-label[data-state="upcoming"] {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 /* ---- Content block ---------------------------------------------------- */
@@ -184,7 +179,7 @@
 
 .happy2-onboarding-screen__kicker {
     margin: 0 0 12px;
-    color: var(--happy2-accent);
+    color: var(--text-link);
     font-size: 12px;
     font-weight: 700;
     line-height: 16px;
@@ -194,7 +189,7 @@
 
 .happy2-onboarding-screen__title {
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 24px;
     font-weight: 700;
     line-height: 30px;
@@ -203,7 +198,7 @@
 
 .happy2-onboarding-screen__copy {
     margin: 14px 0 0;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 15px;
     font-weight: 400;
     line-height: 22px;
@@ -264,13 +259,13 @@
     flex: none;
     width: 20px;
     height: 20px;
-    border: 2px solid var(--happy2-border-strong);
-    border-top-color: var(--happy2-accent);
+    border: 2px solid var(--divider);
+    border-top-color: var(--text-link);
     border-radius: var(--happy2-radius-pill);
 }
 
 .happy2-onboarding-screen__loading-label {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 14px;
     font-weight: 500;
     line-height: 20px;
@@ -281,7 +276,7 @@
 .happy2-onboarding-screen__footer {
     flex: none;
     margin: 20px 8px 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;

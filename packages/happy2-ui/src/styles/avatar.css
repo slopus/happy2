@@ -1,6 +1,6 @@
 /*
  * Avatar — identity mark for humans (circle) and agents (rounded square).
- * Sizes: xs 20 / sm 28 / md 36 / lg 44. Tone gradients come from theme.css.
+ * Sizes: xs 20 / sm 28 / md 36 / lg 44. Tones use Happy's direct color roles.
  */
 
 .happy2-avatar,
@@ -17,8 +17,8 @@
     align-items: center;
     justify-content: center;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-tone-slate);
-    color: var(--happy2-text-on-accent);
+    background: var(--text-secondary);
+    color: var(--button-primary-tint);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     font-weight: 700;
@@ -72,35 +72,35 @@
 }
 
 .happy2-avatar[data-tone="violet"] {
-    background: var(--happy2-tone-violet);
+    background: var(--radio-active);
 }
 
 .happy2-avatar[data-tone="ember"] {
-    background: var(--happy2-tone-ember);
+    background: var(--text-destructive);
 }
 
 .happy2-avatar[data-tone="mint"] {
-    background: var(--happy2-tone-mint);
+    background: var(--success);
 }
 
 .happy2-avatar[data-tone="ocean"] {
-    background: var(--happy2-tone-ocean);
+    background: var(--text-link);
 }
 
 .happy2-avatar[data-tone="rose"] {
-    background: var(--happy2-tone-rose);
+    background: var(--delete-action);
 }
 
 .happy2-avatar[data-tone="amber"] {
-    background: var(--happy2-tone-amber);
+    background: var(--box-warning-border);
 }
 
 .happy2-avatar[data-tone="slate"] {
-    background: var(--happy2-tone-slate);
+    background: var(--text-secondary);
 }
 
 .happy2-avatar[data-tone="brand"] {
-    background: var(--happy2-tone-brand);
+    background: var(--fab-background);
 }
 
 .happy2-avatar__initials {
@@ -149,9 +149,9 @@
     bottom: -1px;
     width: 8px;
     height: 8px;
-    border: 2px solid var(--happy2-bg-app);
+    border: 2px solid var(--groupped-background);
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-online);
+    background: var(--status-connected);
 }
 
 .happy2-avatar[data-size="lg"] .happy2-avatar__presence {

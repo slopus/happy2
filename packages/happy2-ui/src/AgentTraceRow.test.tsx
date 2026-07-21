@@ -157,7 +157,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         view.$(`[data-testid="${testid}"] [data-happy2-ui="agent-trace-row-dot"]`);
     expect(dotOf("tr-running").bounds()).toMatchObject({ width: 5, height: 5 });
     expect(dotOf("tr-running").computedStyles(["background-color", "border-radius"])).toEqual({
-        "background-color": "rgb(0, 122, 255)",
+        "background-color": "rgb(43, 172, 204)",
         "border-radius": "999px",
     });
     expect(dotOf("tr-complete").computedStyle("background-color")).toBe("rgb(52, 199, 89)");
@@ -242,7 +242,7 @@ it("holds AgentTraceRow geometry, states, icon mapping, and click behavior", asy
         '[data-testid="tr-complete"] [data-happy2-ui="agent-trace-row-title"]',
     );
     expect(completeTitle.element.textContent).toBe("View trace");
-    expect(completeTitle.computedStyle("color")).toBe("rgb(0, 122, 255)");
+    expect(completeTitle.computedStyle("color")).toBe("rgb(43, 172, 204)");
     expect(
         view.$('[data-testid="tr-complete"] [data-happy2-ui="agent-trace-row-count"]').element
             .textContent,

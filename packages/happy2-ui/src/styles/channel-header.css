@@ -1,8 +1,8 @@
 /*
  * ChannelHeader — 56px context strip across the top of the main app surface.
  *
- * Contract: 56px high (border-bottom hairline inside the box), 16px x-padding,
- * transparent so it composes on --happy2-bg-app. Modeled on Slack: an optional
+ * Contract: 56px high, 16px x-padding,
+ * transparent so it composes on the grouped background. Modeled on Slack: an optional
  * leading star toggle, a clickable channel icon + title, a truncating topic on
  * the left; a member-count pill, agent chip, actions slot, and overflow menu on
  * the right. The left cluster truncates through the topic; the right meta
@@ -24,9 +24,8 @@
     height: 56px;
     margin: 0;
     padding: 0 16px;
-    border-bottom: 1px solid var(--happy2-border);
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -54,7 +53,7 @@
     background: transparent;
     border: 0;
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     appearance: none;
     cursor: pointer;
     transition:
@@ -63,17 +62,17 @@
 }
 
 .happy2-channel-header__star:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text-secondary);
+    background: var(--surface-ripple);
+    color: var(--text-secondary);
 }
 
 .happy2-channel-header__star:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
 .happy2-channel-header__star[data-starred] {
-    color: var(--happy2-warning);
+    color: var(--warning);
 }
 
 /* Lead = icon + title. As a button it opens channel/user details. */
@@ -87,7 +86,7 @@
     padding: 0;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-channel-header__lead--button {
@@ -103,18 +102,18 @@
 }
 
 .happy2-channel-header__lead--button:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-channel-header__lead--button:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
 .happy2-channel-header__icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-channel-header__title {
@@ -123,7 +122,7 @@
     min-width: 0;
     margin: 0;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -163,13 +162,13 @@
     width: 3px;
     height: 3px;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-text-faint);
+    background: var(--text-secondary);
 }
 
 .happy2-channel-header__topic {
     flex: 0 1 auto;
     min-width: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 400;
     line-height: 16px;
@@ -201,14 +200,14 @@
     height: 28px;
     margin: 0;
     padding: 0 8px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
 
 .happy2-channel-header__members--button {
     background: transparent;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
     appearance: none;
     cursor: pointer;
@@ -219,13 +218,13 @@
 }
 
 .happy2-channel-header__members--button:hover {
-    background: var(--happy2-bg-hover);
-    border-color: var(--happy2-border-strong);
-    color: var(--happy2-text-secondary);
+    background: var(--surface-ripple);
+    border-color: var(--divider);
+    color: var(--text-secondary);
 }
 
 .happy2-channel-header__members--button:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 

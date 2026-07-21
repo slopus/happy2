@@ -22,8 +22,8 @@ const buildLog = [
 ].join("\n");
 function frame(height: number, width = 560): CSSProperties {
     return {
-        background: "var(--happy2-bg-app)",
-        border: "1px solid var(--happy2-border)",
+        background: "var(--groupped-background)",
+        border: "1px solid var(--divider)",
         borderRadius: "14px",
         display: "flex",
         height: `${height}px`,

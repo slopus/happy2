@@ -19,7 +19,7 @@
     flex: 1 1 0%;
     min-height: 0;
     gap: 16px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -44,13 +44,13 @@
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-roles-panel__subtitle {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-roles-panel__actions {
@@ -83,7 +83,7 @@
     max-width: 100%;
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-roles-panel__access {
@@ -98,17 +98,17 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 
 .happy2-roles-panel__none {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-roles-panel__members {
     font-variant-numeric: tabular-nums;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-roles-panel__row-actions {

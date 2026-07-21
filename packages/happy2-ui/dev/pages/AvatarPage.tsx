@@ -171,7 +171,7 @@ export function AvatarPage() {
                                 tone={member.tone}
                                 style={{
                                     marginLeft: index === 0 ? "0" : "-6px",
-                                    boxShadow: "0 0 0 2px var(--happy2-bg-chrome)",
+                                    boxShadow: "0 0 0 2px var(--header-background)",
                                 }}
                             />
                         ))}
@@ -180,7 +180,7 @@ export function AvatarPage() {
                         <Avatar initials="CX" size="xs" tone="brand" type="agent" online />
                         <span
                             style={{
-                                color: "var(--happy2-text-secondary)",
+                                color: "var(--text-secondary)",
                                 font: "500 13px/16px var(--happy2-font-ui)",
                             }}
                         >
@@ -191,7 +191,7 @@ export function AvatarPage() {
                         <Avatar initials="MJ" size="sm" tone="ember" online />
                         <span
                             style={{
-                                color: "var(--happy2-text-secondary)",
+                                color: "var(--text-secondary)",
                                 font: "500 13px/16px var(--happy2-font-ui)",
                             }}
                         >

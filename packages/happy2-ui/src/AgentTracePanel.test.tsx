@@ -276,7 +276,7 @@ it("holds AgentTracePanel header, scrollport contract, entry rows, and timestamp
         );
     expect(rowDot(0).computedStyle("background-color")).toBe("rgb(52, 199, 89)");
     expect(rowDot(4).computedStyle("background-color")).toBe("rgb(255, 59, 48)");
-    expect(rowDot(6).computedStyle("background-color")).toBe("rgb(0, 122, 255)");
+    expect(rowDot(6).computedStyle("background-color")).toBe("rgb(43, 172, 204)");
     expect(rowDot(0).bounds()).toMatchObject({ width: 5, height: 5 });
     const drift = await dotDrift(
         view,

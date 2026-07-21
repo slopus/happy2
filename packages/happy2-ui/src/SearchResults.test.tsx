@@ -226,7 +226,7 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
             glyph.computedStyles(["background-color", "border-radius", "color"]),
             `${id} glyph tokens`,
         ).toEqual({
-            "background-color": "rgb(245, 245, 245)",
+            "background-color": "rgb(242, 242, 247)",
             "border-radius": "999px",
             color: "rgb(142, 142, 147)",
         });
@@ -322,8 +322,8 @@ it("holds SearchResults geometry, group headers, row layouts, highlight, and opt
         mark.computedStyles(["background-color", "color", "font-weight"]),
         "mark tokens",
     ).toEqual({
-        "background-color": "rgba(0, 122, 255, 0.14)",
-        color: "rgb(0, 122, 255)",
+        "background-color": "rgb(198, 198, 200)",
+        color: "rgb(43, 172, 204)",
         "font-weight": "600",
     });
     await paints(mark, "launch-week mark");
@@ -452,7 +452,7 @@ it("renders the empty state and rich message snippets", async () => {
 
     const mention = view.$('[data-testid="rich"] [data-happy2-ui="search-results-mention"]');
     expect(mention.element.textContent).toBe("@maya");
-    expect(mention.computedStyle("color")).toBe("rgb(0, 122, 255)");
+    expect(mention.computedStyle("color")).toBe("rgb(43, 172, 204)");
     await paints(mention, "rich mention");
 
     const code = view.$('[data-testid="rich"] [data-happy2-ui="search-results-code"]');
@@ -462,13 +462,13 @@ it("renders the empty state and rich message snippets", async () => {
 
     const link = view.$('[data-testid="rich"] [data-happy2-ui="search-results-link"]');
     expect(link.element.textContent).toBe("run");
-    expect(link.computedStyle("color")).toBe("rgb(0, 122, 255)");
+    expect(link.computedStyle("color")).toBe("rgb(43, 172, 204)");
     await paints(link, "rich link");
 
     /* The plain-text "launch" segment (not the mention) is highlighted. */
     const richMark = view.$('[data-testid="rich"] [data-happy2-ui="search-results-mark"]');
     expect(richMark.element.textContent).toBe("launch");
-    expect(richMark.computedStyle("background-color")).toBe("rgba(0, 122, 255, 0.14)");
+    expect(richMark.computedStyle("background-color")).toBe("rgb(198, 198, 200)");
     await paints(richMark, "rich mark");
 
     window.scrollTo(0, 0);

@@ -31,8 +31,8 @@ const CELL_HEIGHT = 18;
 const ROWS_PADDING_HORIZONTAL = 12;
 const ROWS_PADDING_VERTICAL = 8;
 // The theme default terminal colors, used when an inverse cell has no explicit color.
-const DEFAULT_FOREGROUND = "var(--happy2-text)";
-const DEFAULT_BACKGROUND = "var(--happy2-bg-code)";
+const DEFAULT_FOREGROUND = "var(--text)";
+const DEFAULT_BACKGROUND = "var(--terminal-background)";
 
 export function TerminalPanel(props: TerminalPanelProps) {
     const screen = useRef<HTMLDivElement>(null);

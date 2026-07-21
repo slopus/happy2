@@ -38,15 +38,15 @@ const CONTENT_CASES: Array<{ initials: string; tone: ToneName; type: AvatarType 
 const SURFACE = { width: 280, height: 68, padding: 12 };
 const GAP = 8;
 
-const TONE_GRADIENTS: Record<ToneName, string> = {
-    violet: "linear-gradient(135deg, rgb(0, 122, 255), rgb(88, 86, 214))",
-    ember: "linear-gradient(135deg, rgb(255, 149, 0), rgb(255, 59, 48))",
-    mint: "linear-gradient(135deg, rgb(52, 199, 89), rgb(48, 176, 199))",
-    ocean: "linear-gradient(135deg, rgb(43, 172, 204), rgb(0, 122, 255))",
-    rose: "linear-gradient(135deg, rgb(255, 107, 107), rgb(175, 82, 222))",
-    amber: "linear-gradient(135deg, rgb(255, 204, 0), rgb(255, 149, 0))",
-    slate: "linear-gradient(135deg, rgb(142, 142, 147), rgb(72, 72, 74))",
-    brand: "linear-gradient(135deg, rgb(0, 0, 0), rgb(43, 172, 204))",
+const TONE_COLORS: Record<ToneName, string> = {
+    violet: "rgb(0, 122, 255)",
+    ember: "rgb(255, 59, 48)",
+    mint: "rgb(52, 199, 89)",
+    ocean: "rgb(43, 172, 204)",
+    rose: "rgb(255, 107, 107)",
+    amber: "rgb(255, 149, 0)",
+    slate: "rgb(142, 142, 147)",
+    brand: "rgb(0, 0, 0)",
 };
 
 const fontFamily = () =>
@@ -96,9 +96,10 @@ it(
                 expect(avatar.computedStyle("border-radius"), `${id} radius`).toBe(
                     content.type === "agent" ? `${agentRadius}px` : "999px",
                 );
-                expect(avatar.computedStyle("background-image"), `${id} tone`).toBe(
-                    TONE_GRADIENTS[content.tone],
+                expect(avatar.computedStyle("background-color"), `${id} tone`).toBe(
+                    TONE_COLORS[content.tone],
                 );
+                expect(avatar.computedStyle("background-image"), `${id} no gradient`).toBe("none");
 
                 const initials = view.$(`[data-testid="${id}"] [data-happy2-ui="avatar-initials"]`);
                 const visible = await initials.visibleMetrics();
@@ -180,7 +181,7 @@ it(
                 `${size} styles`,
             ).toEqual({
                 "align-items": "center",
-                "background-color": "rgba(0, 0, 0, 0)",
+                "background-color": TONE_COLORS.violet,
                 "border-top-width": "0px",
                 "box-sizing": "border-box",
                 color: "rgb(255, 255, 255)",
@@ -226,7 +227,7 @@ it("anchors the presence dot at every size", { timeout: 90_000 }, async () => {
     view.render(() => <Avatar data-testid="offline" initials="ST" size="md" />, SURFACE);
     await view.ready();
 
-    // Dot: 8px (10px on lg), online fill, 2px app-colored ring, -1px overhang.
+    // Dot: 8px (10px on lg), online fill, 2px grouped-background ring, -1px overhang.
     const presenceCases = [
         { id: "online-xs", dimension: 20, dot: 8, x: 12 },
         { id: "online-sm", dimension: 28, dot: 8, x: 40 },
@@ -256,7 +257,7 @@ it("anchors the presence dot at every size", { timeout: 90_000 }, async () => {
         ).toEqual({
             "background-color": "rgb(52, 199, 89)",
             "border-radius": "999px",
-            "border-top-color": "rgb(245, 245, 245)",
+            "border-top-color": "rgb(242, 242, 247)",
             "border-top-style": "solid",
             "border-top-width": "2px",
             "box-sizing": "border-box",
@@ -314,7 +315,7 @@ it("renders the image variant, tones, defaults, and keeps size in tight flex row
     view.render(
         () => (
             <div style={{ display: "flex", gap: `${GAP}px` }}>
-                {(Object.keys(TONE_GRADIENTS) as ToneName[]).map((tone) => (
+                {(Object.keys(TONE_COLORS) as ToneName[]).map((tone) => (
                     <Avatar
                         data-testid={`tone-${tone}`}
                         key={tone}
@@ -371,16 +372,17 @@ it("renders the image variant, tones, defaults, and keeps size in tight flex row
     expect(agentImage.bounds()).toEqual({ x: 56, y: 12, width: 44, height: 44 });
     expect(agentImage.computedStyle("border-radius")).toBe("10px");
 
-    // Every tone gradient comes straight from the theme tokens, and every
+    // Every tone uses a direct Happy color role (no gradient aliases), and every
     // tone chip's initials stay optically centered. These are arbitrary
     // 2-char caps strings (VI/EM/MI/OC/RO/AM/SL/BR) beyond the representative
     // set the per-size correction was tuned on, so the horizontal centroid
     // carries each string's inherent ink asymmetry; assert the vertical
     // centroid (uniform across caps strings) at the standard tolerance and
     // keep a looser 1px guard on the horizontal axis.
-    for (const [tone, gradient] of Object.entries(TONE_GRADIENTS)) {
+    for (const [tone, color] of Object.entries(TONE_COLORS)) {
         const chip = view.$(`[data-testid="tone-${tone}"]`);
-        expect(chip.computedStyle("background-image")).toBe(gradient);
+        expect(chip.computedStyle("background-color")).toBe(color);
+        expect(chip.computedStyle("background-image")).toBe("none");
         const chipInitials = view.$(
             `[data-testid="tone-${tone}"] [data-happy2-ui="avatar-initials"]`,
         );
@@ -399,7 +401,8 @@ it("renders the image variant, tones, defaults, and keeps size in tight flex row
     expect(fallback.element.getAttribute("data-size")).toBe("md");
     expect(fallback.element.getAttribute("data-type")).toBe("human");
     expect(fallback.element.getAttribute("data-tone")).toBe("slate");
-    expect(fallback.computedStyle("background-image")).toBe(TONE_GRADIENTS.slate);
+    expect(fallback.computedStyle("background-color")).toBe(TONE_COLORS.slate);
+    expect(fallback.computedStyle("background-image")).toBe("none");
     expect(fallback.element.getAttribute("aria-hidden")).toBe("true");
     expect(fallback.element.getAttribute("role")).toBeNull();
 

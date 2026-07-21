@@ -11,7 +11,7 @@ function stage(testid: string, children: ReactNode) {
         <div
             data-testid={testid}
             style={{
-                background: "#f5f5f5",
+                background: "#f2f2f7",
                 boxSizing: "border-box",
                 display: "flex",
                 flexDirection: "column",
@@ -106,7 +106,7 @@ it("shows the audience pill in the meta row without shifting author or time vert
         "font-size": "10px",
         "font-weight": "700",
         "border-radius": "999px",
-        color: "rgb(0, 122, 255)",
+        color: "rgb(43, 172, 204)",
     });
     const ink = await audience.visibleMetrics();
     expect(ink.pixelCount).toBeGreaterThan(0);
@@ -372,9 +372,9 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
             "padding-right",
         ]),
     ).toEqual({
-        "background-color": "rgba(0, 122, 255, 0.14)",
+        "background-color": "rgb(240, 240, 242)",
         "border-radius": "4px",
-        color: "rgb(0, 122, 255)",
+        color: "rgb(43, 172, 204)",
         "font-weight": "500",
         "padding-left": "5px",
         "padding-right": "5px",
@@ -390,7 +390,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect((await code.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     const link = view.$('[data-testid="m1"] [data-happy2-ui="message-link"]');
     expect(link.computedStyles(["color", "text-decoration-line"])).toEqual({
-        color: "rgb(0, 122, 255)",
+        color: "rgb(43, 172, 204)",
         "text-decoration-line": "none",
     });
     expect((await link.visibleMetrics()).pixelCount).toBeGreaterThan(0);
@@ -708,7 +708,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
             "position",
         ]),
     ).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+        "background-color": "rgb(248, 248, 248)",
         "border-radius": "6px",
         display: "flex",
         opacity: "1",
@@ -1614,7 +1614,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     const caret = view.$('[data-testid="md-stream"] [data-happy2-ui="message-stream-caret"]');
     expect(caret.bounds().width).toBe(8);
     expect(caret.bounds().height).toBe(16);
-    expect(caret.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
+    expect(caret.computedStyle("background-color")).toBe("rgb(43, 172, 204)");
     /* Streamed content is never dimmed — that treatment is reserved for delivery. */
     const streamContent = view.$('[data-testid="md-stream"] [data-happy2-ui="message-content"]');
     expect(streamContent.computedStyle("opacity")).toBe("1");
@@ -1757,7 +1757,7 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     /* ---- Text + ref color/weight contract --------------------------------- */
     const text = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-text"]');
     expect(text.computedStyles(["color", "font-size", "font-weight", "line-height"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(102, 102, 102)",
         "font-size": "13px",
         "font-weight": "400",
         "line-height": "20px",
@@ -1783,7 +1783,7 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     ]);
     /* ---- Leading glyph: faint, 14px, painted -------------------------------- */
     const iconSlot = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"]');
-    expect(iconSlot.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(iconSlot.computedStyle("color")).toBe("rgb(102, 102, 102)");
     const iconSvg = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"] svg');
     const iconBounds = iconSvg.bounds();
     expect(iconBounds.width).toBe(14);

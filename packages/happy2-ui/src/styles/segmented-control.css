@@ -26,9 +26,9 @@
     grid-auto-rows: 1fr;
     align-items: stretch;
     padding: var(--happy2-segmented-pad);
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -64,9 +64,9 @@
     left: var(--happy2-segmented-pad);
     box-sizing: border-box;
     width: calc((100% - 2 * var(--happy2-segmented-pad)) / var(--happy2-segmented-count));
-    border: 1px solid var(--happy2-border-strong);
+    border: 1px solid var(--surface-pressed-overlay);
     border-radius: var(--happy2-segmented-inner-radius);
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
     transform: translateX(calc(var(--happy2-segmented-index) * 100%));
     transition: transform 160ms ease;
 }
@@ -86,7 +86,7 @@
     border: 0;
     border-radius: var(--happy2-segmented-inner-radius);
     background: transparent;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     font-weight: 600;
@@ -112,15 +112,15 @@
 }
 
 .happy2-segmented-control__segment[data-active] {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-segmented-control__segment:not([data-active]):hover:not(:disabled) {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-segmented-control__segment:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -1px;
 }
 

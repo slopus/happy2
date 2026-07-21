@@ -199,7 +199,7 @@ function FooterUser() {
                 <div style={{ display: "flex", flexDirection: "column", minWidth: "0" }}>
                     <span
                         style={{
-                            color: "var(--happy2-text)",
+                            color: "var(--text)",
                             fontSize: "13px",
                             fontWeight: "600",
                             lineHeight: "16px",
@@ -209,7 +209,7 @@ function FooterUser() {
                     </span>
                     <span
                         style={{
-                            color: "var(--happy2-text-muted)",
+                            color: "var(--text-secondary)",
                             fontSize: "11px",
                             lineHeight: "14px",
                         }}
@@ -239,7 +239,7 @@ function Frame(props: { children: ReactNode; height: number }) {
     return (
         <div
             style={{
-                border: "1px solid var(--happy2-border)",
+                border: "1px solid var(--divider)",
                 display: "flex",
                 height: `${props.height}px`,
                 overflow: "hidden",

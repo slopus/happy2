@@ -70,7 +70,7 @@ it("holds pending layout: amber treatment, package image, request content, and w
         "overflow-x": "hidden",
     });
     expect(root.computedStyle("font-family")).toBe(uiFamily());
-    expect(root.computedStyle("border-top-color")).toBe("rgba(255, 149, 0, 0.14)");
+    expect(root.computedStyle("border-top-color")).toBe("rgb(255, 149, 0)");
     expect(root.element.getAttribute("data-status")).toBe("pending");
 
     // No banner while pending; the shield chip wears the warning tone.
@@ -208,7 +208,7 @@ it("disables decisions while busy or processing and hides them without decision 
     // treatment but replaces the actions with the approval-required state.
     const member = view.$('[data-testid="member"]');
     expect(member.element.getAttribute("data-status")).toBe("pending");
-    expect(member.computedStyle("border-top-color")).toBe("rgba(255, 149, 0, 0.14)");
+    expect(member.computedStyle("border-top-color")).toBe("rgb(255, 149, 0)");
     expect(member.element.querySelector('[data-action="approve"]')).toBeNull();
     expect(member.element.querySelector('[data-action="deny"]')).toBeNull();
     expect(member.element.querySelector("button")).toBeNull();
@@ -273,7 +273,7 @@ it("renders clearly terminal approved, denied, and failed states", async () => {
 
     // Approved: mint banner, success state line, no action buttons.
     expect(banner("approved").element.textContent).toContain("Approved");
-    expect(banner("approved").computedStyle("color")).toBe("rgb(36, 138, 61)");
+    expect(banner("approved").computedStyle("color")).toBe("rgb(52, 199, 89)");
     expect(banner("approved").bounds().height).toBe(32);
     expect(state("approved").element.textContent).toBe("Approved — Chat Helper was installed");
     expect(
@@ -282,7 +282,7 @@ it("renders clearly terminal approved, denied, and failed states", async () => {
 
     // Denied: danger banner and a neutral terminal line.
     expect(banner("denied").element.textContent).toContain("Denied");
-    expect(banner("denied").computedStyle("color")).toBe("rgb(215, 0, 21)");
+    expect(banner("denied").computedStyle("color")).toBe("rgb(255, 59, 48)");
     expect(state("denied").element.textContent).toBe("Denied — no changes were made");
 
     // Failed: danger banner carries the bounded diagnostic in the state line.

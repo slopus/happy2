@@ -9,7 +9,7 @@ const sourceApplicationIconPath = path.join(dirname, "..", "public", "app-icon.p
 const applicationIconPath = existsSync(builtApplicationIconPath)
     ? builtApplicationIconPath
     : sourceApplicationIconPath;
-const windowBackgroundColor = "#131217"; // Mirrors happy2-ui --happy2-bg-chrome.
+const windowBackgroundColor = nativeTheme.shouldUseDarkColors ? "#1c1c1e" : "#f2f2f7";
 const titleBarHeight = 38;
 const macosTrafficLightSize = 14;
 const macosWindowChrome = {
@@ -20,7 +20,7 @@ const macosWindowChrome = {
     },
 } as const;
 
-nativeTheme.themeSource = "dark";
+nativeTheme.themeSource = "system";
 
 function createWindow() {
     const window = new BrowserWindow({

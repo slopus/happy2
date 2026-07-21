@@ -16,7 +16,7 @@
     flex-direction: column;
     gap: 16px;
     min-width: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -44,7 +44,7 @@
     height: 4px;
     min-width: 0;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-bg-inset);
+    background: var(--groupped-background);
     overflow: hidden;
 }
 
@@ -52,7 +52,7 @@
     position: absolute;
     inset: 0 auto 0 0;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-brand-gradient);
+    background: var(--text-link);
     transition: width 240ms ease;
 }
 
@@ -61,7 +61,7 @@
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     line-height: 14px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 
@@ -86,13 +86,13 @@
     font-weight: 600;
     letter-spacing: 0.72px;
     text-transform: uppercase;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-image-detail__section-note {
     font-size: 11px;
     line-height: 14px;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
 }
 
 /* Scrollport: edge-to-edge, no padding; the inner <code> carries the inset so
@@ -101,10 +101,10 @@
     margin: 0;
     max-height: 260px;
     overflow: auto;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    background: var(--happy2-bg-code);
-    color: var(--happy2-text-secondary);
+    background: var(--diff-context-bg);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 18px;
@@ -123,9 +123,9 @@
 .happy2-agent-image-detail__empty {
     margin: 0;
     padding: 12px 14px;
-    border: 1px dashed var(--happy2-border-strong);
+    border: 1px dashed var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     line-height: 18px;
 }

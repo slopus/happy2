@@ -146,8 +146,8 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
     expect(
         selected.computedStyles(["background-color", "border-top-color", "border-top-width"]),
     ).toEqual({
-        "background-color": "rgba(0, 122, 255, 0.14)",
-        "border-top-color": "rgb(0, 122, 255)",
+        "background-color": "rgb(198, 198, 200)",
+        "border-top-color": "rgb(43, 172, 204)",
         "border-top-width": "1px",
     });
 
@@ -166,7 +166,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-radius": "8px",
         color: "rgb(142, 142, 147)",
         display: "flex",
@@ -226,7 +226,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
 
     const recommended = part(view, "selected", "setup-option-recommended");
     expect(recommended.computedStyles(["color", "text-transform"])).toEqual({
-        color: "rgb(0, 122, 255)",
+        color: "rgb(43, 172, 204)",
         "text-transform": "uppercase",
     });
 
@@ -259,7 +259,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
         "selected has no ring",
     ).toBeNull();
     const check = part(view, "selected", "setup-option-check");
-    expect(check.computedStyle("color")).toBe("rgb(0, 122, 255)");
+    expect(check.computedStyle("color")).toBe("rgb(43, 172, 204)");
     const checkGlyph = await glyphDrift(
         view,
         '[data-testid="selected"] [data-happy2-ui="setup-option-trailing"]',
@@ -298,7 +298,7 @@ it("holds SetupOptionCard layout, typography, selection, and status geometry", a
         ]),
     ).toEqual({
         "border-radius": "999px",
-        "border-top-color": "rgb(0, 122, 255)",
+        "border-top-color": "rgb(43, 172, 204)",
         "border-top-width": "2px",
         "box-sizing": "border-box",
     });

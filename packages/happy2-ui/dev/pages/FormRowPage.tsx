@@ -129,7 +129,7 @@ export function FormRowPage() {
                                     height={24}
                                     style={{
                                         borderRadius: "var(--happy2-radius-sm)",
-                                        background: "var(--happy2-brand-gradient)",
+                                        background: "var(--text-link)",
                                     }}
                                     width={24}
                                 />

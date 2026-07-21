@@ -5,13 +5,19 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="icon" type="image/png" href="/favicon.png" />
         <title>Happy (2)</title>
-        <!-- Neutral chrome backdrop before the bundle's CSS loads, so the window
-             never flashes white on first paint. Mirrors --happy2-bg-chrome. -->
+        <!-- Happy's grouped/root surface before the bundle's CSS loads. -->
         <style>
             html,
             body {
                 margin: 0;
-                background: #131217;
+                background: #f2f2f7;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                html,
+                body {
+                    background: #1c1c1e;
+                }
             }
         </style>
     </head>

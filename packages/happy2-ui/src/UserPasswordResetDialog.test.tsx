@@ -16,7 +16,7 @@ function WindowFrame(props: { children: ReactNode }) {
         <div
             data-testid="frame"
             style={{
-                background: "var(--happy2-bg-app)",
+                background: "var(--groupped-background)",
                 height: "600px",
                 overflow: "hidden",
                 position: "relative",

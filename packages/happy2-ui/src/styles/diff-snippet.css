@@ -1,7 +1,7 @@
 /*
  * C-006 DiffSnippet — code-well diff block.
  *
- * A `--happy2-bg-code` well with a hairline border: optional 28px header
+ * A diff-context well with a hairline border: optional 28px header
  * (mono file name + right-aligned +N/−N stats), then 20px mono diff
  * lines with a 24px +/− gutter, optional 32px line-number gutter, and
  * add/del/context/meta treatments. Long lines scroll horizontally
@@ -12,8 +12,8 @@
     display: block;
     box-sizing: border-box;
     overflow: hidden;
-    background: var(--happy2-bg-code);
-    border: 1px solid var(--happy2-border);
+    background: var(--diff-context-bg);
+    border: 1px solid var(--diff-outline);
     border-radius: 8px;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
@@ -44,8 +44,8 @@
      * children sit at a half-pixel offset that engines rasterize differently.
      */
     padding: 0 12px 1px;
-    background: var(--happy2-bg-inset);
-    border-bottom: 1px solid var(--happy2-border);
+    background: var(--groupped-background);
+    border-bottom: 1px solid var(--diff-outline);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 600;
@@ -58,7 +58,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-diff-snippet__stats {
@@ -71,12 +71,12 @@
 
 .happy2-diff-snippet__added {
     box-sizing: border-box;
-    color: var(--happy2-diff-add);
+    color: var(--diff-success);
 }
 
 .happy2-diff-snippet__removed {
     box-sizing: border-box;
-    color: var(--happy2-diff-del);
+    color: var(--diff-error);
 }
 
 .happy2-diff-snippet__scroll {
@@ -105,21 +105,21 @@
 }
 
 .happy2-diff-snippet__line[data-kind="add"] {
-    background: var(--happy2-diff-add-bg);
-    color: var(--happy2-diff-add);
+    background: var(--diff-added-bg);
+    color: var(--diff-added-text);
 }
 
 .happy2-diff-snippet__line[data-kind="del"] {
-    background: var(--happy2-diff-del-bg);
-    color: var(--happy2-diff-del);
+    background: var(--diff-removed-bg);
+    color: var(--diff-removed-text);
 }
 
 .happy2-diff-snippet__line[data-kind="context"] {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-diff-snippet__line[data-kind="meta"] {
-    color: var(--happy2-text-faint);
+    color: var(--diff-context-text);
 }
 
 .happy2-diff-snippet__number {
@@ -128,7 +128,7 @@
     width: 32px;
     padding-right: 6px;
     text-align: right;
-    color: var(--happy2-text-faint);
+    color: var(--diff-line-number-text);
     transform: translateY(var(--happy2-diff-text-optical-y));
 }
 
@@ -141,7 +141,7 @@
 }
 
 .happy2-diff-snippet__line[data-kind="context"] .happy2-diff-snippet__gutter {
-    color: var(--happy2-text-muted);
+    color: var(--diff-context-text);
 }
 
 .happy2-diff-snippet__text {

@@ -160,7 +160,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
                     <span
                         data-testid="footer-user"
                         style={{
-                            color: "var(--happy2-text-secondary)",
+                            color: "var(--text-secondary)",
                             fontSize: "13px",
                             lineHeight: "16px",
                         }}
@@ -220,7 +220,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
             "width",
         ]),
     ).toEqual({
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-right-width": "0px",
         "box-sizing": "border-box",
         display: "flex",
@@ -386,7 +386,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     expect(
         active.computedStyles(["background-color", "border-radius", "color", "padding-left"]),
     ).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+        "background-color": "rgb(198, 198, 200)",
         "border-radius": "6px",
         color: "rgb(0, 0, 0)",
         "padding-left": "10px",
@@ -532,7 +532,7 @@ it("holds Sidebar geometry, row treatments, and optical alignment", async () => 
     const workingDot = view.$(
         '[data-testid="full"] [data-item-id="codex"] [data-happy2-ui="sidebar-item-status"]',
     );
-    expect(workingDot.computedStyle("background-color")).toBe("rgb(255, 149, 0)");
+    expect(workingDot.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     expect(workingDot.offsets().right).toBe(11);
     const workingDotInk = await rowInk(workingDot, row("codex"));
     expect(Math.abs(workingDotInk.y - 16), "working dot optical y").toBeLessThanOrEqual(OPTICAL);
@@ -824,7 +824,7 @@ it("keeps active row labels of every kind on the row midline", async () => {
     for (const [index, testCase] of cases.entries()) {
         const row = view.$(`[data-testid="state-${index}"] [data-item-id="${testCase.active}"]`);
         expect(row.element.getAttribute("aria-current")).toBe("page");
-        expect(row.computedStyle("background-color")).toBe("rgb(240, 240, 242)");
+        expect(row.computedStyle("background-color")).toBe("rgb(198, 198, 200)");
         const label = view.$(
             `[data-testid="state-${index}"] [data-item-id="${testCase.active}"] [data-happy2-ui="sidebar-item-label"]`,
         );

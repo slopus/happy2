@@ -1,7 +1,7 @@
 /*
  * C-058 ModalOverlay — the single backdrop for every modal-class surface.
  *
- * Fixed to the app window with one dim (--happy2-scrim) at one stacking level
+ * Fixed to the app window with one dim at one stacking level
  * (--happy2-z-overlay, above all app chrome and in-panel popovers). A flex box
  * holds one card (Modal / Lightbox / editor panel / transient type-ahead)
  * inside a 24px safe-area gutter. Dialogs center by default; transient
@@ -20,7 +20,7 @@
     justify-content: center;
     box-sizing: border-box;
     padding: 24px;
-    background: var(--happy2-scrim);
+    background: rgb(15 15 15 / 0.75);
 }
 
 .happy2-modal-overlay[data-placement="top"] {

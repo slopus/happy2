@@ -22,19 +22,19 @@ html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
   /* Centralized fallbacks for every standard host variable this surface reads.
      When the Happy host supplies styles.variables these resolve to the live
      theme; the light-dark() values only apply in a bare sandbox. */
-  --bg: var(--color-background-primary, light-dark(#ffffff, #1c1c1e));
-  --surface: var(--color-background-primary, light-dark(#ffffff, #1c1c1e));
-  --raised: var(--color-background-secondary, light-dark(#f0f0f2, #2c2c2e));
-  --inset: var(--color-background-tertiary, light-dark(#f5f5f5, #303030));
-  --ghost: var(--color-background-ghost, light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.08)));
+  --bg: var(--color-background-primary, light-dark(#ffffff, #18171c));
+  --surface: var(--color-background-primary, light-dark(#ffffff, #18171c));
+  --raised: var(--color-background-secondary, light-dark(#f8f8f8, #2c2c2e));
+  --inset: var(--color-background-tertiary, light-dark(#f0f0f2, #2c2c2e));
+  --ghost: var(--color-background-ghost, light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.08)));
   --text: var(--color-text-primary, light-dark(#000000, #ffffff));
   --muted: var(--color-text-secondary, light-dark(#8e8e93, #8e8e93));
-  --faint: var(--color-text-tertiary, light-dark(#8e8e93, #98989d));
+  --faint: var(--color-text-tertiary, #8e8e93);
   --border: var(--color-border-primary, light-dark(#eaeaea, #38383a));
   --border-strong: var(--color-border-secondary, light-dark(#d1d1d6, #48484a));
   --accent: var(--color-ring-primary, light-dark(#007aff, #0a84ff));
-  --action: var(--color-background-inverse, light-dark(#000000, #ffffff));
-  --action-text: var(--color-text-inverse, light-dark(#ffffff, #000000));
+  --action: var(--color-background-inverse, #000000);
+  --action-text: var(--color-text-inverse, #ffffff);
   --danger: var(--color-text-danger, light-dark(#ff3b30, #ff453a));
   --danger-soft: var(--color-background-danger, light-dark(rgb(255 59 48 / 0.12), rgb(255 69 58 / 0.15)));
   --success: var(--color-text-success, light-dark(#34c759, #32d74b));

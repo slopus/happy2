@@ -54,7 +54,7 @@ function rect(element: Element) {
 }
 
 const pageHostStyle = {
-    background: "var(--happy2-bg-app)",
+    background: "var(--groupped-background)",
     display: "flex",
     height: "100%",
     width: "100%",

@@ -56,24 +56,24 @@ const variantStyles: Record<
         color: "rgb(255, 255, 255)",
     },
     secondary: {
-        background: "rgb(240, 240, 242)",
+        background: "rgb(248, 248, 248)",
         borderColor: "rgb(209, 209, 214)",
         color: "rgb(0, 0, 0)",
     },
     ghost: {
         background: "rgba(0, 0, 0, 0)",
         borderColor: "rgba(0, 0, 0, 0)",
-        color: "rgb(142, 142, 147)",
+        color: "rgb(102, 102, 102)",
     },
     danger: {
-        background: "rgba(255, 59, 48, 0.12)",
+        background: "rgb(255, 240, 240)",
         borderColor: "rgba(0, 0, 0, 0)",
-        color: "rgb(215, 0, 21)",
+        color: "rgb(255, 59, 48)",
     },
     success: {
-        background: "rgba(52, 199, 89, 0.14)",
+        background: "rgb(52, 199, 89)",
         borderColor: "rgba(0, 0, 0, 0)",
-        color: "rgb(36, 138, 61)",
+        color: "rgb(255, 255, 255)",
     },
 };
 

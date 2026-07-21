@@ -46,7 +46,7 @@ const toneStyles: Record<
     }
 > = {
     info: {
-        background: "rgba(0, 122, 255, 0.14)",
+        background: "rgb(248, 248, 248)",
         border: "rgb(0, 122, 255)",
         icon: "rgb(0, 122, 255)",
         iconName: "spark",
@@ -54,7 +54,7 @@ const toneStyles: Record<
         message: "Retention policy updated.",
     },
     success: {
-        background: "rgba(52, 199, 89, 0.14)",
+        background: "rgb(248, 248, 248)",
         border: "rgb(52, 199, 89)",
         icon: "rgb(52, 199, 89)",
         iconName: "check-circle",
@@ -62,7 +62,7 @@ const toneStyles: Record<
         message: "Snapshot verified.",
     },
     warning: {
-        background: "rgba(255, 149, 0, 0.14)",
+        background: "rgb(255, 248, 240)",
         border: "rgb(255, 149, 0)",
         icon: "rgb(255, 149, 0)",
         iconName: "shield",
@@ -70,7 +70,7 @@ const toneStyles: Record<
         message: "Approval required.",
     },
     danger: {
-        background: "rgba(255, 59, 48, 0.12)",
+        background: "rgb(255, 240, 240)",
         border: "rgb(255, 59, 48)",
         icon: "rgb(255, 59, 48)",
         iconName: "bell",
@@ -78,8 +78,8 @@ const toneStyles: Record<
         message: "Two webhooks retried.",
     },
     neutral: {
-        background: "rgb(245, 245, 245)",
-        border: "rgb(209, 209, 214)",
+        background: "rgb(248, 248, 248)",
+        border: "rgb(234, 234, 234)",
         icon: "rgb(142, 142, 147)",
         iconName: "eye",
         title: "Read receipts",

@@ -10,8 +10,8 @@ const column: CSSProperties = {
     alignItems: "flex-start",
 };
 const composerFrame: CSSProperties = {
-    background: "var(--happy2-bg-app)",
-    border: "1px solid var(--happy2-border)",
+    background: "var(--groupped-background)",
+    border: "1px solid var(--divider)",
     borderRadius: "12px",
     display: "flex",
     flexDirection: "column",
@@ -85,10 +85,10 @@ export function AgentActivityStripPage() {
                         />
                         <div
                             style={{
-                                background: "var(--happy2-bg-surface)",
-                                border: "1px solid var(--happy2-border)",
+                                background: "var(--surface)",
+                                border: "1px solid var(--divider)",
                                 borderRadius: "8px",
-                                color: "var(--happy2-text-muted)",
+                                color: "var(--text-secondary)",
                                 font: "500 13px var(--happy2-font-ui)",
                                 padding: "10px 12px",
                             }}

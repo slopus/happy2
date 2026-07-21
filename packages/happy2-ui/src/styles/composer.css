@@ -1,10 +1,14 @@
 /*
  * C-017 Composer + ContextChips + MentionPicker.
  *
- * Composer: surface card (focus-within strengthens the hairline), auto-growing
- * 15px/22px textarea (1–8 lines), 40px toolbar of capability-driven 28px
- * ghost actions plus a primary send square. ContextChips: 24px inset chips.
- * MentionPicker: 320px raised popover with 44px agent rows.
+ * Composer: solid inset card with no resting hairline (a 1px transparent
+ * border keeps the box model stable while focus/agents paint the frame), 16px
+ * radius, 16px visual text inset, auto-growing 16px/22px textarea (1–8 lines).
+ * A 32px action lane (32px ghost actions + primary send on an 8px rhythm) sits
+ * above an 8px shell bottom. Geometry mirrors the original app's unified input
+ * panel (borderless solid fill, 16px corners, 32px controls, roomy text
+ * field). ContextChips: 24px inset chips. MentionPicker: 320px raised popover
+ * with 44px agent rows.
  */
 
 .happy2-composer,
@@ -23,16 +27,23 @@
     container-type: inline-size;
     display: flex;
     flex-direction: column;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
-    border-radius: var(--happy2-radius-md);
+    background: var(--input-background);
+    /* No resting hairline (matches the original unified panel). The 1px border
+     * stays in the box model — layout is unchanged — but is transparent until
+     * focus/agents paint it. overflow is intentionally NOT hidden: the mention
+     * and emoji popovers are Composer children anchored above it (bottom:100%),
+     * so clipping the overflow would hide them. */
+    border: 1px solid transparent;
+    border-radius: 16px;
+    /* 8px shell below the action lane (1px transparent border + 7px pad). */
+    padding-bottom: 7px;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     transition: border-color 120ms ease;
 }
 
 .happy2-composer:focus-within {
-    border-color: var(--happy2-border-strong);
+    border-color: var(--surface-pressed-overlay);
 }
 
 /*
@@ -42,20 +53,24 @@
  * the mode reads from the frame and the recipient-named placeholder.
  */
 .happy2-composer[data-agents] {
-    border-color: var(--happy2-accent-soft);
+    border-color: var(--surface-selected);
 }
 
 .happy2-composer[data-agents]:focus-within {
-    border-color: var(--happy2-accent);
+    border-color: var(--radio-active);
 }
 
+/* Chips sit clear of the card's 16px corner field (inset ≥ radius) and align
+ * with the textarea's 16px left edge; a chip cannot nest concentrically inside
+ * the larger card corner (see the nested-corner contract in testing). */
 .happy2-composer__context {
     display: flex;
-    padding: 8px 10px 0;
+    padding: 8px 16px 0;
 }
 
+/* 16px visual text inset: 1px transparent border + 15px pad. */
 .happy2-composer__input {
-    padding: 12px 14px 4px;
+    padding: 16px 15px 8px;
 }
 
 .happy2-composer__textarea {
@@ -68,10 +83,10 @@
     border: none;
     border-radius: 0;
     background: transparent;
-    color: var(--happy2-text);
-    caret-color: var(--happy2-accent);
+    color: var(--input-text);
+    caret-color: var(--radio-active);
     font-family: var(--happy2-font-ui);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 400;
     line-height: 22px;
     font-synthesis: none;
@@ -84,38 +99,60 @@
 }
 
 .happy2-composer__textarea::placeholder {
-    color: var(--happy2-text-muted);
+    color: var(--input-placeholder);
     opacity: 1;
 }
 
 .happy2-composer__textarea:disabled {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     cursor: not-allowed;
 }
 
 .happy2-composer[data-pending] .happy2-composer__textarea {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     opacity: 0.64;
     cursor: wait;
 }
 
+/* 32px action lane, 8px shell sides. The 8px shell bottom lives on the card
+ * (padding-bottom) so the lane stays symmetric and the hint/actions center in
+ * it. */
 .happy2-composer__toolbar {
     display: flex;
     align-items: center;
-    height: 40px;
-    padding: 0 6px;
+    height: 32px;
+    padding: 0 7px;
 }
 
 .happy2-composer__actions {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 8px;
 }
 
-/* The edge actions enter the composer's 10px bottom-corner field. The 7px
- * border-box inset (1px border + 6px toolbar pad) leaves a parallel 3px arc. */
+.happy2-composer__actions:has(.happy2-audience-toggle) {
+    position: relative;
+    top: 2px;
+}
+
+/* Composer-local action geometry: the shared Button ships a 28px "small", but
+ * the composer's unified panel uses 32px controls (matches the original app).
+ * Overridden here, not in the Button API, so other Button call sites are
+ * unaffected. */
+.happy2-composer__actions .happy2-button[data-size="small"],
+.happy2-composer__send.happy2-button[data-size="small"] {
+    height: 32px;
+}
+
+.happy2-composer__actions .happy2-button[data-icon-only][data-size="small"],
+.happy2-composer__send.happy2-button[data-icon-only][data-size="small"] {
+    width: 32px;
+}
+
+/* The edge actions enter the composer's 16px bottom-corner field. The 8px
+ * border-box inset (1px border + 7px shell pad) leaves a parallel 8px arc. */
 .happy2-composer__actions > .happy2-button:first-child {
-    border-bottom-left-radius: 3px;
+    border-bottom-left-radius: 8px;
 }
 
 /* Native plugin composer contribution triggers sit inline with the built-in
@@ -123,21 +160,21 @@
 .happy2-composer__contributions {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 8px;
 }
 
 .happy2-composer__trailing {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin-left: auto;
 }
 
 .happy2-composer__send {
-    border-bottom-right-radius: 3px;
+    border-bottom-right-radius: 8px;
 }
 
-/* The toolbar uses a 16px paper plane in its 28px square. The slightly larger
+/* The toolbar uses a 16px paper plane in its 32px square. The slightly larger
  * ink matches the adjacent 14px line icons optically while retaining equal
  * transparent space on every edge of the directional glyph's bounds. */
 .happy2-composer__send .happy2-button__icon svg {
@@ -148,16 +185,20 @@
 .happy2-composer__hint,
 .happy2-composer__hint--compact {
     flex: none;
-    color: var(--happy2-text-faint);
+    width: 200px;
+    overflow: hidden;
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 500;
+    text-overflow: ellipsis;
     line-height: 14px;
     white-space: nowrap;
 }
 
 .happy2-composer__hint--compact {
     display: none;
+    width: auto;
 }
 
 .happy2-composer__popover {
@@ -201,7 +242,7 @@
     }
 }
 
-@container (max-width: 432px) {
+@container (max-width: 433px) {
     .happy2-composer .happy2-composer__hint {
         display: none;
     }
@@ -211,12 +252,17 @@
     }
 }
 
-@container (max-width: 420px) {
+@container (max-width: 423px) {
     .happy2-composer .happy2-audience-toggle .happy2-segmented-control {
         width: 120px;
     }
 
-    .happy2-composer .happy2-audience-toggle .happy2-segmented-control__icon,
+    .happy2-composer .happy2-audience-toggle .happy2-segmented-control__icon {
+        display: none;
+    }
+}
+
+@container (max-width: 420px) {
     .happy2-composer .happy2-composer__hint,
     .happy2-composer .happy2-composer__hint--compact {
         display: none;
@@ -238,7 +284,7 @@
     margin-top: var(--happy2-chips-label-y, 0px);
     margin-right: 2px;
     margin-bottom: calc(-1 * var(--happy2-chips-label-y, 0px));
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 10px;
     font-weight: 700;
@@ -255,21 +301,21 @@
     gap: 6px;
     height: 24px;
     padding: 0 8px;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--input-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
 }
 
 .happy2-context-chips__icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-context-chips__text {
     margin-top: var(--happy2-chip-text-y, 0px);
     margin-bottom: calc(-1 * var(--happy2-chip-text-y, 0px));
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
     line-height: 22px;
@@ -279,7 +325,7 @@
 .happy2-context-chips__detail {
     margin-top: var(--happy2-chip-detail-y, 0px);
     margin-bottom: calc(-1 * var(--happy2-chip-detail-y, 0px));
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
     line-height: 22px;
@@ -298,7 +344,7 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
     appearance: none;
     transition:
@@ -307,12 +353,12 @@
 }
 
 .happy2-context-chips__remove:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text);
+    background: var(--surface-ripple);
+    color: var(--text);
 }
 
 .happy2-context-chips__remove:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 1px;
 }
 
@@ -321,8 +367,8 @@
 .happy2-mention-picker {
     width: 320px;
     padding: 6px;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border-strong);
+    background: var(--surface-high);
+    border: 1px solid var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-md);
     box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
     font-family: var(--happy2-font-ui);
@@ -335,7 +381,7 @@
     align-items: center;
     height: 26px;
     padding: 0 8px;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 700;
@@ -352,8 +398,8 @@
     width: 28px;
     height: 28px;
     border-radius: var(--happy2-radius-sm);
-    background: var(--happy2-bg-inset);
-    color: var(--happy2-text-secondary);
+    background: var(--input-background);
+    color: var(--text-secondary);
 }
 
 .happy2-mention-picker__row {
@@ -381,15 +427,15 @@
 }
 
 .happy2-mention-picker__row:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-mention-picker__row[data-active] {
-    background: var(--happy2-accent-soft);
+    background: var(--surface-selected);
 }
 
 .happy2-mention-picker__row:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
@@ -406,7 +452,7 @@
      * margins or position: relative) to whole pixels, so a +0.5px nudge
      * paints as +1px and overshoots. The 0.5px residual is accepted and
      * pinned by Composer.test.tsx. */
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 700;
     line-height: 16px;
@@ -422,7 +468,7 @@
      * flex-item heights. */
     position: relative;
     top: var(--happy2-picker-desc-y, 0px);
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 400;
     /* 16px keeps the 31→32px meta stack on integer offsets inside the 44px
@@ -442,7 +488,7 @@
     align-items: center;
     height: 44px;
     padding: 0 8px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     line-height: 16px;
 }

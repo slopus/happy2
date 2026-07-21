@@ -362,7 +362,7 @@ it("holds PluginCatalogPanel layout, capability badges, installation health, and
     );
     expect(runTaskName.textMetrics().text).toBe("run-task");
     expect(runTaskName.textMetrics().font.size).toBe(12);
-    expect(runTaskName.computedStyle("color")).toBe("rgb(0, 122, 255)");
+    expect(runTaskName.computedStyle("color")).toBe("rgb(43, 172, 204)");
     expect(runTaskName.computedStyle("font-family")).toContain("happy2 Mono");
     const runTaskDescription = view.$(
         `${card("task-runner")} [data-skill-name="run-task"] [data-happy2-ui="plugin-catalog-skill-description"]`,
@@ -589,7 +589,7 @@ it("renders the install dialog with masked variables, image selection, grouped p
         "align-items": "center",
         "justify-content": "center",
     });
-    expect(overlay.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0.32)");
+    expect(overlay.computedStyle("background-color")).toBe("rgba(15, 15, 15, 0.75)");
     // Contained by the transformed Frame, the overlay covers it exactly.
     expect(overlay.bounds()).toMatchObject({ width: 760, height: 560 });
 

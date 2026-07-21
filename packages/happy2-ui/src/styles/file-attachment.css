@@ -23,10 +23,10 @@
     min-width: 0;
     margin: 0;
     padding: 8px 12px;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--groupped-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     text-align: left;
@@ -42,26 +42,26 @@ button.happy2-file-attachment {
 }
 
 .happy2-file-attachment:hover {
-    background: var(--happy2-bg-raised);
-    border-color: var(--happy2-border-strong);
+    background: var(--surface-high);
+    border-color: var(--surface-pressed-overlay);
 }
 
 .happy2-file-attachment:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
 .happy2-file-attachment__icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-file-attachment__name {
     flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
@@ -71,7 +71,7 @@ button.happy2-file-attachment {
 
 .happy2-file-attachment__size {
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 500;
@@ -87,13 +87,13 @@ button.happy2-file-attachment {
     height: 64px;
     gap: 12px;
     padding: 10px 12px;
-    background: var(--happy2-bg-surface);
-    border-color: var(--happy2-border-strong);
+    background: var(--surface);
+    border-color: var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-window);
 }
 
 .happy2-file-attachment[data-variant="chat"][data-actions-visible] {
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
 }
 
 .happy2-file-attachment[data-variant="chat"] .happy2-file-attachment__icon {
@@ -101,9 +101,9 @@ button.happy2-file-attachment {
     height: 40px;
     align-items: center;
     justify-content: center;
-    background: var(--happy2-accent-soft);
+    background: var(--surface-selected);
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-accent-strong);
+    color: var(--text-link);
 }
 
 .happy2-file-attachment[data-variant="chat"] .happy2-file-attachment__copy {
@@ -124,7 +124,7 @@ button.happy2-file-attachment {
 .happy2-file-attachment__meta {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 450;
     line-height: 18px;
@@ -143,10 +143,10 @@ button.happy2-file-attachment {
     height: 32px;
     align-items: center;
     justify-content: center;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border-strong);
+    background: var(--surface-high);
+    border: 1px solid var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     opacity: 0;
     transform: translateX(4px);
     transition:
@@ -172,7 +172,7 @@ button.happy2-file-attachment {
 .happy2-file-attachment[data-variant="chat"]:hover .happy2-file-attachment__action,
 .happy2-file-attachment[data-variant="chat"]:focus-visible .happy2-file-attachment__action,
 .happy2-file-attachment[data-variant="chat"][data-actions-visible] .happy2-file-attachment__action {
-    color: var(--happy2-text);
+    color: var(--text);
     opacity: 1;
     transform: none;
 }

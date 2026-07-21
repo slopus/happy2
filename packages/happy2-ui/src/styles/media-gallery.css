@@ -18,7 +18,7 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -47,7 +47,7 @@
 }
 
 .happy2-media-gallery__tile:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
     border-radius: var(--happy2-radius-md);
 }
@@ -62,11 +62,11 @@
     width: 100%;
     aspect-ratio: 4 / 3;
     overflow: hidden;
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
     /* Hairline as an inset shadow, not a border: a real border would subtract
      * from the aspect box and land the 100%-height thumbnail on a half pixel.
      * The shadow keeps the thumb a clean integer 4:3 border box. */
-    box-shadow: inset 0 0 0 1px var(--happy2-border);
+    box-shadow: inset 0 0 0 1px var(--divider);
     border-radius: var(--happy2-radius-md);
 }
 
@@ -85,10 +85,10 @@
     justify-content: center;
     width: 48px;
     height: 48px;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--groupped-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 /* ---- Overlays -------------------------------------------------------- */
@@ -108,9 +108,9 @@
     display: block;
     height: 18px;
     padding: 0 6px;
-    background: var(--happy2-bg-chrome);
+    background: var(--header-background);
     border-radius: 2px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 600;
@@ -134,7 +134,7 @@
     display: block;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 500;
     line-height: 16px;
@@ -146,7 +146,7 @@
     display: block;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
     line-height: 14px;

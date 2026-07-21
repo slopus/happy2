@@ -140,7 +140,7 @@ it("holds AgentDesk geometry, colors, and typography in the 340px shell panel", 
 
     // Spark icon: accent color, ink optically centered in the 47px lane.
     const spark = view.$(".happy2-agent-desk__spark");
-    expect(spark.computedStyle("color")).toBe("rgb(0, 122, 255)");
+    expect(spark.computedStyle("color")).toBe("rgb(43, 172, 204)");
     const sparkInk = await ink(view, ".happy2-agent-desk__spark", 23.5);
     expect(Math.abs(sparkInk.dy)).toBeLessThanOrEqual(ICON_TOLERANCE);
     expect(Math.abs(sparkInk.dx)).toBeLessThanOrEqual(ICON_TOLERANCE);
@@ -170,8 +170,8 @@ it("holds AgentDesk geometry, colors, and typography in the 340px shell panel", 
     // Badge width can be fractional (its own letter-spacing compensation).
     expect(Math.abs(count.offsets().right - 14)).toBeLessThanOrEqual(0.1);
     expect(count.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(0, 122, 255, 0.14)",
-        color: "rgb(0, 122, 255)",
+        "background-color": "rgb(198, 198, 200)",
+        color: "rgb(43, 172, 204)",
     });
     const badgeInk = await ink(view, ".happy2-agent-desk__count", 23.5);
     expect(Math.abs(badgeInk.dy)).toBeLessThanOrEqual(TEXT_TOLERANCE);
@@ -277,7 +277,7 @@ it("holds AgentDesk geometry, colors, and typography in the 340px shell panel", 
     );
     expect(track.bounds()).toEqual({ x: 26, y: 124, width: 288, height: 3 });
     expect(track.computedStyles(["background-color", "border-radius", "overflow-y"])).toEqual({
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-radius": "999px",
         "overflow-y": "hidden",
     });
@@ -287,9 +287,7 @@ it("holds AgentDesk geometry, colors, and typography in the 340px shell panel", 
     );
     expect(fill.height()).toBe(3);
     expect(Math.abs(fill.width() - 288 * 0.62)).toBeLessThanOrEqual(0.1);
-    expect(fill.computedStyle("background-image")).toBe(
-        "linear-gradient(135deg, rgb(0, 0, 0), rgb(43, 172, 204))",
-    );
+    expect(fill.computedStyle("background-color")).toBe("rgb(43, 172, 204)");
 
     // Section labels: 24px rows, 11px mono uppercase faint. Bottom-anchored
     // by design, so the painted baseline anchor is asserted instead of a
@@ -398,7 +396,7 @@ it("holds AgentDesk geometry, colors, and typography in the 340px shell panel", 
     expect(
         doneOne.computedStyles(["background-color", "border-radius", "border-top-width"]),
     ).toEqual({
-        "background-color": "rgba(0, 0, 0, 0.06)",
+        "background-color": "rgba(0, 0, 0, 0.08)",
         "border-radius": "8px",
         "border-top-width": "0px",
     });

@@ -17,10 +17,10 @@
     width: 100%;
     margin: 0;
     padding: 16px;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface-pressed);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     text-align: left;
@@ -37,18 +37,18 @@
 }
 
 .happy2-setup-option:hover:not(:disabled) {
-    background: var(--happy2-bg-hover);
-    border-color: var(--happy2-border-strong);
+    background: var(--surface-ripple);
+    border-color: var(--surface-pressed-overlay);
 }
 
 .happy2-setup-option:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
 .happy2-setup-option[data-selected] {
-    background: var(--happy2-accent-soft);
-    border-color: var(--happy2-accent);
+    background: var(--surface-selected);
+    border-color: var(--text-link);
 }
 
 .happy2-setup-option:disabled {
@@ -66,8 +66,8 @@
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    background: var(--happy2-bg-inset);
-    color: var(--happy2-text-secondary);
+    background: var(--groupped-background);
+    color: var(--text-secondary);
 }
 
 /* ---- Body -------------------------------------------------------------- */
@@ -87,7 +87,7 @@
 }
 
 .happy2-setup-option__title {
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
@@ -95,7 +95,7 @@
 
 .happy2-setup-option__recommended {
     flex: none;
-    color: var(--happy2-accent);
+    color: var(--text-link);
     font-size: 11px;
     font-weight: 700;
     line-height: 20px;
@@ -111,14 +111,14 @@
 }
 
 .happy2-setup-option__description {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;
 }
 
 .happy2-setup-option__meta {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
@@ -131,15 +131,15 @@
 }
 
 .happy2-setup-option__hint[data-tone="muted"] {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-setup-option__hint[data-tone="warning"] {
-    color: var(--happy2-warning);
+    color: var(--warning);
 }
 
 .happy2-setup-option__hint[data-tone="danger"] {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 /* ---- Trailing indicator ------------------------------------------------ */
@@ -157,7 +157,7 @@
 .happy2-setup-option__check {
     display: flex;
     flex: none;
-    color: var(--happy2-accent);
+    color: var(--text-link);
 }
 
 /*
@@ -169,7 +169,7 @@
     flex: none;
     width: 20px;
     height: 20px;
-    border: 2px solid var(--happy2-border-strong);
-    border-top-color: var(--happy2-accent);
+    border: 2px solid var(--surface-pressed-overlay);
+    border-top-color: var(--text-link);
     border-radius: var(--happy2-radius-pill);
 }

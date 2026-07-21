@@ -268,9 +268,9 @@ it("marks Agents mode with a quiet accent frame instead of a chip row", async ()
     expect(view.container.querySelector('[data-happy2-ui="composer-agents"]')).toBeNull();
     expect(view.container.querySelector('[data-happy2-ui="composer-agent-chip"]')).toBeNull();
     expect(view.container.querySelector('[aria-label="Add agent"]')).toBeNull();
-    // At rest the tint stays quiet (accent at 15% over the card).
+    // At rest the frame uses Happy's selected-surface role.
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgba(0, 122, 255, 0.14)");
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(198, 198, 200)");
     // Focus resolves the frame to the full accent, then back on blur.
     const textarea = view.$('[data-testid="composer-agents"] [data-happy2-ui="composer-textarea"]')
         .element as HTMLTextAreaElement;
@@ -281,7 +281,7 @@ it("marks Agents mode with a quiet accent frame instead of a chip row", async ()
     expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(0, 122, 255)");
     textarea.blur();
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgba(0, 122, 255, 0.14)");
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(198, 198, 200)");
     await view.screenshot("Composer.agents.test");
 });
 

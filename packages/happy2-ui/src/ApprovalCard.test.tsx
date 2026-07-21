@@ -113,7 +113,7 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     ).toEqual({
         "background-color": "rgb(255, 255, 255)",
         "border-radius": "10px",
-        "border-top-color": "rgba(255, 149, 0, 0.14)" /* amber-tinted hairline */,
+        "border-top-color": "rgb(255, 248, 240)" /* amber-tinted hairline */,
         "border-top-width": "1px",
         "box-sizing": "border-box",
         display: "block",
@@ -129,9 +129,9 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     expect(chip.bounds().width).toBe(26);
     expect(chip.bounds().height).toBe(26);
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgba(255, 149, 0, 0.14)",
+        "background-color": "rgb(255, 248, 240)",
         "border-radius": "8px",
-        color: "rgb(255, 149, 0)",
+        color: "rgb(142, 142, 147)",
     });
 
     const shield = view.$(
@@ -257,7 +257,7 @@ it("holds pending ApprovalCard geometry, typography, and interactions", async ()
     /* Engines report the button edge at a subpixel float; 3dp is exact enough. */
     expect(deny.bounds().x - (approve.bounds().x + approve.bounds().width)).toBeCloseTo(8, 3);
     expect(deny.computedStyles(["background-color", "border-top-color"])).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+        "background-color": "rgb(248, 248, 248)",
         "border-top-color": "rgb(209, 209, 214)",
     });
     expect(deny.textMetrics().text).toBe("Request changes");
@@ -494,16 +494,16 @@ it("holds resolved ApprovalCard banners, state lines, and optical centering", as
     /* Resolution-specific colors. */
     const banner = view.$('[data-testid="ac-approved"] [data-happy2-ui="approval-card-banner"]');
     expect(banner.computedStyles(["background-color", "border-bottom-width", "color"])).toEqual({
-        "background-color": "rgba(52, 199, 89, 0.14)",
+        "background-color": "rgb(248, 248, 248)",
         "border-bottom-width": "1px",
-        color: "rgb(36, 138, 61)",
+        color: "rgb(52, 199, 89)",
     });
     expect(
         view
             .$('[data-testid="ac-approved"] [data-happy2-ui="approval-card-chip"]')
             .computedStyles(["background-color", "color"]),
     ).toEqual({
-        "background-color": "rgba(52, 199, 89, 0.14)",
+        "background-color": "rgb(248, 248, 248)",
         color: "rgb(52, 199, 89)",
     });
     expect(
@@ -522,8 +522,8 @@ it("holds resolved ApprovalCard banners, state lines, and optical centering", as
         '[data-testid="ac-denied"] [data-happy2-ui="approval-card-banner"]',
     );
     expect(deniedBanner.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(255, 59, 48, 0.12)",
-        color: "rgb(215, 0, 21)",
+        "background-color": "rgb(255, 240, 240)",
+        color: "rgb(255, 59, 48)",
     });
     expect(
         view

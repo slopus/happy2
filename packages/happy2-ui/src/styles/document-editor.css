@@ -11,27 +11,27 @@
     flex: 1 1 auto;
     min-height: 0;
     width: 100%;
-    background: var(--happy2-bg-surface);
+    background: var(--surface);
 }
 
 .happy2-document-editor .bn-container {
     --bn-font-family: var(--happy2-font-ui);
     --bn-border-radius: var(--happy2-radius-md);
-    --bn-colors-editor-text: var(--happy2-text);
-    --bn-colors-editor-background: var(--happy2-bg-surface);
-    --bn-colors-menu-text: var(--happy2-text);
-    --bn-colors-menu-background: var(--happy2-bg-chrome);
-    --bn-colors-tooltip-text: var(--happy2-text);
-    --bn-colors-tooltip-background: var(--happy2-bg-raised);
-    --bn-colors-hovered-text: var(--happy2-text);
-    --bn-colors-hovered-background: var(--happy2-bg-hover);
-    --bn-colors-selected-text: var(--happy2-text-on-accent);
-    --bn-colors-selected-background: var(--happy2-accent);
-    --bn-colors-disabled-text: var(--happy2-text-muted);
-    --bn-colors-disabled-background: var(--happy2-bg-inset);
-    --bn-colors-border: var(--happy2-border);
-    --bn-colors-side-menu: var(--happy2-text-muted);
-    --bn-colors-shadow: var(--happy2-border-strong);
+    --bn-colors-editor-text: var(--text);
+    --bn-colors-editor-background: var(--surface);
+    --bn-colors-menu-text: var(--text);
+    --bn-colors-menu-background: var(--header-background);
+    --bn-colors-tooltip-text: var(--text);
+    --bn-colors-tooltip-background: var(--surface-high);
+    --bn-colors-hovered-text: var(--text);
+    --bn-colors-hovered-background: var(--surface-ripple);
+    --bn-colors-selected-text: var(--button-primary-tint);
+    --bn-colors-selected-background: var(--radio-active);
+    --bn-colors-disabled-text: var(--text-secondary);
+    --bn-colors-disabled-background: var(--input-background);
+    --bn-colors-border: var(--divider);
+    --bn-colors-side-menu: var(--text-secondary);
+    --bn-colors-shadow: var(--surface-pressed-overlay);
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;

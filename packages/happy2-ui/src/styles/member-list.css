@@ -24,7 +24,7 @@
     padding: 0;
     list-style: none;
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -43,7 +43,7 @@
 }
 
 .happy2-member-list__row:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 /* Hairline between adjacent rows, painted in the row's own box so layout
@@ -55,7 +55,7 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: var(--happy2-border);
+    background: var(--divider);
 }
 
 .happy2-member-list__avatar {
@@ -76,7 +76,7 @@
 .happy2-member-list__name {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 14px;
     font-weight: 600;
     letter-spacing: -0.01em;
@@ -88,7 +88,7 @@
 .happy2-member-list__subtitle {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;

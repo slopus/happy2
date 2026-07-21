@@ -21,10 +21,10 @@ const fontFamily = () =>
  * danger — the identity contract the inventory calls out.
  */
 const DOT_COLORS: Record<Availability, string> = {
-    automatic: "rgb(142, 142, 147)", // --happy2-text-muted #8e8e93
-    online: "rgb(52, 199, 89)", // --happy2-success  #34c759
-    away: "rgb(255, 149, 0)", // --happy2-warning  #ff9500
-    dnd: "rgb(255, 59, 48)", // --happy2-danger   #ff3b30
+    automatic: "rgb(142, 142, 147)", // --text-secondary #8e8e93
+    online: "rgb(52, 199, 89)", // --success  #34c759
+    away: "rgb(255, 59, 48)", // --warning-critical  #ff3b30
+    dnd: "rgb(255, 59, 48)", // --warning-critical   #ff3b30
 };
 
 const AVAILABILITY: Availability[] = ["automatic", "online", "away", "dnd"];
@@ -124,7 +124,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         ]),
         "card",
     ).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+        "background-color": "rgb(248, 248, 248)",
         "border-radius": "10px",
         "border-top-color": "rgb(234, 234, 234)",
         "border-top-width": "1px",
@@ -243,7 +243,7 @@ it("holds StatusPicker card, availability dots, segmented layout, and status fie
         pill.computedStyles(["background-color", "border-radius", "border-top-color", "position"]),
         "pill style",
     ).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+        "background-color": "rgb(248, 248, 248)",
         "border-radius": "1px",
         "border-top-color": "rgb(209, 209, 214)",
         position: "absolute",

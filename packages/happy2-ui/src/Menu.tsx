@@ -31,7 +31,8 @@ export type MenuProps = {
  * as a static card (no open/close animation): a 6px-padded list of 32px item
  * rows, optional mono section labels, and 1px separators. When any item carries
  * an icon the whole menu reserves a 16px leading gutter so every label aligns.
- * Shortcuts reuse the tuned KeyCap primitive; danger items paint in --happy2-danger.
+ * Shortcuts reuse the tuned KeyCap primitive; danger items use Happy's direct
+ * destructive role.
  */
 export function Menu(props: MenuProps) {
     const { className, items, onSelect, style, width, ...rest } = props;

@@ -24,7 +24,7 @@ const footerStyle: CSSProperties = {
 const effortStyle: CSSProperties = {
     fontSize: "13px",
     lineHeight: "20px",
-    color: "var(--happy2-text-muted)",
+    color: "var(--text-secondary)",
 };
 export interface ChatInfoPanelProps {
     about?: string;

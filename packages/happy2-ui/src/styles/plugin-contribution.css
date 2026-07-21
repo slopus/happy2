@@ -21,7 +21,7 @@
     flex-direction: column;
     gap: 4px;
     font-family: var(--happy2-font-ui);
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-control__row {
@@ -43,26 +43,26 @@
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-control__body {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-control__hint {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-control__error,
 .happy2-plugin-menu__error {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 .happy2-plugin-control__glyph {
@@ -95,8 +95,8 @@
     flex-direction: column;
     gap: 12px;
     padding: 16px;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
     font-family: var(--happy2-font-ui);
 }
@@ -111,13 +111,13 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-section__description {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-section__controls {
@@ -170,8 +170,8 @@
     gap: 2px;
     min-width: 200px;
     padding: 6px;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
     box-shadow: 0 12px 32px rgb(0 0 0 / 0.24);
 }
@@ -185,7 +185,7 @@
     border: 0;
     border-radius: var(--happy2-radius-sm);
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-size: 13px;
     line-height: 18px;
@@ -194,11 +194,11 @@
 }
 
 .happy2-plugin-menu__item:hover:not(:disabled) {
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
 }
 
 .happy2-plugin-menu__item:disabled {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     cursor: default;
 }
 
@@ -214,9 +214,9 @@
     padding: 8px;
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-menu__status--error {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }

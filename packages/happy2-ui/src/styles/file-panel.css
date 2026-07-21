@@ -18,7 +18,7 @@
     min-height: 0;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-file-panel__header {
@@ -28,8 +28,8 @@
 .happy2-file-panel__note {
     flex: none;
     padding: 8px 12px;
-    border-bottom: 1px solid var(--happy2-border);
-    color: var(--happy2-text-muted);
+    border-bottom: 1px solid var(--divider);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;

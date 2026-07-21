@@ -60,6 +60,24 @@ describe("TODO app shared styles", () => {
         expect(SHARED_STYLES).not.toMatch(/td-btn-primary[^}]*var\(--accent\)/);
     });
 
+    it("uses the matching Happy role values when the host omits a style variable", () => {
+        // Keep the bare-sandbox surface faithful to the same source roles the
+        // host forwards: surface, pressed surface, primary radio ring, and
+        // primary button fill. These are fallbacks only; the standard MCP
+        // variables above remain the plugin's public styling contract.
+        expect(SHARED_STYLES).toContain(
+            "--bg: var(--color-background-primary, light-dark(#ffffff, #18171c));",
+        );
+        expect(SHARED_STYLES).toContain(
+            "--inset: var(--color-background-tertiary, light-dark(#f0f0f2, #2c2c2e));",
+        );
+        expect(SHARED_STYLES).toContain(
+            "--accent: var(--color-ring-primary, light-dark(#007aff, #0a84ff));",
+        );
+        expect(SHARED_STYLES).toContain("--action: var(--color-background-inverse, #000000);");
+        expect(SHARED_STYLES).toContain("--action-text: var(--color-text-inverse, #ffffff);");
+    });
+
     it("centralizes the raw fallback palette at the app root only", () => {
         // Hex/rgb literals may appear only inside the complete .td-root rule.
         // Extract from `.td-root {` to its matching close brace (its declarations

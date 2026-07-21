@@ -53,7 +53,7 @@ const RETENTION_OPTIONS: SelectOption[] = [
  * after-read scope (only for the "after reading" mode). When a retention mode is
  * supplied, a second section repeats the pattern with its own SegmentedControl
  * and a duration Select that appears only for the "duration" retention mode.
- * Props only, desktop only; every color and radius is a --happy2-* token.
+ * Props only, desktop only; every color and radius is a --* token.
  */
 export function PolicyControl(props: PolicyControlProps) {
     const [local] = partitionComponentProps(props, ["className", "style"]);

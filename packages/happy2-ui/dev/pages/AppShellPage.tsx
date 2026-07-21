@@ -13,21 +13,21 @@ function Slot(props: { height?: string; label: string; note?: string; width?: st
                 alignItems: "center",
                 borderRadius: "6px",
                 boxSizing: "border-box",
-                color: "var(--happy2-text-faint)",
+                color: "var(--text-secondary)",
                 display: "flex",
                 flexDirection: "column",
                 gap: "8px",
                 height: props.height ?? "100%",
                 justifyContent: "center",
                 margin: "6px",
-                outline: "1px dashed var(--happy2-border-strong)",
+                outline: "1px dashed var(--surface-pressed-overlay)",
                 outlineOffset: "-6px",
                 width: props.width ?? "auto",
             }}
         >
             <span
                 style={{
-                    color: "var(--happy2-text-muted)",
+                    color: "var(--text-secondary)",
                     font: "700 11px var(--happy2-font-mono)",
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
@@ -78,7 +78,7 @@ export function AppShellPage() {
                         sidebar={sidebarSlot()}
                         titleBar={titleBarSlot()}
                     >
-                        <Slot label="children" note="main workspace · --happy2-bg-app" />
+                        <Slot label="children" note="main workspace · --groupped-background" />
                     </AppShell>,
                 )}
             </Specimen>

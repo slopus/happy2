@@ -210,7 +210,7 @@ export function DataTablePage() {
                             empty={
                                 <span
                                     style={{
-                                        color: "var(--happy2-text-muted)",
+                                        color: "var(--text-secondary)",
                                         fontSize: "13px",
                                     }}
                                 >

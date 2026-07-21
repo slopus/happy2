@@ -142,7 +142,7 @@ export function OnboardingScreen(props: OnboardingScreenProps) {
                                 >
                                     {step.state === "complete" ? (
                                         <Icon
-                                            color="var(--happy2-text-on-fill)"
+                                            color="var(--button-primary-tint)"
                                             name="check"
                                             size={12}
                                         />

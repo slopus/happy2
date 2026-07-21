@@ -199,12 +199,16 @@ it("sends standard style variables in initialize and re-delivers them on an expl
     );
     await view.ready();
 
-    // Initialize carries standard styles.variables, mapped from Happy's live
-    // light tokens (theme.css is the color source, so the surface reads white).
+    // Initialize carries standard styles.variables mapped directly from Happy's
+    // live role tokens: surface, surfaceHigh, surfacePressed, primary-button,
+    // text, and radio-active (the focus/selection ring).
     await vi.waitFor(() => expect(logByTag(log, "init")).toBeDefined(), { timeout: 10_000 });
     const initCtx = logByTag(log, "init")!.ctx as Record<string, any>;
     expect(initCtx.theme).toBe("light");
     expect(initCtx.styles.variables["--color-background-primary"]).toBe("#ffffff");
+    expect(initCtx.styles.variables["--color-background-secondary"]).toBe("#f8f8f8");
+    expect(initCtx.styles.variables["--color-background-tertiary"]).toBe("#f0f0f2");
+    expect(initCtx.styles.variables["--color-background-inverse"]).toBe("#000000");
     expect(initCtx.styles.variables["--color-text-primary"]).toBe("#000000");
     expect(initCtx.styles.variables["--color-ring-primary"]).toBe("#007aff");
     expect(initCtx.styles.variables["--border-radius-full"]).toBe("999px");
@@ -229,7 +233,10 @@ it("sends standard style variables in initialize and re-delivers them on an expl
     // ship together on one notification.
     const hccParams = lastLogByTag(log, "hcc")!.params as Record<string, any>;
     expect(hccParams.theme).toBe("dark");
-    expect(hccParams.styles.variables["--color-background-primary"]).toBe("#1c1c1e");
+    expect(hccParams.styles.variables["--color-background-primary"]).toBe("#18171c");
+    expect(hccParams.styles.variables["--color-background-secondary"]).toBe("#2c2c2e");
+    expect(hccParams.styles.variables["--color-background-tertiary"]).toBe("#2c2c2e");
+    expect(hccParams.styles.variables["--color-background-inverse"]).toBe("#000000");
     expect(hccParams.styles.variables["--color-text-primary"]).toBe("#ffffff");
     expect(hccParams.styles.variables["--color-ring-primary"]).toBe("#0a84ff");
     expect(

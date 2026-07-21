@@ -76,13 +76,13 @@ const subtitleText: Record<string, string> = {
 
 const roleSpec: Record<string, { bg: string; color: string; label: string; variant: string }> = {
     ada: {
-        bg: "rgba(0, 122, 255, 0.14)",
-        color: "rgb(0, 122, 255)",
+        bg: "rgb(198, 198, 200)",
+        color: "rgb(43, 172, 204)",
         label: "Owner",
         variant: "accent",
     },
     grace: {
-        bg: "rgba(0, 122, 255, 0.14)",
+        bg: "rgb(248, 248, 248)",
         color: "rgb(0, 122, 255)",
         label: "Admin",
         variant: "info",
@@ -116,7 +116,7 @@ it("holds MemberList geometry, typography, role badges, and optical alignment", 
 
     view.render(
         () => (
-            <div style={{ background: "var(--happy2-bg-surface)", width: "100%" }}>
+            <div style={{ background: "var(--surface)", width: "100%" }}>
                 <MemberList
                     actionLabel="Message"
                     data-testid="roster"
@@ -179,7 +179,7 @@ it("holds MemberList geometry, typography, role badges, and optical alignment", 
     expect(row("grace").element.getAttribute("data-presence")).toBe("offline");
 
     /* Hairline divider between rows (pseudo-element, no layout impact). The
-     * first row has no divider; every following row draws --happy2-border. */
+     * first row has no divider; every following row draws --divider. */
     expect(getComputedStyle(row("ada").element, "::before").content).toBe("none");
     expect(getComputedStyle(row("grace").element, "::before").backgroundColor).toBe(
         "rgb(234, 234, 234)",
@@ -358,7 +358,7 @@ it("holds MemberList trailing variants, minimal rows, and role colors", async ()
 
     view.render(
         () => (
-            <div style={{ background: "var(--happy2-bg-surface)", width: "100%" }}>
+            <div style={{ background: "var(--surface)", width: "100%" }}>
                 <MemberList
                     data-testid="menu"
                     members={menuMembers}
@@ -378,7 +378,7 @@ it("holds MemberList trailing variants, minimal rows, and role colors", async ()
     );
     view.render(
         () => (
-            <div style={{ background: "var(--happy2-bg-surface)", width: "100%" }}>
+            <div style={{ background: "var(--surface)", width: "100%" }}>
                 <MemberList data-testid="plain" members={plainMembers} />
             </div>
         ),
@@ -413,8 +413,8 @@ it("holds MemberList trailing variants, minimal rows, and role colors", async ()
 
     /* Owner badge accent tokens (the roster test covers the other variants). */
     const adaBadge = view.$('[data-testid="menu"] [data-member-id="ada"] [data-happy2-ui="badge"]');
-    expect(adaBadge.computedStyle("background-color")).toBe("rgba(0, 122, 255, 0.14)");
-    expect(adaBadge.computedStyle("color")).toBe("rgb(0, 122, 255)");
+    expect(adaBadge.computedStyle("background-color")).toBe("rgb(198, 198, 200)");
+    expect(adaBadge.computedStyle("color")).toBe("rgb(43, 172, 204)");
 
     /* ---- Minimal rows: no trailing, single-line name, image avatar ---- */
 
@@ -462,7 +462,7 @@ it("holds MemberList trailing variants, minimal rows, and role colors", async ()
     const imgBadge = view.$(
         '[data-testid="plain"] [data-member-id="img"] [data-happy2-ui="badge"]',
     );
-    expect(imgBadge.computedStyle("background-color")).toBe("rgba(0, 122, 255, 0.14)");
+    expect(imgBadge.computedStyle("background-color")).toBe("rgb(248, 248, 248)");
     expect(imgBadge.computedStyle("color")).toBe("rgb(0, 122, 255)");
 
     window.scrollTo(0, 0);

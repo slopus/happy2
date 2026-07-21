@@ -1,7 +1,7 @@
 /*
  * C-036 SearchResults — grouped unified search popover.
  *
- * Contract: a 400px raised card (--happy2-bg-raised) with a 1px strong hairline,
+ * Contract: a 400px raised card (--surface-pressed) with a 1px strong hairline,
  * 10px card radius and a soft drop shadow, 6px inner padding. Groups stack with
  * 6px breathing room; each group has a 28px mono uppercase header (type label
  * left, result count right) over 44px rows. Every row leads with a 28px block —
@@ -19,11 +19,11 @@
     display: block;
     width: 400px;
     padding: 6px;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border-strong);
+    background: var(--surface-pressed);
+    border: 1px solid var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-md);
     box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     -webkit-user-select: none;
@@ -65,7 +65,7 @@
 .happy2-search-results__group-label {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 700;
@@ -78,7 +78,7 @@
 
 .happy2-search-results__group-count {
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 500;
@@ -99,7 +99,7 @@
     border: none;
     border-radius: var(--happy2-radius-sm);
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     text-align: left;
@@ -114,11 +114,11 @@
 }
 
 .happy2-search-results__row:hover {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-search-results__row:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
@@ -138,8 +138,8 @@
     width: 28px;
     height: 28px;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-bg-inset);
-    color: var(--happy2-text-secondary);
+    background: var(--groupped-background);
+    color: var(--text-secondary);
 }
 
 .happy2-search-results__row-body {
@@ -154,7 +154,7 @@
 .happy2-search-results__row-title {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 500;
     line-height: 20px;
@@ -165,7 +165,7 @@
 .happy2-search-results__row-meta {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 16px;
@@ -177,26 +177,26 @@
 
 .happy2-search-results__mark {
     border-radius: 4px;
-    background: var(--happy2-accent-soft);
-    color: var(--happy2-accent-strong);
+    background: var(--surface-selected);
+    color: var(--text-link);
     font-weight: 600;
 }
 
 .happy2-search-results__mention {
-    color: var(--happy2-accent);
+    color: var(--text-link);
     font-weight: 500;
 }
 
 .happy2-search-results__code {
     padding: 0 4px;
     border-radius: 4px;
-    background: var(--happy2-bg-inset);
+    background: var(--groupped-background);
     font-family: var(--happy2-font-mono);
     font-size: 13px;
 }
 
 .happy2-search-results__link {
-    color: var(--happy2-accent);
+    color: var(--text-link);
     text-decoration: none;
 }
 
@@ -215,11 +215,11 @@
 
 .happy2-search-results__empty-icon {
     display: flex;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
 }
 
 .happy2-search-results__empty-label {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
     line-height: 16px;

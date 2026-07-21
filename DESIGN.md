@@ -38,42 +38,46 @@ must not read the app's feature store or navigate by itself.
 
 ## Theme
 
-Happy (2) follows the original Happy app's native, neutral visual language. It
-uses the system appearance automatically by default: light mode has white and
-grouped near-white surfaces with black primary actions; dark mode has black and
-near-black surfaces with white primary actions. A product surface may offer a
+Happy (2) follows the original Happy app's active native, neutral visual
+language. It uses the system appearance automatically by default: light mode
+has white and grouped near-white surfaces with black primary actions; dark mode
+has a #1c1c1e grouped root, #18171c primary surfaces, and black primary
+actions. A product surface may offer a
 controlled light/dark override only through the reusable `happy2-ui` theme
 scope, such as the compact appearance control in the feature rail. The override
-must affect one stable application tree, use the existing token palettes, and
-remain fully keyboard accessible; it must not create a duplicate themed tree or
-introduce component-specific colors. System blue communicates selection, links,
-and keyboard focus; system green, orange, and red carry success, warning, and
+must affect one stable application tree and remain fully keyboard accessible; it
+must not create a duplicate themed tree or introduce component-specific colors.
+Happy teal communicates general interactive
+and link states; system blue remains the info colour for the original controls
+that use it. System green, orange, and red carry success, warning, and
 destructive meaning. The tokens live in
 `packages/happy2-ui/src/theme.css` and are the only source of color and
-typography in the system. Components must consume `var(--happy2-*)` custom
-properties; a raw hex value in component CSS is a defect.
+typography in the system. Its color roles are flattened directly from
+`~/Developer/happy/packages/happy-app/sources/theme.ts` and retain Happy's
+role names (for example `var(--surface)`, `var(--groupped-background)`, and
+`var(--text-link)`); there are no Happy (2) color aliases or base palette
+tokens. A raw hex value in component CSS is a defect.
 
 Core values (see `theme.css` for the full set):
 
-| Token group | Light / dark values |
-| ----------- | ------------------- |
-| Surfaces | chrome `#fff` / `#18171c`, app `#f5f5f5` / `#000`, surface `#fff` / `#1c1c1e`, raised `#f0f0f2` / `#2c2c2e`, code `#f6f8fa` / `#161b22` |
-| Hairlines | `#eaeaea` / `#38383a`, strong `#d1d1d6` / `#48484a` |
-| Text | `#000` / `#fff`, secondary and muted `#8e8e93` in both schemes |
-| Selection | blue `#007aff` / `#0a84ff`; soft blue fills use alpha over the current surface |
-| Primary action | black with white text / white with black text |
-| Semantics | green `#34c759` / `#32d74b`, orange `#ff9500` / `#ff9f0a`, red `#ff3b30` / `#ff453a` |
-| Type | UI "happy2 Figtree" (Figtree variable), code "happy2 Mono" (JetBrains Mono variable) |
-| Radii | controls 6 px, content 8 px, cards 10 px, large shells 14 px, pills 999 |
+| Token group      | Light / dark values                                                                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surfaces         | chrome `#fff` / `#18171c`, app `#f2f2f7` / `#1c1c1e`, surface `#fff` / `#18171c`, raised `#f8f8f8` / `#2c2c2e`, inset `#f5f5f5` / `#1c1c1e`, code `#f6f8fa` / `#161b22` |
+| Hairlines        | `#eaeaea` / `#38383a`, strong `#d1d1d6` / `#48484a`                                                                                                                     |
+| Text             | `#000` / `#fff`, secondary and muted `#8e8e93` in both schemes                                                                                                          |
+| Interactive/link | teal `#2baccc` in both schemes; original system-blue controls use `#007aff` / `#0a84ff`                                                                                 |
+| Primary action   | black with white text in both schemes                                                                                                                                   |
+| Semantics        | green `#34c759` / `#32d74b`, orange `#ff9500` / `#ff9f0a`, red `#ff3b30` / `#ff453a`                                                                                    |
+| Type             | UI "happy2 Figtree" (Figtree variable), code "happy2 Mono" (JetBrains Mono variable)                                                                                    |
+| Radii            | controls 6 px, content 8 px, cards 10 px, large shells 14 px, pills 999                                                                                                 |
 
 Text colors are solid (not alpha) so rendering tests can assert exact `rgb()`
 values in every engine. The `prefers-color-scheme` media query is the default
 runtime selector. `ThemeScope` applies `.happy2-theme-light` or
 `.happy2-theme-dark` to a single stable product tree when the user selects an
 explicit appearance; the same classes remain available for deterministic
-blueprint and test fixtures. Identity colors for avatars come from the named
-`--happy2-tone-*` gradient presets; product code selects a tone name and never
-passes raw CSS colors or utility classes for identity.
+blueprint and test fixtures. Avatar tone names resolve to solid, direct Happy
+roles; product code never passes raw CSS colors or utility classes for identity.
 
 ## Grid and dimensions
 

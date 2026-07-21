@@ -22,7 +22,7 @@ export type ToolbarProps = {
  * the top of a panel (admin tables, settings sections): a title with an
  * optional subtitle on the left, an optional leading slot, and a right-pinned
  * actions cluster holding an optional inset search well and a trailing slot.
- * Composes on --happy2-bg-surface with a bottom hairline.
+ * Composes on Happy's surface without a visual separator.
  */
 export function Toolbar(props: ToolbarProps) {
     const [local] = partitionComponentProps(props, [

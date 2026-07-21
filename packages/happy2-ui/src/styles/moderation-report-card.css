@@ -22,10 +22,10 @@
     max-width: 520px;
     margin: 0;
     padding: 16px;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -48,9 +48,9 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    background: var(--happy2-bg-inset);
+    background: var(--groupped-background);
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-moderation-report-card__target {
@@ -64,7 +64,7 @@
 .happy2-moderation-report-card__target-label {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -76,7 +76,7 @@
 .happy2-moderation-report-card__target-sub {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
     line-height: 16px;
@@ -99,20 +99,20 @@
     gap: 8px;
     min-width: 0;
     padding: 8px 12px;
-    background: var(--happy2-bg-inset);
+    background: var(--groupped-background);
     border-radius: var(--happy2-radius-sm);
 }
 
 .happy2-moderation-report-card__reason-icon {
     flex: none;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-moderation-report-card__reason-text {
     display: block;
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
@@ -125,7 +125,7 @@
 .happy2-moderation-report-card__details {
     flex: none;
     margin: 0;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;
@@ -152,7 +152,7 @@
 
 .happy2-moderation-report-card__party-caption {
     display: block;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
@@ -162,7 +162,7 @@
 .happy2-moderation-report-card__party-name {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 600;
     line-height: 16px;
@@ -176,12 +176,12 @@
     align-items: center;
     gap: 4px;
     margin-left: auto;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-moderation-report-card__time-icon {
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-moderation-report-card__time-label {
@@ -202,5 +202,5 @@
     justify-content: flex-end;
     gap: 8px;
     padding-top: 12px;
-    border-top: 1px solid var(--happy2-border);
+    border-top: 1px solid var(--divider);
 }

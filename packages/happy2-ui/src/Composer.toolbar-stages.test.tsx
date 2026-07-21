@@ -67,9 +67,9 @@ const stages: readonly Stage[] = [
     },
     {
         audience: false,
-        compactHint: false,
+        compactHint: true,
         contentWidth: 433,
-        fullHint: true,
+        fullHint: false,
         provideCompactHint: true,
         testid: "generic-433",
     },
@@ -147,17 +147,23 @@ it("keeps the send action inside every measured toolbar stage", async () => {
         );
 
         expect(composerElement.clientWidth).toBe(stage.contentWidth);
-        expect(sendBounds.x + sendBounds.width).toBe(composerBounds.x + composerBounds.width - 7);
+        expect(sendBounds.x + sendBounds.width, `${stage.testid} send right inset`).toBe(
+            composerBounds.x + composerBounds.width - 8,
+        );
         expect(composerElement.scrollWidth).toBeLessThanOrEqual(composerElement.clientWidth);
         expect(toolbarElement.scrollWidth).toBeLessThanOrEqual(toolbarElement.clientWidth);
         expect(fullHint.element.textContent).toBe("Enter to send · Shift+Tab to switch audience");
-        expect(fullHint.computedStyle("display") === "none").toBe(!stage.fullHint);
+        expect(
+            fullHint.computedStyle("display") === "none",
+            `${stage.testid} full hint visibility`,
+        ).toBe(!stage.fullHint);
         if (stage.provideCompactHint) {
             expect(compactHint?.textContent).toBe("Enter to send");
             expect(
                 view
                     .$(`${rootSelector} [data-happy2-ui="composer-hint-compact"]`)
                     .computedStyle("display") === "none",
+                `${stage.testid} compact hint visibility`,
             ).toBe(!stage.compactHint);
         } else {
             expect(compactHint).toBeNull();
@@ -165,7 +171,7 @@ it("keeps the send action inside every measured toolbar stage", async () => {
 
         for (const label of ["Attach file", "Mention someone", "Add emoji"]) {
             const action = view.$(`${rootSelector} [aria-label="${label}"]`);
-            expect(action.bounds().width).toBe(28);
+            expect(action.bounds().width).toBe(32);
             expect(action.computedStyle("display")).not.toBe("none");
         }
 
@@ -173,8 +179,8 @@ it("keeps the send action inside every measured toolbar stage", async () => {
             const toggle = view.$(`${rootSelector} [data-happy2-ui="segmented-control"]`);
             const icon = view.$(`${rootSelector} [data-happy2-ui="segmented-control-icon"]`);
             expect(composerElement.hasAttribute("data-audience")).toBe(true);
-            expect(toggle.bounds().width).toBe(stage.contentWidth <= 420 ? 120 : 184);
-            expect(icon.computedStyle("display") === "none").toBe(stage.contentWidth <= 420);
+            expect(toggle.bounds().width).toBe(stage.contentWidth <= 421 ? 120 : 184);
+            expect(icon.computedStyle("display") === "none").toBe(stage.contentWidth <= 421);
         } else {
             expect(composerElement.hasAttribute("data-audience")).toBe(false);
         }

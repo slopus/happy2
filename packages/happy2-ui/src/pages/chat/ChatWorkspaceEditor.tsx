@@ -5,7 +5,7 @@ const editorStyle: CSSProperties = {
     height: "min(760px, 88vh)",
     borderRadius: "14px",
     overflow: "hidden",
-    border: "1px solid var(--happy2-border)",
+    border: "1px solid var(--divider)",
     boxShadow: "0 24px 60px rgba(0, 0, 0, 0.5)",
 };
 export interface ChatWorkspaceEditorProps {

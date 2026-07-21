@@ -17,8 +17,8 @@ function frame(children: ReactNode, height = 420) {
     return (
         <div
             style={{
-                background: "var(--happy2-bg-surface)",
-                border: "1px solid var(--happy2-border)",
+                background: "var(--surface)",
+                border: "1px solid var(--divider)",
                 borderRadius: "10px",
                 height: `${height}px`,
                 overflow: "hidden",

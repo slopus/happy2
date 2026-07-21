@@ -18,16 +18,15 @@
 }
 
 /*
- * Composer dock: a solid full-width bar grounded on the surface with a top
- * hairline, so the column reads as ending above it and nothing shows through.
+ * Composer dock: a solid full-width bar grounded on the surface. Its boundary
+ * with the transcript is intentionally seamless, as in Happy.
  * Its inner compose column centers at the same measure as the message column.
  */
 .happy2-chat-conversation__dock {
     display: flex;
     flex: none;
     flex-direction: column;
-    background: var(--happy2-bg-surface);
-    border-top: 1px solid var(--happy2-border);
+    background: var(--surface);
 }
 
 .happy2-chat-conversation__compose {
@@ -48,8 +47,8 @@
     min-height: 160px;
     max-height: 70%;
     overflow: hidden;
-    background: var(--happy2-bg-code);
-    border-top: 1px solid var(--happy2-border-strong);
+    background: var(--diff-context-bg);
+    border-top: 1px solid var(--surface-pressed-overlay);
 }
 
 /* A collapsed (dead, frameless) panel is exactly its header row. */
@@ -66,7 +65,7 @@
 }
 
 .happy2-terminal-panel__resize:hover {
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 .happy2-terminal-panel__header {
@@ -77,11 +76,11 @@
     gap: 8px;
     height: 36px;
     padding: 0 8px 0 12px;
-    border-bottom: 1px solid var(--happy2-border);
+    border-bottom: 1px solid var(--divider);
 }
 
 .happy2-terminal-panel__title {
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 600;
 }
@@ -89,7 +88,7 @@
 .happy2-terminal-panel__status {
     min-width: 0;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -110,7 +109,7 @@
     width: 100%;
     overflow: auto;
     padding: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-mono);
     font-size: 14px;
     line-height: 18px;
@@ -119,7 +118,7 @@
 /* The terminal captures keyboard input in an invisible textarea. Surface its
    otherwise hidden focus state so the active keyboard target is always clear. */
 .happy2-terminal-panel__screen[data-focused] {
-    box-shadow: inset 0 0 0 2px var(--happy2-accent);
+    box-shadow: inset 0 0 0 2px var(--text-link);
 }
 
 .happy2-terminal-panel__rows {
@@ -147,13 +146,13 @@
 /* The cursor is an overlay positioned in cell coordinates, outside text flow. */
 .happy2-terminal-panel__cursor {
     position: absolute;
-    outline: 1px solid var(--happy2-accent);
+    outline: 1px solid var(--text-link);
     outline-offset: -1px;
     pointer-events: none;
 }
 
 .happy2-terminal-panel__screen[data-focused] .happy2-terminal-panel__cursor {
-    background: var(--happy2-accent);
+    background: var(--text-link);
     opacity: 0.65;
     outline: none;
 }

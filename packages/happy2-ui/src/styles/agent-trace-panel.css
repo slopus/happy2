@@ -24,7 +24,7 @@
     min-height: 0;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-agent-trace-panel__header {
@@ -60,11 +60,11 @@
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-trace-panel__state[data-state="error"] {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 /* ---- Entry rows -------------------------------------------------------- */
@@ -90,19 +90,19 @@
     width: 5px;
     height: 5px;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-text-muted);
+    background: var(--text-secondary);
 }
 
 .happy2-agent-trace-panel__entry[data-status="running"] .happy2-agent-trace-panel__entry-dot {
-    background: var(--happy2-accent);
+    background: var(--text-link);
 }
 
 .happy2-agent-trace-panel__entry[data-status="complete"] .happy2-agent-trace-panel__entry-dot {
-    background: var(--happy2-success);
+    background: var(--success);
 }
 
 .happy2-agent-trace-panel__entry[data-status="failed"] .happy2-agent-trace-panel__entry-dot {
-    background: var(--happy2-danger);
+    background: var(--text-destructive);
 }
 
 .happy2-agent-trace-panel__entry-icon {
@@ -110,7 +110,7 @@
     align-items: center;
     flex: none;
     height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-trace-panel__entry-main {
@@ -130,7 +130,7 @@
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-agent-trace-panel__entry-detail {
@@ -143,7 +143,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 14px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-trace-panel__entry-time {
@@ -153,5 +153,5 @@
     font-weight: 500;
     line-height: 16px;
     font-variant-numeric: lining-nums tabular-nums;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }

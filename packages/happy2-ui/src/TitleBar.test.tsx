@@ -640,7 +640,7 @@ it("holds SearchField focus treatment and long-content truncation", async () => 
             "outline-width",
         ]),
     ).toEqual({
-        "border-top-color": "rgb(209, 209, 214)",
+        "border-top-color": "rgb(234, 234, 234)",
         "outline-color": "rgb(0, 122, 255)",
         "outline-offset": "1px",
         "outline-style": "solid",

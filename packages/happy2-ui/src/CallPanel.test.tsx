@@ -154,8 +154,8 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     expect(badge.bounds().x - header.bounds().x).toBe(0);
     expect(badge.bounds().y - header.bounds().y).toBe(3); /* (24 - 18) / 2 */
     expect(badge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(52, 199, 89, 0.14)",
-        color: "rgb(36, 138, 61)",
+        "background-color": "rgb(248, 248, 248)",
+        color: "rgb(52, 199, 89)",
     });
     expect((await badge.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
@@ -273,7 +273,7 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     );
     expect(state0.textMetrics().text).toBe("Joined");
     expect(state0.textMetrics().font.size).toBe(11);
-    expect(state0.computedStyle("color")).toBe("rgb(36, 138, 61)");
+    expect(state0.computedStyle("color")).toBe("rgb(52, 199, 89)");
     const stateInk = await ink(state0, tile0, "tile state");
     const stateTarget = layoutTop(state0, tile0) + state0.bounds().height / 2;
     expect(Math.abs(stateInk.y - stateTarget), "tile state optical y").toBeLessThanOrEqual(
@@ -289,14 +289,14 @@ it("holds active CallPanel geometry, typography, tiles, and controls", async () 
     const leaveBtn = view.$('[data-testid="cp-panel"] [data-action="leave"]');
     expect(muteBtn.bounds().width).toBe(36);
     expect(muteBtn.bounds().height).toBe(36);
-    expect(muteBtn.computedStyle("background-color")).toBe("rgb(240, 240, 242)"); /* secondary */
+    expect(muteBtn.computedStyle("background-color")).toBe("rgb(248, 248, 248)"); /* secondary */
     expect(videoBtn.bounds().width).toBe(36);
-    expect(videoBtn.computedStyle("background-color")).toBe("rgb(240, 240, 242)");
+    expect(videoBtn.computedStyle("background-color")).toBe("rgb(248, 248, 248)");
     expect(leaveBtn.bounds().height).toBe(36);
     expect(leaveBtn.element.textContent).toBe("Leave");
     expect(leaveBtn.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(255, 59, 48, 0.12)",
-        color: "rgb(215, 0, 21)",
+        "background-color": "rgb(255, 240, 240)",
+        color: "rgb(255, 59, 48)",
     });
     expect((await leaveBtn.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     /* 8px gaps, group optically centered in the footer. */
@@ -479,7 +479,7 @@ it("holds incoming card and status/kind variants", async () => {
     const join = view.$('[data-testid="cp-incoming"] [data-action="join"]');
     expect(decline.bounds().width).toBe(36);
     expect(decline.bounds().height).toBe(36);
-    expect(decline.computedStyle("background-color")).toBe("rgba(255, 59, 48, 0.12)"); /* danger */
+    expect(decline.computedStyle("background-color")).toBe("rgb(255, 240, 240)"); /* danger */
     expect(join.bounds().width).toBe(36);
     expect(join.computedStyle("background-color")).toBe("rgb(0, 0, 0)"); /* primary */
     /* Join pinned to the card's right edge, 8px after decline. */
@@ -514,7 +514,7 @@ it("holds incoming card and status/kind variants", async () => {
     expect(ringingBadge.element.getAttribute("data-variant")).toBe("info");
     expect(ringingBadge.element.textContent).toBe("Ringing");
     expect(ringingBadge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(0, 122, 255, 0.14)",
+        "background-color": "rgb(248, 248, 248)",
         color: "rgb(0, 122, 255)",
     });
     expect(
@@ -558,11 +558,11 @@ it("holds incoming card and status/kind variants", async () => {
         '[data-testid="cp-ended"] [data-participant-id="e0"] [data-happy2-ui="call-panel-tile-state"]',
     );
     expect(declinedState.textMetrics().text).toBe("Declined");
-    expect(declinedState.computedStyle("color")).toBe("rgb(215, 0, 21)");
+    expect(declinedState.computedStyle("color")).toBe("rgb(255, 59, 48)");
     const missedState = view.$(
         '[data-testid="cp-ended"] [data-participant-id="e1"] [data-happy2-ui="call-panel-tile-state"]',
     );
-    expect(missedState.computedStyle("color")).toBe("rgb(215, 0, 21)");
+    expect(missedState.computedStyle("color")).toBe("rgb(255, 59, 48)");
 
     await view.screenshot("CallPanel.variants.test");
 }, 120_000);

@@ -48,9 +48,9 @@ function Frame(props: { children: ReactNode }) {
                 width: "480px",
                 boxSizing: "border-box",
                 padding: "20px",
-                border: "1px solid var(--happy2-border-strong)",
+                border: "1px solid var(--divider)",
                 borderRadius: "var(--happy2-radius-shell)",
-                background: "var(--happy2-bg-surface)",
+                background: "var(--surface)",
             }}
         >
             {props.children}
@@ -112,7 +112,7 @@ it("renders the controlled form with a stable external-submit link and calibrate
         display: "flex",
         "flex-direction": "column",
         gap: "16px",
-        width: "438px",
+        width: "440px",
     });
 
     const name = input(view, "default-agent-name");
@@ -131,7 +131,7 @@ it("renders the controlled form with a stable external-submit link and calibrate
     expect((submit.element as HTMLButtonElement).type).toBe("submit");
     expect((submit.element as HTMLButtonElement).disabled).toBe(false);
     expect(submit.element.textContent).toBe("Create agent");
-    expect(submit.bounds()).toMatchObject({ width: 438, height: 36 });
+    expect(submit.bounds()).toMatchObject({ width: 440, height: 36 });
 
     const description = view.$('[data-testid="da"] [data-happy2-ui="default-agent-description"]');
     expect(

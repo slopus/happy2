@@ -25,5 +25,5 @@
    background; it is a plain flex box centering the Icon glyph. */
 .happy2-plugin-glyph--fallback {
     background-color: transparent;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }

@@ -6,10 +6,10 @@ import { ChannelHeader } from "./ChannelHeader";
 import type { MenuItem } from "./Menu";
 import { createRenderer, type RenderedElement } from "./testing";
 /*
- * The header is a 56px strip whose bottom hairline sits inside the box, so
- * the content lane is 55px tall and its center is 27.5px from the top.
+ * The header is an undivided 56px strip, so its content lane center is 28px
+ * from the top.
  */
-const LANE_CENTER = 27.5;
+const LANE_CENTER = 28;
 /* Fixtures sit on the app surface color the header is contracted against.
    The extra half-pixel of top padding puts *.5 offsets on integer device rows
    so element captures never expand the clip and skew centroid measurements. */
@@ -135,9 +135,9 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     ).toEqual({
         "align-items": "center",
         "background-color": "rgba(0, 0, 0, 0)",
-        "border-bottom-color": "rgb(234, 234, 234)",
-        "border-bottom-style": "solid",
-        "border-bottom-width": "1px",
+        "border-bottom-color": "rgb(0, 0, 0)",
+        "border-bottom-style": "none",
+        "border-bottom-width": "0px",
         "box-sizing": "border-box",
         color: "rgb(0, 0, 0)",
         display: "flex",
@@ -152,8 +152,8 @@ it("holds ChannelHeader geometry, colors, and optical alignment", { timeout: 900
     expect(star.element.hasAttribute("data-starred")).toBe(true);
     expect(star.bounds().width).toBe(28);
     expect(star.bounds().height).toBe(28);
-    /* Starred → amber (--happy2-warning). */
-    expect(star.computedStyle("color")).toBe("rgb(255, 149, 0)");
+    /* Starred state keeps Happy's secondary chrome treatment. */
+    expect(star.computedStyle("color")).toBe("rgb(142, 142, 147)");
     const starIcon = view.$(
         '[data-testid="s-full"] [data-happy2-ui="channel-header-star"] [data-happy2-ui="icon"]',
     );

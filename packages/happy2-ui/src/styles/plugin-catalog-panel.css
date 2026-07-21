@@ -22,7 +22,7 @@
     flex: 1 1 0%;
     min-height: 0;
     gap: 16px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -55,13 +55,13 @@
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-catalog-panel__subtitle {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__header-actions {
@@ -85,9 +85,9 @@
     align-items: flex-start;
     gap: 12px;
     padding: 16px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: 10px;
-    background: var(--happy2-bg-surface);
+    background: var(--surface);
 }
 
 .happy2-plugin-catalog-panel__icon {
@@ -99,8 +99,8 @@
     height: 40px;
     border-radius: 8px;
     overflow: hidden;
-    background: var(--happy2-bg-raised);
-    color: var(--happy2-text-muted);
+    background: var(--surface-pressed);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__icon-image {
@@ -132,7 +132,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-catalog-panel__version {
@@ -140,14 +140,14 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 
 .happy2-plugin-catalog-panel__description {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__source {
@@ -157,7 +157,7 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__capabilities {
@@ -204,7 +204,7 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 18px;
-    color: var(--happy2-accent);
+    color: var(--text-link);
 }
 
 .happy2-plugin-catalog-panel__skill-description {
@@ -212,7 +212,7 @@
     min-width: 0;
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__installations {
@@ -228,8 +228,8 @@
     flex-direction: column;
     gap: 8px;
     padding: 10px;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--groupped-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
     min-width: 0;
 }
@@ -252,7 +252,7 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 
@@ -260,19 +260,19 @@
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     letter-spacing: 0.02em;
 }
 
 .happy2-plugin-catalog-panel__installation-detail {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 12px;
     line-height: 16px;
     word-break: break-word;
 }
 
 .happy2-plugin-catalog-panel__installation-progress {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
@@ -280,7 +280,7 @@
 }
 
 .happy2-plugin-catalog-panel__installation-error {
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
     font-size: 12px;
     line-height: 16px;
     word-break: break-word;
@@ -319,13 +319,13 @@
 .happy2-plugin-catalog-panel__form-summary {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__form-note {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 /* ---- Permission checklist ---------------------------------------------- */
@@ -340,13 +340,13 @@
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-catalog-panel__permission-intro {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__permissions {
@@ -367,7 +367,7 @@
     line-height: 16px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__permission-group {
@@ -380,7 +380,7 @@
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-catalog-panel__permission {
@@ -400,11 +400,11 @@
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-plugin-catalog-panel__permission-description {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }

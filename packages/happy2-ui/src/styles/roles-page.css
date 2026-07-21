@@ -15,14 +15,14 @@
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
 }
 
 .happy2-roles-page__members-subtitle {
     font-size: 13px;
     line-height: 18px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
 }
 
@@ -47,7 +47,7 @@
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-roles-page__member-roles {

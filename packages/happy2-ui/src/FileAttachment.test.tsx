@@ -95,7 +95,7 @@ it("holds FileAttachment geometry, typography, truncation, and interactivity", a
         ]),
     ).toEqual({
         "align-items": "center",
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-bottom-width": "1px",
         "border-radius": "10px",
         "box-sizing": "border-box",

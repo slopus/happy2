@@ -45,13 +45,13 @@ async function glyphDrift(el: RenderedElement<Element>, label: string) {
 
 /* Per-kind icon colour = the tone token the CSS resolves on the kind element. */
 const kindColor: Record<NotificationKind, string> = {
-    mention: "rgb(0, 122, 255)", // --happy2-accent-strong
-    direct_message: "rgb(36, 138, 61)", // --happy2-success-strong
-    reaction: "rgb(201, 52, 0)", // --happy2-warning-strong
-    call: "rgb(36, 138, 61)", // --happy2-success-strong
-    system: "rgb(142, 142, 147)", // --happy2-text-secondary
-    moderation: "rgb(215, 0, 21)", // --happy2-danger-strong
-    automation: "rgb(201, 52, 0)", // --happy2-warning-strong
+    mention: "rgb(43, 172, 204)", // --text-link
+    direct_message: "rgb(52, 199, 89)", // --success
+    reaction: "rgb(255, 149, 0)", // --box-warning-text
+    call: "rgb(52, 199, 89)", // --success
+    system: "rgb(142, 142, 147)", // --text-secondary
+    moderation: "rgb(255, 59, 48)", // --warning-critical
+    automation: "rgb(255, 149, 0)", // --box-warning-text
 };
 
 const inbox: NotificationItem[] = [
@@ -157,9 +157,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
 
     /* ---- Read vs unread background token ------------------------------ */
 
-    expect(row("n1").computedStyle("background-color"), "unread bg").toBe(
-        "rgba(0, 122, 255, 0.14)",
-    );
+    expect(row("n1").computedStyle("background-color"), "unread bg").toBe("rgb(198, 198, 200)");
     expect(row("n3").computedStyle("background-color"), "read bg").toBe("rgba(0, 0, 0, 0)");
 
     /* ---- Unread dot: 8px accent disc, centred on the row midline ------ */
@@ -176,7 +174,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
     );
     expect(rel(dot, row("n1"))).toEqual({ x: 16, y: 28, width: 8, height: 8 });
     expect(dot.computedStyles(["background-color", "border-radius"])).toEqual({
-        "background-color": "rgb(0, 122, 255)",
+        "background-color": "rgb(43, 172, 204)",
         "border-radius": "999px",
     });
     // Symmetric disc → tight centroid inside its own 8px box, both axes.
@@ -239,7 +237,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
     expect(tile.element.getAttribute("data-variant")).toBe("tile");
     expect(rel(tile, row("n4"))).toEqual({ x: 36, y: 14, width: 36, height: 36 });
     expect(tile.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgb(240, 240, 242)", // neutral tone → --happy2-bg-raised
+        "background-color": "rgb(240, 240, 242)", // neutral tone → --surface-pressed
         "border-radius": "999px",
         color: kindColor.system,
     });
@@ -312,7 +310,7 @@ it("holds NotificationList geometry, row anatomy, typography, and optical alignm
     );
     expect(context.textMetrics().font.size).toBe(12);
     expect(context.textMetrics().font.lineHeight).toBe(16);
-    expect(context.computedStyle("color")).toBe("rgb(142, 142, 147)"); // --happy2-text-muted
+    expect(context.computedStyle("color")).toBe("rgb(142, 142, 147)"); // --text-secondary
     expect((await context.visibleMetrics()).pixelCount, "context ink").toBeGreaterThan(0);
 
     /* ---- Time: mono, muted, right-aligned in the row ----------------- */
@@ -492,9 +490,9 @@ it("renders every notification kind with a centred kind glyph, plus tiles and th
 
     /* Actor-less tiles: soft tone background + a tuned 16px glyph. */
     const tileBg: Record<string, string> = {
-        "t-system": "rgb(240, 240, 242)", // neutral → --happy2-bg-raised
-        "t-moderation": "rgba(255, 59, 48, 0.12)", // --happy2-danger-soft
-        "t-automation": "rgba(255, 149, 0, 0.14)", // --happy2-warning-soft
+        "t-system": "rgb(240, 240, 242)", // neutral → --surface-pressed
+        "t-moderation": "rgb(255, 240, 240)", // --box-error-background
+        "t-automation": "rgb(255, 248, 240)", // --box-warning-background
     };
     for (const item of tiles) {
         const tile = view.$(

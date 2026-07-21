@@ -11,7 +11,7 @@
     box-sizing: border-box;
     display: flex;
     align-items: stretch;
-    border-bottom: 1px solid var(--happy2-border);
+    border-bottom: 1px solid var(--divider);
     font-family: var(--happy2-font-ui);
 }
 
@@ -25,7 +25,7 @@
     border: 0;
     background: transparent;
     appearance: none;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: inherit;
     font-weight: 600;
     font-synthesis: none;
@@ -35,15 +35,15 @@
 }
 
 .happy2-tabs__tab:hover:not([data-active]) {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-tabs__tab[data-active] {
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-tabs__tab:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
@@ -97,5 +97,5 @@
     right: 0;
     bottom: -1px;
     height: 2px;
-    background: var(--happy2-accent);
+    background: var(--radio-active);
 }

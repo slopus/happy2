@@ -62,8 +62,8 @@ function TopCard(): ReactNode {
                 height: "461px",
                 maxHeight: "100%",
                 width: "640px",
-                background: "var(--happy2-bg-raised)",
-                border: "1px solid var(--happy2-border-strong)",
+                background: "var(--surface-high)",
+                border: "1px solid var(--divider)",
                 borderRadius: "var(--happy2-radius-shell)",
             }}
         />
@@ -105,7 +105,7 @@ it("holds ModalOverlay backdrop geometry, centering, and backdrop-only dismiss",
     ).toEqual({
         position: "fixed",
         "z-index": "1000",
-        "background-color": "rgba(0, 0, 0, 0.32)",
+        "background-color": "rgba(15, 15, 15, 0.75)",
         display: "flex",
         "align-items": "center",
         "justify-content": "center",

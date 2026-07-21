@@ -16,7 +16,7 @@
     flex-direction: column;
     gap: 16px;
     width: 100%;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -26,15 +26,15 @@
     align-items: flex-start;
     gap: 10px;
     padding: 10px 12px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
 }
 
 .happy2-role-editor__builtin-note {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-role-editor__permissions {
@@ -53,11 +53,11 @@
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-role-editor__permissions-note {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }

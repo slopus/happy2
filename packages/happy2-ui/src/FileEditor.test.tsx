@@ -135,7 +135,7 @@ it("holds FileEditor header, code body, status bar, and dirty affordances", asyn
     const marker = view.$('[data-testid="dirty"] [data-happy2-ui="file-editor-marker"]');
     expect(marker.bounds().width).toBe(8);
     expect(marker.bounds().height).toBe(8);
-    expect(marker.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
+    expect(marker.computedStyle("background-color")).toBe("rgb(43, 172, 204)");
     expect((await marker.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     const dirtyActions = '[data-testid="dirty"] [data-happy2-ui="file-editor-actions"]';

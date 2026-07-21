@@ -22,9 +22,9 @@ function AgentFormFixture(
                 width: "480px",
                 boxSizing: "border-box",
                 padding: "24px",
-                border: "1px solid var(--happy2-border-strong)",
+                border: "1px solid var(--surface-pressed-overlay)",
                 borderRadius: "var(--happy2-radius-shell)",
-                background: "var(--happy2-bg-surface)",
+                background: "var(--surface)",
             }}
         >
             <DefaultAgentForm

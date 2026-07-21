@@ -29,16 +29,16 @@
     max-width: 560px;
     margin: 0;
     overflow: hidden;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
 
 .happy2-plugin-permission-card[data-status="pending"] {
-    border-color: var(--happy2-warning-soft);
+    border-color: var(--box-warning-border);
 }
 
 /* ---- Resolution banner ------------------------------------------------ */
@@ -49,7 +49,7 @@
     gap: 8px;
     height: 32px;
     padding: 0 16px;
-    border-bottom: 1px solid var(--happy2-border);
+    border-bottom: 1px solid var(--divider);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
     font-weight: 700;
@@ -59,14 +59,14 @@
 }
 
 .happy2-plugin-permission-card[data-status="approved"] .happy2-plugin-permission-card__banner {
-    background: var(--happy2-success-soft);
-    color: var(--happy2-success-strong);
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    color: var(--success);
 }
 
 .happy2-plugin-permission-card[data-status="denied"] .happy2-plugin-permission-card__banner,
 .happy2-plugin-permission-card[data-status="failed"] .happy2-plugin-permission-card__banner {
-    background: var(--happy2-danger-soft);
-    color: var(--happy2-danger-strong);
+    background: var(--box-error-background);
+    color: var(--box-error-text);
 }
 
 .happy2-plugin-permission-card__banner-label {
@@ -96,27 +96,27 @@
     justify-content: center;
     width: 26px;
     height: 26px;
-    background: var(--happy2-warning-soft);
+    background: var(--box-warning-background);
     border-radius: 8px;
-    color: var(--happy2-warning);
+    color: var(--box-warning-text);
 }
 
 .happy2-plugin-permission-card[data-status="approved"] .happy2-plugin-permission-card__chip {
-    background: var(--happy2-success-soft);
-    color: var(--happy2-success);
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    color: var(--success);
 }
 
 .happy2-plugin-permission-card[data-status="denied"] .happy2-plugin-permission-card__chip,
 .happy2-plugin-permission-card[data-status="failed"] .happy2-plugin-permission-card__chip {
-    background: var(--happy2-danger-soft);
-    color: var(--happy2-danger);
+    background: var(--box-error-background);
+    color: var(--box-error-text);
 }
 
 .happy2-plugin-permission-card__requester {
     display: block;
     margin-left: auto;
     overflow: hidden;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
@@ -139,9 +139,9 @@
     width: 48px;
     height: 48px;
     overflow: hidden;
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
     border-radius: 8px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-permission-card__image-picture {
@@ -161,7 +161,7 @@
 .happy2-plugin-permission-card__title {
     margin: 0;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -173,7 +173,7 @@
 .happy2-plugin-permission-card__short-name {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
@@ -183,7 +183,7 @@
 
 .happy2-plugin-permission-card__description {
     margin: 0;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;
@@ -192,8 +192,8 @@
 .happy2-plugin-permission-card__reason {
     margin: 0;
     padding: 0 0 0 10px;
-    border-left: 2px solid var(--happy2-border-strong);
-    color: var(--happy2-text-secondary);
+    border-left: 2px solid var(--surface-pressed-overlay);
+    color: var(--text-secondary);
     font-size: 13px;
     font-style: italic;
     font-weight: 400;
@@ -205,10 +205,10 @@
     margin: 0;
     padding: 6px 10px;
     overflow: hidden;
-    background: var(--happy2-bg-code);
-    border: 1px solid var(--happy2-border);
+    background: var(--diff-context-bg);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     font-weight: 500;
@@ -230,7 +230,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    border-top: 1px solid var(--happy2-border);
+    border-top: 1px solid var(--divider);
 }
 
 .happy2-plugin-permission-card__state {
@@ -238,19 +238,19 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-plugin-permission-card[data-status="approved"]
     .happy2-plugin-permission-card__state
     > .happy2-icon {
-    color: var(--happy2-success);
+    color: var(--success);
 }
 
 .happy2-plugin-permission-card[data-status="processing"]
     .happy2-plugin-permission-card__state
     > .happy2-icon {
-    color: var(--happy2-info);
+    color: var(--status-connecting);
 }
 
 .happy2-plugin-permission-card[data-status="denied"]
@@ -259,7 +259,7 @@
 .happy2-plugin-permission-card[data-status="failed"]
     .happy2-plugin-permission-card__state
     > .happy2-icon {
-    color: var(--happy2-danger);
+    color: var(--box-error-text);
 }
 
 .happy2-plugin-permission-card__state-label {

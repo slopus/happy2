@@ -3,11 +3,11 @@
     flex-direction: column;
     min-height: 0;
     height: 100%;
-    background: var(--happy2-bg-surface);
+    background: var(--surface);
 }
 
 .happy2-documents-panel__header {
-    border-bottom: 1px solid var(--happy2-border);
+    border-bottom: 1px solid var(--divider);
 }
 
 .happy2-documents-panel__body {
@@ -26,12 +26,12 @@
     justify-content: center;
     padding: 24px;
     font: 400 13px/1.5 var(--happy2-font-ui);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     text-align: center;
 }
 
 .happy2-documents-panel__status[data-happy2-tone="danger"] {
-    color: var(--happy2-danger-strong);
+    color: var(--warning-critical);
 }
 
 .happy2-documents-panel__list {
@@ -61,7 +61,7 @@
 
 .happy2-documents-panel__item:hover,
 .happy2-documents-panel__item:focus-within {
-    background: var(--happy2-bg-hover);
+    background: var(--surface-ripple);
 }
 
 .happy2-documents-panel__item .happy2-documents-panel__row {
@@ -79,7 +79,7 @@
     border: 0;
     border-radius: var(--happy2-radius-sm);
     background: transparent;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     cursor: pointer;
     opacity: 0;
 }
@@ -90,12 +90,12 @@
 }
 
 .happy2-documents-panel__row-detach:hover {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text);
+    background: var(--surface-ripple);
+    color: var(--text);
 }
 
 .happy2-documents-panel__row-detach:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
@@ -108,13 +108,13 @@
     border: 0;
     border-radius: var(--happy2-radius-sm);
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     text-align: left;
     cursor: pointer;
 }
 
 .happy2-documents-panel__row:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: -2px;
 }
 
@@ -127,7 +127,7 @@
 
 .happy2-documents-panel__row-title {
     font: 500 13px/1.4 var(--happy2-font-ui);
-    color: var(--happy2-text);
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -135,7 +135,7 @@
 
 .happy2-documents-panel__row-detail {
     font: 400 11px/1.4 var(--happy2-font-ui);
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

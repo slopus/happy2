@@ -17,7 +17,7 @@
     flex-direction: column;
     gap: 20px;
     min-width: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -42,14 +42,14 @@
     font-weight: 600;
     letter-spacing: 0.72px;
     text-transform: uppercase;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-member-access-panel__section-count {
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
 
@@ -60,15 +60,15 @@
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    background: var(--happy2-accent-soft);
+    background: var(--surface-selected);
 }
 
 .happy2-member-access-panel__owner-note {
     font-size: 12px;
     line-height: 16px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-member-access-panel__effective {
@@ -92,9 +92,9 @@
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
 }
 
 .happy2-member-access-panel__role-icon {
@@ -102,7 +102,7 @@
     align-items: center;
     justify-content: center;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-member-access-panel__role-name {
@@ -113,7 +113,7 @@
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-member-access-panel__role-remove {
@@ -124,14 +124,14 @@
 
 .happy2-member-access-panel__note {
     margin: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     line-height: 16px;
 }
 
 .happy2-member-access-panel__loading {
     margin: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     line-height: 18px;
 }
@@ -139,9 +139,9 @@
 .happy2-member-access-panel__empty {
     margin: 0;
     padding: 12px 14px;
-    border: 1px dashed var(--happy2-border-strong);
+    border: 1px dashed var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     line-height: 18px;
 }

@@ -12,7 +12,7 @@ import { createRenderer, type RenderedElement } from "./testing";
  * SecretReveal is a one-time token card. Its contract is: a surface card
  * (radius 10, hairline border, 16 padding), a header carrying a Figtree label +
  * a mono meta line on the left and a reveal(ghost icon-only)/copy(secondary)
- * Button pair on the right, a `--happy2-bg-code` well (radius 6) holding a mono
+ * Button pair on the right, a diff-context well (radius 6) holding a mono
  * token, and an optional warning Banner. The token area is always full-width so
  * masking (a fixed dot run) vs revealing (the wrapping real token) changes only
  * the well's height and text colour, never its width.
@@ -198,7 +198,7 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         copy.computedStyles(["background-color", "border-top-color", "color"]),
         "copy tokens",
     ).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+        "background-color": "rgb(248, 248, 248)",
         "border-top-color": "rgb(209, 209, 214)",
         color: "rgb(0, 0, 0)",
     });
@@ -265,7 +265,7 @@ it("holds SecretReveal card, header, mono token, and warning-banner contract", a
         banner.computedStyles(["background-color", "border-top-color", "border-radius"]),
         "banner tokens",
     ).toEqual({
-        "background-color": "rgba(255, 149, 0, 0.14)",
+        "background-color": "rgb(255, 248, 240)",
         "border-top-color": "rgb(255, 149, 0)",
         "border-radius": "10px",
     });
@@ -329,9 +329,9 @@ it("holds SecretReveal copied, minimal, and reveal/copy interaction states", asy
         copiedButton.computedStyles(["background-color", "border-top-color", "color"]),
         "copied tokens",
     ).toEqual({
-        "background-color": "rgba(52, 199, 89, 0.14)",
+        "background-color": "rgb(52, 199, 89)",
         "border-top-color": "rgba(0, 0, 0, 0)",
-        color: "rgb(36, 138, 61)",
+        color: "rgb(255, 255, 255)",
     });
     const copiedLabel = view.$(
         '[data-testid="copied"] .happy2-secret-reveal__copy [data-happy2-ui="button-label"]',

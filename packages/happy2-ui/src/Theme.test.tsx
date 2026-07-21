@@ -38,7 +38,9 @@ it("follows Happy's light and dark system palettes through shared component toke
         view.$('[data-testid="light-shell"]').computedStyles(["background-color", "color"]),
     ).toEqual({
         "background-color": "rgb(255, 255, 255)",
-        color: "rgb(0, 0, 0)",
+        // AppShell follows Happy's header tint rather than the generic text
+        // role: #18171C is the exact light desktop-shell ink source value.
+        color: "rgb(24, 23, 28)",
     });
     expect(
         view.$('[data-testid="dark-shell"]').computedStyles(["background-color", "color"]),
@@ -55,9 +57,38 @@ it("follows Happy's light and dark system palettes through shared component toke
     expect(
         view.$('[data-testid="dark-primary"]').computedStyles(["background-color", "color"]),
     ).toEqual({
-        "background-color": "rgb(255, 255, 255)",
-        color: "rgb(0, 0, 0)",
+        "background-color": "rgb(0, 0, 0)",
+        color: "rgb(255, 255, 255)",
     });
+});
+
+it("exposes Happy's direct light and dark color roles without a derived base palette", async () => {
+    const view = createRenderer()
+        .render(() => shell("light"), { height: 800, width: 1280 })
+        .render(() => shell("dark"), { height: 800, width: 1280 });
+    await view.ready();
+
+    const light = view.$('[data-happy2-ui="theme-scope"].happy2-theme-light');
+    expect(light.computedStyle("--text")).toBe("#000000");
+    expect(light.computedStyle("--text-link")).toBe("#2baccc");
+    expect(light.computedStyle("--surface")).toBe("#ffffff");
+    expect(light.computedStyle("--surface-high")).toBe("#f8f8f8");
+    expect(light.computedStyle("--surface-pressed")).toBe("#f0f0f2");
+    expect(light.computedStyle("--groupped-background")).toBe("#f2f2f7");
+    expect(light.computedStyle("--radio-active")).toBe("#007aff");
+    expect(light.computedStyle("--button-primary-background")).toBe("#000000");
+    expect(light.computedStyle("--user-message-background")).toBe("#f0eee6");
+
+    const dark = view.$('[data-happy2-ui="theme-scope"].happy2-theme-dark');
+    expect(dark.computedStyle("--text")).toBe("#ffffff");
+    expect(dark.computedStyle("--text-link")).toBe("#2baccc");
+    expect(dark.computedStyle("--surface")).toBe("#18171c");
+    expect(dark.computedStyle("--surface-high")).toBe("#2c2c2e");
+    expect(dark.computedStyle("--surface-pressed")).toBe("#2c2c2e");
+    expect(dark.computedStyle("--groupped-background")).toBe("#1c1c1e");
+    expect(dark.computedStyle("--radio-active")).toBe("#0a84ff");
+    expect(dark.computedStyle("--button-primary-background")).toBe("#000000");
+    expect(dark.computedStyle("--user-message-background")).toBe("#2c2c2e");
 });
 
 it("keeps Happy's native desktop dimensions at the shared component boundary", async () => {

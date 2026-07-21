@@ -51,11 +51,11 @@
     justify-content: center;
     width: 16px;
     height: 16px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-port-share-control[data-error] .happy2-port-share-control__mark {
-    color: var(--happy2-danger);
+    color: var(--box-error-text);
 }
 
 /* ---- Name / subtitle text block ------------------------------------------- */
@@ -71,7 +71,7 @@
 .happy2-port-share-control__name {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
@@ -82,7 +82,7 @@
 .happy2-port-share-control__subtitle {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 400;
     line-height: 16px;
@@ -105,7 +105,7 @@
 .happy2-port-share-control__error {
     display: block;
     padding-left: 24px;
-    color: var(--happy2-danger);
+    color: var(--box-error-text);
     font-size: 12px;
     font-weight: 400;
     line-height: 16px;

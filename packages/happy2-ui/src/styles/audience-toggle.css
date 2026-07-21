@@ -27,5 +27,12 @@
  * 6px toolbar pad), leaving a parallel 3px arc — same as the edge buttons.
  */
 .happy2-composer__actions > .happy2-audience-toggle:first-child .happy2-segmented-control {
+    border-bottom-left-radius: 8px;
+}
+
+.happy2-composer__actions > .happy2-audience-toggle:first-child .happy2-segmented-control__pill,
+.happy2-composer__actions
+    > .happy2-audience-toggle:first-child
+    .happy2-segmented-control__segment:first-of-type {
     border-bottom-left-radius: 3px;
 }

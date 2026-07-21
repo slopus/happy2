@@ -39,7 +39,7 @@ const nodes: FileTreeNode[] = [
 ];
 
 const statusColor: Record<string, string> = {
-    "src/index.ts": "rgb(255, 149, 0)", // modified · warning
+    "src/index.ts": "rgb(142, 142, 147)", // modified · warning
     "src/new.ts": "rgb(52, 199, 89)", // added · success
     "src/old.ts": "rgb(255, 59, 48)", // deleted · danger
     "notes.md": "rgb(0, 122, 255)", // renamed · info
@@ -60,7 +60,7 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
 
     view.render(
         () => (
-            <div style={{ background: "var(--happy2-bg-surface)", width: "100%" }}>
+            <div style={{ background: "var(--surface)", width: "100%" }}>
                 <FileTree
                     data-testid="tree"
                     nodes={nodes}
@@ -187,7 +187,7 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
     /* ---- Selection: README.md carries the accent-soft surface + solid ink */
 
     expect(row("README.md").element.getAttribute("data-selected")).toBe("");
-    expect(row("README.md").computedStyle("background-color")).toBe("rgba(0, 122, 255, 0.14)");
+    expect(row("README.md").computedStyle("background-color")).toBe("rgb(198, 198, 200)");
     expect(
         view
             .$(sel('[data-path="README.md"] [data-happy2-ui="file-tree-name"]'))
@@ -234,7 +234,7 @@ it("holds FileTree row grid, indentation, disclosure, git decorations, and selec
     expect(more.element.tagName).toBe("BUTTON");
     expect(more.element.textContent).toBe("Show more…");
     expect(more.computedStyle("padding-left")).toBe("24px");
-    expect(more.computedStyle("color")).toBe("rgb(0, 122, 255)");
+    expect(more.computedStyle("color")).toBe("rgb(43, 172, 204)");
     expect((await more.visibleMetrics()).pixelCount).toBeGreaterThan(0);
 
     window.scrollTo(0, 0);
@@ -250,7 +250,7 @@ it("routes selection, disclosure, and paging callbacks, and renders loading/empt
 
     view.render(
         () => (
-            <div style={{ background: "var(--happy2-bg-surface)", width: "100%" }}>
+            <div style={{ background: "var(--surface)", width: "100%" }}>
                 <FileTree
                     data-testid="live"
                     nodes={nodes}

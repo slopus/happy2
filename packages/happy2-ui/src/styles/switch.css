@@ -33,7 +33,7 @@
 }
 
 .happy2-switch:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
     border-radius: var(--happy2-radius-sm);
 }
@@ -44,13 +44,13 @@
     flex: none;
     box-sizing: border-box;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-bg-inset);
-    box-shadow: inset 0 0 0 1px var(--happy2-border-strong);
+    background: var(--switch-track-inactive);
+    box-shadow: inset 0 0 0 1px var(--divider);
     transition: background-color 140ms ease;
 }
 
 .happy2-switch[data-checked] .happy2-switch__track {
-    background: var(--happy2-accent);
+    background: var(--switch-track-active);
     box-shadow: none;
 }
 
@@ -75,7 +75,7 @@
     left: 2px;
     box-sizing: border-box;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-text-on-accent);
+    background: var(--switch-thumb-active);
     transition: transform 140ms ease;
 }
 
@@ -107,13 +107,13 @@
 
 .happy2-switch__label {
     display: block;
-    color: var(--happy2-text);
+    color: var(--text);
     font-weight: 500;
 }
 
 .happy2-switch__description {
     display: block;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-weight: 400;
 }
 

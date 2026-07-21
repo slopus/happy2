@@ -34,7 +34,7 @@ async function paints(part: RenderedElement<Element>, name: string) {
     return vis;
 }
 
-const violetTone = "linear-gradient(135deg, rgb(0, 122, 255), rgb(88, 86, 214))";
+const violetTone = "none";
 
 it("holds ProfileCard geometry, typography, presence, and status layout", async () => {
     const view = createRenderer();
@@ -241,7 +241,7 @@ it("holds ProfileCard geometry, typography, presence, and status layout", async 
         status.computedStyles(["background-color", "border-radius", "color", "display"]),
         "status pill chrome",
     ).toEqual({
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-radius": "999px",
         color: "rgb(142, 142, 147)",
         display: "flex",

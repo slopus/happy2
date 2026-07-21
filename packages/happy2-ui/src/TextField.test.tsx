@@ -244,9 +244,9 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
     // Default (non-fullWidth) field is the 240px standard width.
     expect(view.$('[data-testid="tf-medium"]').bounds().width).toBe(240);
 
-    // Placeholder paints in the muted token.
+    // Placeholder paints in Happy's input-placeholder token.
     const mediumInput = view.$('[data-testid="tf-medium"] [data-happy2-ui="text-field-input"]');
-    expect(getComputedStyle(mediumInput.element, "::placeholder").color).toBe("rgb(142, 142, 147)");
+    expect(getComputedStyle(mediumInput.element, "::placeholder").color).toBe("rgb(153, 153, 153)");
 
     // Required marker: danger token, actually painted.
     const required = view.$('[data-testid="tf-small"] [data-happy2-ui="text-field-required"]');
@@ -288,7 +288,7 @@ it("holds TextField sizes, typography, label, hint, and leading-icon geometry", 
         expect(control.height(), id).toBe(spec.height);
         expect(glyph.bounds().width, `${id} icon width`).toBe(spec.icon);
         expect(glyph.bounds().height, `${id} icon height`).toBe(spec.icon);
-        expect(iconBox.computedStyle("color"), `${id} icon color`).toBe("rgb(142, 142, 147)");
+        expect(iconBox.computedStyle("color"), `${id} icon color`).toBe("rgb(153, 153, 153)");
 
         // Icon box: hairline + padding in, vertically centered in the lane.
         expect(
@@ -537,7 +537,7 @@ it("holds TextField focus, error, disabled, textarea, width, and placeholder par
     const parValControl = view.$('[data-testid="par-val"] [data-happy2-ui="text-field-control"]');
     expect(parPh.element.getAttribute("placeholder")).toBe("ORBIT-2048");
     expect((parVal.element as HTMLInputElement).value).toBe("ORBIT-2048");
-    expect(getComputedStyle(parPh.element, "::placeholder").color).toBe("rgb(142, 142, 147)");
+    expect(getComputedStyle(parPh.element, "::placeholder").color).toBe("rgb(153, 153, 153)");
 
     const phInk = await parPh.visibleMetrics();
     const valInk = await parVal.visibleMetrics();

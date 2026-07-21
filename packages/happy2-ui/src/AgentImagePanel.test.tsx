@@ -170,10 +170,10 @@ it("holds AgentImagePanel layout, status mapping, the default marker, and row ac
 
     // Status column proves the status -> badge-variant mapping, with exact tokens.
     const statusExpectations: Array<[string, string, string, string]> = [
-        ["img-pending", "info", "rgba(0, 122, 255, 0.14)", "rgb(0, 122, 255)"],
-        ["img-building", "warning", "rgba(255, 149, 0, 0.14)", "rgb(201, 52, 0)"],
-        ["img-minimal", "success", "rgba(52, 199, 89, 0.14)", "rgb(36, 138, 61)"],
-        ["img-failed", "danger", "rgba(255, 59, 48, 0.12)", "rgb(215, 0, 21)"],
+        ["img-pending", "info", "rgb(248, 248, 248)", "rgb(0, 122, 255)"],
+        ["img-building", "warning", "rgb(255, 248, 240)", "rgb(255, 149, 0)"],
+        ["img-minimal", "success", "rgb(248, 248, 248)", "rgb(52, 199, 89)"],
+        ["img-failed", "danger", "rgb(255, 240, 240)", "rgb(255, 59, 48)"],
     ];
     for (const [id, variant, background, color] of statusExpectations) {
         const badge = view.$(statusBadge(id));
@@ -287,9 +287,7 @@ it("shows build progress, the last log line, and opens a row on click", async ()
     expect(Math.abs(fill.width() - track.width() * 0.62), "fill spans 62%").toBeLessThanOrEqual(
         0.6,
     );
-    expect(fill.computedStyle("background-image")).toBe(
-        "linear-gradient(135deg, rgb(0, 0, 0), rgb(43, 172, 204))",
-    );
+    expect(fill.computedStyle("background-image")).toBe("none");
     expect(
         view.$(`${statusCell("img-building")} .happy2-agent-image-panel__progress-value`).element
             .textContent,

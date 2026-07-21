@@ -90,9 +90,7 @@ it("holds AgentImageDetail layout, progress, and the Dockerfile + build log bloc
     expect(Math.abs(fill.width() - track.width() * 0.62), "fill spans 62%").toBeLessThanOrEqual(
         0.6,
     );
-    expect(fill.computedStyle("background-image")).toBe(
-        "linear-gradient(135deg, rgb(0, 0, 0), rgb(43, 172, 204))",
-    );
+    expect(fill.computedStyle("background-image")).toBe("none");
     expect(view.$(".happy2-agent-image-detail__progress-value").element.textContent).toBe("62%");
 
     // Dockerfile block: exact source, monospace, on the code surface (#f6f8fa).

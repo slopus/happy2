@@ -62,9 +62,9 @@ async function paints(part: RenderedElement<Element>, name: string) {
 
 /* Badge fill + foreground per status (all Badge tokens, already tuned). */
 const statusBadge: Record<ModerationStatus, { background: string; color: string }> = {
-    open: { background: "rgba(255, 149, 0, 0.14)", color: "rgb(201, 52, 0)" },
-    reviewing: { background: "rgba(0, 122, 255, 0.14)", color: "rgb(0, 122, 255)" },
-    resolved: { background: "rgba(52, 199, 89, 0.14)", color: "rgb(36, 138, 61)" },
+    open: { background: "rgb(255, 248, 240)", color: "rgb(255, 149, 0)" },
+    reviewing: { background: "rgb(248, 248, 248)", color: "rgb(0, 122, 255)" },
+    resolved: { background: "rgb(248, 248, 248)", color: "rgb(52, 199, 89)" },
     dismissed: { background: "rgb(245, 245, 245)", color: "rgb(142, 142, 147)" },
 };
 
@@ -160,7 +160,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     expect(chip.bounds()).toMatchObject({ width: 36, height: 36 });
     expect(chip.offsets()).toMatchObject({ top: 0, left: 0 }); /* header aligns center, 36 == 36 */
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-radius": "6px",
         color: "rgb(142, 142, 147)",
     });
@@ -223,7 +223,7 @@ it("holds ModerationReportCard geometry, typography, status badge, parties, and 
     /* ---- Reason well: inset fill, shield glyph optically centered -------- */
 
     expect(reason.computedStyles(["background-color", "border-radius", "padding"])).toEqual({
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-radius": "6px",
         padding: "8px 12px",
     });

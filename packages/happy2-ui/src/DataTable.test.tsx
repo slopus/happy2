@@ -249,9 +249,7 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
     expect(lastRowTd.computedStyle("box-shadow"), "last row has no hairline").toBe("none");
 
     // Selected vs. default row background tokens.
-    expect(nameTd.computedStyle("background-color"), "selected row bg").toBe(
-        "rgba(0, 122, 255, 0.14)",
-    );
+    expect(nameTd.computedStyle("background-color"), "selected row bg").toBe("rgb(198, 198, 200)");
     const graceTd = view.$(
         '[data-happy2-ui="data-table-body"] [data-row-id="grace"] [data-column-id="email"]',
     );
@@ -294,7 +292,7 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
         checkBox.computedStyles(["background-color", "border-radius"]),
         "checked checkbox fill",
     ).toEqual({
-        "background-color": "rgb(0, 122, 255)",
+        "background-color": "rgb(43, 172, 204)",
         "border-radius": "6px",
     });
     const boxLeft = boxBounds.x - selectTdBounds.x;
@@ -328,7 +326,7 @@ it("holds DataTable geometry, alignment, selection, and header typography", asyn
         '[data-happy2-ui="data-table-select-all"] [data-happy2-ui="data-table-check-box"]',
     );
     expect(headerBox.computedStyle("background-color"), "indeterminate fill").toBe(
-        "rgb(0, 122, 255)",
+        "rgb(43, 172, 204)",
     );
     const bar = view.$('[data-happy2-ui="data-table-select-all"] .happy2-data-table__check-bar');
     expect(bar.bounds().width, "indeterminate bar width").toBe(8);
@@ -379,7 +377,7 @@ it("holds DataTable dense rows, truncation, and the empty slot", async () => {
                     { id: "role", header: "Role", width: 120 },
                 ]}
                 empty={
-                    <span style={{ color: "var(--happy2-text-muted)", fontSize: "13px" }}>
+                    <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
                         No members match this filter.
                     </span>
                 }

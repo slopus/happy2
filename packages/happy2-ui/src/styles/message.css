@@ -28,7 +28,7 @@
     padding: 6px 20px;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
-    color: var(--happy2-text);
+    color: var(--text);
     transition: background-color 120ms ease;
 }
 
@@ -55,7 +55,7 @@
 }
 
 .happy2-message[data-delivery-state="failed"] .happy2-message__content {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     opacity: 0.78;
 }
 
@@ -80,7 +80,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 22px; /* sits on the first body line */
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     white-space: nowrap;
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -126,7 +126,7 @@
 .happy2-message__meta > * + *::before {
     content: "·";
     margin: 0 6px;
-    color: var(--happy2-text-faint);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     font-weight: 400;
 }
@@ -136,7 +136,7 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
-    color: var(--happy2-text);
+    color: var(--text);
     white-space: nowrap;
 }
 
@@ -147,7 +147,7 @@
     line-height: 20px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -197,7 +197,7 @@
 
 .happy2-message__identity:focus-visible,
 .happy2-message__author--button:focus-visible {
-    outline: 2px solid var(--happy2-accent);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -207,7 +207,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 16px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -217,8 +217,8 @@
     height: 16px;
     padding: 0 6px;
     border-radius: var(--happy2-radius-pill);
-    background: var(--happy2-accent-soft);
-    color: var(--happy2-accent-strong);
+    background: var(--surface-pressed);
+    color: var(--text-link);
     font-family: var(--happy2-font-mono);
     font-size: 10px;
     font-weight: 700;
@@ -230,13 +230,17 @@
 .happy2-message__body {
     font-size: 15px;
     line-height: 22px;
-    color: var(--happy2-text);
+    color: var(--text);
     overflow-wrap: anywhere;
 }
 
+.happy2-message[data-agent] .happy2-message__body {
+    color: var(--agent-message-text);
+}
+
 .happy2-message__mention {
-    background: var(--happy2-accent-soft);
-    color: var(--happy2-accent-strong);
+    background: var(--surface-pressed);
+    color: var(--text-link);
     border-radius: 4px;
     /* Asymmetric vertical padding recenters the glyph ink in the pill
        background: measured glyph-vs-pill dy +0.76 (Blink) / +0.70 (WebKit)
@@ -252,7 +256,7 @@
 .happy2-message__code {
     font-family: var(--happy2-font-mono);
     font-size: 13px;
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
     border-radius: 4px;
     /* Measured glyph-vs-pill dy -0.50 (Blink/WebKit) with symmetric padding:
        uppercase mono ink floats high, so give the pill more room on top. */
@@ -263,13 +267,13 @@
 }
 
 .happy2-message__link {
-    color: var(--happy2-accent);
+    color: var(--text-link);
     text-decoration: none;
     cursor: pointer;
 }
 
 .happy2-message__link:hover {
-    color: var(--happy2-accent-strong);
+    color: var(--text-link);
     text-decoration: underline;
 }
 
@@ -289,7 +293,8 @@
     border-radius: var(--happy2-radius-md);
 }
 
-/* Own (outgoing): accent bubble, no avatar, right-aligned content column. */
+/* Own (outgoing): Happy's neutral user bubble, no avatar, right-aligned
+   content column. */
 .happy2-message[data-own] .happy2-message__gutter {
     display: none;
 }
@@ -299,8 +304,8 @@
 }
 
 .happy2-message[data-own] .happy2-message__body {
-    background: var(--happy2-bubble-own);
-    color: var(--happy2-bubble-own-text);
+    background: var(--user-message-background);
+    color: var(--user-message-text);
 }
 
 /* Own bubble + its hover time sit on one right-justified line so the 11px mono
@@ -321,7 +326,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 22px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
     /* Sits a hair above the bubble's baseline padding; matches gutter-time. */
@@ -338,8 +343,8 @@
 
 /* Incoming human: neutral raised bubble on the left. */
 .happy2-message:not([data-agent]):not([data-own]) .happy2-message__body {
-    background: var(--happy2-bubble-neutral);
-    color: var(--happy2-text);
+    background: var(--user-message-background);
+    color: var(--user-message-text);
 }
 
 /* Hover toolbar flips to the left edge so it never sits over the right bubble. */
@@ -348,35 +353,34 @@
     left: 20px;
 }
 
-/* Every ink stays legible on the accent fill of an own bubble. Inline code
-   carries no fill (matching the body), so it just inherits the on-accent text;
-   the segment pills keep a tint so they stay visible. */
+/* Every ink stays legible on Happy's neutral own-message fill. Inline code
+   carries no fill (matching the body), while segment pills add a quiet inset. */
 .happy2-message[data-own] .happy2-message__mention,
 .happy2-message[data-own] .happy2-message__code,
 .happy2-message[data-own] .happy2-message__body--markdown code {
-    background: var(--happy2-bubble-own-inset);
-    color: var(--happy2-bubble-own-text);
+    background: var(--surface-pressed);
+    color: var(--user-message-text);
 }
 
 .happy2-message[data-own] .happy2-message__link,
 .happy2-message[data-own] .happy2-message__body--markdown a {
-    color: var(--happy2-bubble-own-text);
+    color: var(--text-link);
     text-decoration: underline;
 }
 
 .happy2-message[data-own] .happy2-message__body--markdown pre {
-    background: var(--happy2-bubble-own-inset);
+    background: var(--surface-pressed);
     border-color: transparent;
 }
 
 .happy2-message[data-own] .happy2-message__body--markdown pre code {
     background: transparent;
-    color: var(--happy2-bubble-own-text);
+    color: var(--user-message-text);
 }
 
 .happy2-message[data-own] .happy2-message__body--markdown blockquote {
-    border-left-color: var(--happy2-bubble-own-text);
-    color: var(--happy2-bubble-own-text);
+    border-left-color: var(--user-message-text);
+    color: var(--user-message-text);
 }
 
 /* ---- Markdown body (string / agent-streamed content) ------------------ */
@@ -424,7 +428,7 @@
 .happy2-message__body--markdown h4,
 .happy2-message__body--markdown h5,
 .happy2-message__body--markdown h6 {
-    color: var(--happy2-text);
+    color: var(--text);
     font-weight: 600;
     line-height: 24px;
 }
@@ -460,7 +464,7 @@
 }
 
 .happy2-message__body--markdown del {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-message__body--markdown table {
@@ -474,15 +478,15 @@
 
 .happy2-message__body--markdown th,
 .happy2-message__body--markdown td {
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     padding: 8px 12px;
     text-align: left;
     vertical-align: top;
 }
 
 .happy2-message__body--markdown th {
-    background: var(--happy2-bg-inset);
-    color: var(--happy2-text);
+    background: var(--input-background);
+    color: var(--text);
     font-weight: 600;
 }
 
@@ -501,7 +505,7 @@
    color so they read as links without introducing a second brand color. */
 .happy2-message__body--markdown a,
 .happy2-message__md-link {
-    color: var(--happy2-text);
+    color: var(--text);
     text-decoration: underline;
     cursor: pointer;
     overflow-wrap: anywhere;
@@ -516,17 +520,17 @@
 .happy2-message__body--markdown code {
     font-family: var(--happy2-font-mono);
     font-size: 14px;
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
     border-radius: 4px;
     padding: 1px 5px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 /* Fenced code: a neutral raised card. The <pre> is the edge-to-edge scrollport
    and its inner <code> carries the 16px inset so the right pad survives
    horizontal scroll instead of being clipped by the overflow boundary. */
 .happy2-message__body--markdown pre {
-    background: var(--happy2-bg-raised);
+    background: var(--surface-high);
     border-radius: 8px;
     overflow-x: auto;
     max-width: 100%;
@@ -537,22 +541,22 @@
     background: transparent;
     border-radius: 0;
     padding: 16px;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 14px;
     line-height: 20px;
     white-space: pre;
 }
 
 .happy2-message__body--markdown blockquote {
-    border-left: 2px solid var(--happy2-border-strong);
+    border-left: 2px solid var(--surface-pressed-overlay);
     padding-left: 10px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-message__body--markdown hr {
     height: 1px;
     border: 0;
-    background: var(--happy2-border);
+    background: var(--divider);
 }
 
 /*
@@ -564,7 +568,7 @@
     display: inline-flex;
     width: 8px;
     height: 16px;
-    background: var(--happy2-accent);
+    background: var(--text-link);
     border-radius: 2px;
     vertical-align: text-bottom;
 }
@@ -577,7 +581,7 @@
     display: inline-flex;
     width: 8px;
     height: 8px;
-    background: var(--happy2-danger);
+    background: var(--text-destructive);
     border-radius: var(--happy2-radius-pill);
 }
 
@@ -628,8 +632,8 @@
     overflow: hidden;
     margin: 0;
     padding: 0;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--input-background);
+    border: 1px solid var(--divider);
     border-radius: 8px;
     appearance: none;
     cursor: zoom-in;
@@ -643,11 +647,11 @@
 }
 
 .happy2-message__media-item:hover {
-    border-color: var(--happy2-border-strong);
+    border-color: var(--surface-pressed-overlay);
 }
 
 .happy2-message__media-item:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -694,7 +698,7 @@
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--happy2-radius-pill);
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
     appearance: none;
     cursor: pointer;
@@ -705,13 +709,13 @@
 }
 
 .happy2-message__react-add:hover {
-    background: var(--happy2-bg-inset);
-    border-color: var(--happy2-border);
-    color: var(--happy2-text-secondary);
+    background: var(--input-background);
+    border-color: var(--divider);
+    color: var(--text-secondary);
 }
 
 .happy2-message__react-add:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -725,8 +729,8 @@
     display: flex;
     align-items: center;
     padding: 2px;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border-strong);
+    background: var(--surface-high);
+    border: 1px solid var(--surface-pressed-overlay);
     border-radius: var(--happy2-radius-sm);
     box-shadow: 0 6px 18px rgb(0 0 0 / 0.32);
     opacity: 0;
@@ -795,11 +799,11 @@
        hovered. Firefox uses the standard properties; WebKit/Chromium use the
        ::-webkit-scrollbar rules below. Both resolve to the same theme tokens. */
     scrollbar-width: thin;
-    scrollbar-color: var(--happy2-border-strong) transparent;
+    scrollbar-color: var(--surface-pressed-overlay) transparent;
 }
 
 .happy2-message-list:hover {
-    scrollbar-color: var(--happy2-text-faint) transparent;
+    scrollbar-color: var(--text-secondary) transparent;
 }
 
 .happy2-message-list::-webkit-scrollbar {
@@ -814,18 +818,18 @@
 /* The 3px transparent border (clipped to the padding box) insets the thumb to a
    ~6px rounded bar floating off the edge, matching the standard property width. */
 .happy2-message-list::-webkit-scrollbar-thumb {
-    background-color: var(--happy2-border-strong);
+    background-color: var(--surface-pressed-overlay);
     background-clip: padding-box;
     border: 3px solid transparent;
     border-radius: var(--happy2-radius-pill);
 }
 
 .happy2-message-list:hover::-webkit-scrollbar-thumb {
-    background-color: var(--happy2-text-faint);
+    background-color: var(--text-secondary);
 }
 
 .happy2-message-list::-webkit-scrollbar-thumb:hover {
-    background-color: var(--happy2-text-muted);
+    background-color: var(--text-secondary);
 }
 
 .happy2-message-list::-webkit-scrollbar-corner {
@@ -870,7 +874,7 @@
     font-size: 17px;
     font-weight: 800;
     line-height: 24px;
-    color: var(--happy2-text);
+    color: var(--text);
 }
 
 .happy2-message-list__intro-description {
@@ -878,7 +882,7 @@
     font-size: 13px;
     font-weight: 400;
     line-height: 20px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 /* ---- DayDivider ------------------------------------------------------- */
@@ -897,7 +901,7 @@
     display: block;
     flex: 1 1 0%;
     height: 1px;
-    background: var(--happy2-border);
+    background: var(--divider);
 }
 
 .happy2-day-divider__label {
@@ -908,7 +912,7 @@
        glyph; trim it from the right padding so the ink centers in the pill
        (measured dx -0.29..-0.40 across engines with symmetric 10px padding). */
     padding: 0 9.34px 0 10px;
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
     border-radius: var(--happy2-radius-pill);
     font-family: var(--happy2-font-mono);
     font-size: 11px;
@@ -916,7 +920,7 @@
     line-height: 20px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -945,7 +949,7 @@
     flex: none;
     align-items: center;
     justify-content: center;
-    color: var(--happy2-text-faint);
+    color: var(--agent-event-text);
 }
 
 .happy2-system-notice__text {
@@ -954,14 +958,14 @@
     font-size: 13px;
     font-weight: 400;
     line-height: 20px;
-    color: var(--happy2-text-muted);
+    color: var(--agent-event-text);
     text-align: center;
     text-wrap: balance;
 }
 
 .happy2-system-notice__ref {
     font-weight: 500;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 /* ---- Engine-scoped optical corrections -------------------------------- */

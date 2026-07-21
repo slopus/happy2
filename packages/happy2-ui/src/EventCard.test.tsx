@@ -174,7 +174,7 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
     const chip = view.$('[data-testid="ev-transition"] [data-happy2-ui="event-card-chip"]');
     expect(chip.offsets().left).toBe(13); /* border 1 + pad 12 */
     expect(chip.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgb(245, 245, 245)",
+        "background-color": "rgb(242, 242, 247)",
         "border-radius": "6px",
         color: "rgb(142, 142, 147)",
     });
@@ -224,7 +224,7 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
     expect(arrow.computedStyle("color")).toBe("rgb(142, 142, 147)");
     expect(to.textMetrics().text).toBe("In review");
     expect(to.computedStyles(["color", "font-size", "font-weight"])).toEqual({
-        color: "rgb(0, 122, 255)",
+        color: "rgb(43, 172, 204)",
         "font-size": "12px",
         "font-weight": "600",
     });
@@ -286,8 +286,8 @@ it("holds EventCard geometry, transition lane, and optical centering", async () 
     expect(badge.bounds().y - badgeRow.bounds().y).toBe(13); /* (44 - 18) / 2 */
     expect((await badge.visibleMetrics()).pixelCount).toBeGreaterThan(0);
     expect(badge.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgba(52, 199, 89, 0.14)",
-        color: "rgb(36, 138, 61)",
+        "background-color": "rgb(248, 248, 248)",
+        color: "rgb(52, 199, 89)",
     });
     expect(
         view.container.querySelector(

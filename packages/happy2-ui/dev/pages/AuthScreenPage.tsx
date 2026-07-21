@@ -94,9 +94,7 @@ export function AuthScreenPage() {
                     <AuthScreen
                         backgroundUrl={heroDataUri}
                         brand={{
-                            mark: (
-                                <Icon color="var(--happy2-text-on-accent)" name="zap" size={16} />
-                            ),
+                            mark: <Icon color="var(--button-primary-tint)" name="zap" size={16} />,
                             name: "Relay",
                         }}
                         copy="Create your account to spin up channels and invite your first agents."

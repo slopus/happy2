@@ -6,8 +6,8 @@ function WindowFrame(props: { children: ReactNode }) {
     return (
         <div
             style={{
-                background: "var(--happy2-bg-app)",
-                border: "1px solid var(--happy2-border-strong)",
+                background: "var(--groupped-background)",
+                border: "1px solid var(--surface-pressed-overlay)",
                 borderRadius: "8px",
                 height: "600px",
                 overflow: "hidden",

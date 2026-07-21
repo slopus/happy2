@@ -61,40 +61,40 @@
 }
 
 .happy2-badge[data-variant="neutral"] {
-    background: var(--happy2-bg-inset);
-    color: var(--happy2-text-secondary);
+    background: var(--input-background);
+    color: var(--text-secondary);
 }
 
 .happy2-badge[data-variant="accent"] {
-    background: var(--happy2-accent-soft);
-    color: var(--happy2-accent-strong);
+    background: var(--surface-selected);
+    color: var(--text-link);
 }
 
 .happy2-badge[data-variant="success"] {
-    background: var(--happy2-success-soft);
-    color: var(--happy2-success-strong);
+    background: var(--surface-high);
+    color: var(--success);
 }
 
 .happy2-badge[data-variant="warning"] {
-    background: var(--happy2-warning-soft);
-    color: var(--happy2-warning-strong);
+    background: var(--box-warning-background);
+    color: var(--box-warning-text);
 }
 
 .happy2-badge[data-variant="danger"] {
-    background: var(--happy2-danger-soft);
-    color: var(--happy2-danger-strong);
+    background: var(--box-error-background);
+    color: var(--box-error-text);
 }
 
 .happy2-badge[data-variant="info"] {
-    background: var(--happy2-info-soft);
-    color: var(--happy2-info);
+    background: var(--surface-high);
+    color: var(--radio-active);
 }
 
 .happy2-badge[data-variant="outline"] {
     background: transparent;
-    border: 1px solid var(--happy2-border-strong);
+    border: 1px solid var(--surface-pressed-overlay);
     padding: 0 5px; /* keeps label 6px from the visual edge */
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 /* ---- CountBadge ------------------------------------------------------ */
@@ -122,13 +122,13 @@
 }
 
 .happy2-count-badge[data-tone="accent"] {
-    background: var(--happy2-accent);
-    color: var(--happy2-text-on-accent);
+    background: var(--radio-active);
+    color: var(--button-primary-tint);
 }
 
 .happy2-count-badge[data-tone="neutral"] {
-    background: var(--happy2-bg-inset);
-    color: var(--happy2-text-secondary);
+    background: var(--input-background);
+    color: var(--text-secondary);
 }
 
 /* ---- ReactionChip ---------------------------------------------------- */
@@ -141,8 +141,8 @@
     height: 24px;
     margin: 0;
     padding: 0 8px;
-    background: var(--happy2-bg-inset);
-    border: 1px solid var(--happy2-border);
+    background: var(--input-background);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-pill);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
@@ -154,11 +154,11 @@
 }
 
 .happy2-reaction-chip:hover {
-    border-color: var(--happy2-border-strong);
+    border-color: var(--surface-pressed-overlay);
 }
 
 .happy2-reaction-chip:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -187,16 +187,16 @@
     font-weight: 700;
     line-height: 22px;
     font-variant-numeric: lining-nums tabular-nums;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-reaction-chip[data-active] {
-    background: var(--happy2-accent-soft);
-    border-color: var(--happy2-accent);
+    background: var(--surface-selected);
+    border-color: var(--text-link);
 }
 
 .happy2-reaction-chip[data-active] .happy2-reaction-chip__count {
-    color: var(--happy2-accent-strong);
+    color: var(--text-link);
 }
 
 /* ---- KeyCap ---------------------------------------------------------- */
@@ -208,13 +208,13 @@
     flex: none;
     height: 18px;
     padding: 0 4px;
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
     border-radius: 4px;
     font-family: var(--happy2-font-mono);
     font-size: 10.8px;
     font-weight: 500;
     line-height: 18px;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-synthesis: none;
     white-space: nowrap;
 }

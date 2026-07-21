@@ -260,7 +260,7 @@ it("holds AgentActivityStrip card geometry, row layout, colors, and meta formatt
                 `[data-testid="strip-mixed"] [data-status="${status}"] [data-happy2-ui="agent-activity-strip-dot"]`,
             )
             .computedStyle("background-color");
-    expect(dotColor("running")).toBe("rgb(0, 122, 255)");
+    expect(dotColor("running")).toBe("rgb(43, 172, 204)");
     expect(dotColor("completed")).toBe("rgb(52, 199, 89)");
     expect(dotColor("error")).toBe("rgb(255, 59, 48)");
     expect(dotColor("queued")).toBe("rgb(142, 142, 147)");

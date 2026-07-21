@@ -64,55 +64,59 @@
 }
 
 .happy2-button[data-variant="primary"] {
-    background: var(--happy2-action);
-    color: var(--happy2-action-text);
+    background: var(--button-primary-background);
+    color: var(--button-primary-tint);
 }
 
 .happy2-button[data-variant="primary"]:hover:not(:disabled) {
-    background: var(--happy2-action-strong);
+    background: var(--surface-pressed);
 }
 
 .happy2-button[data-variant="secondary"] {
-    border-color: var(--happy2-border-strong);
-    background-color: var(--happy2-bg-raised);
-    color: var(--happy2-text);
+    border-color: var(--surface-pressed-overlay);
+    background-color: var(--surface-high);
+    color: var(--text);
 }
 
 .happy2-button[data-variant="secondary"]:hover:not(:disabled) {
-    background-image: linear-gradient(var(--happy2-bg-hover), var(--happy2-bg-hover));
+    background-image: linear-gradient(var(--surface-ripple), var(--surface-ripple));
 }
 
 .happy2-button[data-variant="ghost"] {
     background: transparent;
-    color: var(--happy2-text-secondary);
+    color: var(--button-secondary-tint);
 }
 
 .happy2-button[data-variant="ghost"]:hover:not(:disabled) {
-    background: var(--happy2-bg-hover);
-    color: var(--happy2-text);
+    background: var(--surface-ripple);
+    color: var(--text);
 }
 
 .happy2-button[data-variant="danger"] {
-    background-color: var(--happy2-danger-soft);
-    color: var(--happy2-danger-strong);
+    background-color: var(--box-error-background);
+    color: var(--box-error-text);
 }
 
 .happy2-button[data-variant="danger"]:hover:not(:disabled) {
-    background-image: linear-gradient(var(--happy2-danger-soft), var(--happy2-danger-soft));
+    background-image: linear-gradient(var(--surface-ripple), var(--surface-ripple));
 }
 
 .happy2-button[data-variant="success"] {
-    background-color: var(--happy2-success-soft);
-    color: var(--happy2-success-strong);
+    background-color: var(--success);
+    color: var(--button-primary-tint);
 }
 
 .happy2-button[data-variant="success"]:hover:not(:disabled) {
-    background-image: linear-gradient(var(--happy2-success-soft), var(--happy2-success-soft));
+    background-image: linear-gradient(var(--surface-ripple), var(--surface-ripple));
 }
 
 .happy2-button:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: 2px solid var(--radio-active);
     outline-offset: 2px;
+}
+
+.happy2-button[data-variant="primary"]:disabled {
+    background-color: var(--button-primary-disabled);
 }
 
 .happy2-button:disabled {

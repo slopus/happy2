@@ -18,7 +18,7 @@
 }
 
 .happy2-call-panel {
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -31,8 +31,8 @@
     gap: 16px;
     width: 320px;
     padding: 16px;
-    background: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-shell);
 }
 
@@ -45,7 +45,7 @@
 
 .happy2-call-panel__duration {
     display: block;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-family: var(--happy2-font-mono);
     font-size: 12px;
     font-weight: 600;
@@ -89,7 +89,7 @@
 .happy2-call-panel__ring {
     position: absolute;
     inset: 0;
-    border: 2px solid var(--happy2-success);
+    border: 2px solid var(--success);
     border-radius: var(--happy2-radius-pill);
     pointer-events: none;
 }
@@ -103,17 +103,17 @@
     justify-content: center;
     width: 18px;
     height: 18px;
-    background: var(--happy2-bg-raised);
-    border: 2px solid var(--happy2-bg-surface);
+    background: var(--surface-pressed);
+    border: 2px solid var(--surface);
     border-radius: var(--happy2-radius-pill);
-    color: var(--happy2-danger);
+    color: var(--text-destructive);
 }
 
 .happy2-call-panel__tile-name {
     display: block;
     max-width: 100%;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 600;
     line-height: 18px;
@@ -125,7 +125,7 @@
 
 .happy2-call-panel__tile-state {
     display: block;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
     line-height: 16px;
@@ -133,12 +133,12 @@
 }
 
 .happy2-call-panel__tile[data-state="joined"] .happy2-call-panel__tile-state {
-    color: var(--happy2-success-strong);
+    color: var(--success);
 }
 
 .happy2-call-panel__tile[data-state="declined"] .happy2-call-panel__tile-state,
 .happy2-call-panel__tile[data-state="missed"] .happy2-call-panel__tile-state {
-    color: var(--happy2-danger-strong);
+    color: var(--warning-critical);
 }
 
 /* ---- Control row ------------------------------------------------------- */
@@ -162,8 +162,8 @@
     gap: 12px;
     width: 360px;
     padding: 12px;
-    background: var(--happy2-bg-raised);
-    border: 1px solid var(--happy2-border);
+    background: var(--surface-pressed);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
 }
 
@@ -179,7 +179,7 @@
 .happy2-call-panel__caller-name {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -192,7 +192,7 @@
 .happy2-call-panel__caller-sub {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;

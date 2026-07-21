@@ -1,8 +1,8 @@
 /*
  * C-026 Toolbar — panel/section header bar.
  *
- * Contract: default 48px high (bottom hairline included inside the box), 16px
- * x-padding, transparent so it composes on --happy2-bg-surface. The left heading
+ * Contract: default 48px high, 16px
+ * x-padding, transparent so it composes on the surface. The left heading
  * (title + optional subtitle) truncates through its lane; the right actions
  * cluster (inset search well + trailing slot) never shrinks and pins flush to
  * the right content edge. Height is overridable through the `height` prop,
@@ -22,9 +22,8 @@
     height: var(--happy2-toolbar-height, 48px);
     margin: 0;
     padding: 0 16px;
-    border-bottom: 1px solid var(--happy2-border);
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 
@@ -45,7 +44,7 @@
     flex: none;
     align-items: center;
     gap: 8px;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 /* ---- Heading: title over optional subtitle ---------------------------- */
@@ -61,7 +60,7 @@
 .happy2-toolbar__title {
     display: block;
     min-width: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     letter-spacing: -0.01em;
@@ -85,7 +84,7 @@
 .happy2-toolbar__subtitle {
     display: block;
     min-width: 0;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
@@ -117,22 +116,22 @@
     width: 220px;
     height: 28px;
     padding: 0 8px;
-    border: 1px solid var(--happy2-border);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-sm);
-    background: var(--happy2-bg-inset);
+    background: var(--input-background);
     transition: border-color 120ms ease;
 }
 
 .happy2-toolbar__search:focus-within {
-    border-color: var(--happy2-border-strong);
-    outline: var(--happy2-focus-ring);
+    border-color: var(--divider);
+    outline: 2px solid var(--radio-active);
     outline-offset: 1px;
 }
 
 .happy2-toolbar__search-icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-toolbar__search-input {
@@ -144,18 +143,18 @@
     border: none;
     outline: none;
     background: transparent;
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-size: 13px;
     font-weight: 500;
     line-height: 26px;
     letter-spacing: 0;
     font-synthesis: none;
-    caret-color: var(--happy2-accent);
+    caret-color: var(--text-link);
 }
 
 .happy2-toolbar__search-input::placeholder {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     opacity: 1;
 }
 

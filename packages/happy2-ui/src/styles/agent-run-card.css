@@ -5,7 +5,7 @@
  * brand-gradient progress strip along the top edge, queued = dashed hairline,
  * complete = neutral hairline with a mint check in the header. Max-width 680.
  * Every color derives from theme tokens; the mint tints are color-mix()
- * blends of --happy2-success so no raw color values appear here.
+ * blends of --success so no raw color values appear here.
  */
 
 .happy2-agent-run-card,
@@ -20,23 +20,23 @@
     overflow: hidden;
     margin: 0;
     padding: 16px;
-    background-color: var(--happy2-bg-surface);
-    border: 1px solid var(--happy2-border);
+    background-color: var(--surface);
+    border: 1px solid var(--divider);
     border-radius: var(--happy2-radius-md);
-    color: var(--happy2-text);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
 
 .happy2-agent-run-card[data-status="review"] {
-    border-color: color-mix(in srgb, var(--happy2-success) 35%, transparent);
-    background-color: color-mix(in srgb, var(--happy2-success) 5%, var(--happy2-bg-surface));
-    box-shadow: 0 0 24px var(--happy2-success-soft);
+    border-color: color-mix(in srgb, var(--success) 35%, transparent);
+    background-color: color-mix(in srgb, var(--success) 5%, var(--surface));
+    box-shadow: 0 0 24px var(--surface-high);
 }
 
 .happy2-agent-run-card[data-status="queued"] {
     border-style: dashed;
-    border-color: var(--happy2-border-strong);
+    border-color: var(--surface-pressed-overlay);
 }
 
 /* ---- Working progress strip ------------------------------------------ */
@@ -47,12 +47,12 @@
     right: 0;
     left: 0;
     height: 3px;
-    background-color: var(--happy2-bg-inset);
+    background-color: var(--groupped-background);
 }
 
 .happy2-agent-run-card__progress-fill {
     height: 3px;
-    background-image: var(--happy2-brand-gradient);
+    background-image: var(--text-link);
 }
 
 /* ---- Header ----------------------------------------------------------- */
@@ -75,7 +75,7 @@
 .happy2-agent-run-card__agent {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 13px;
     font-weight: 700;
     line-height: 18px;
@@ -84,7 +84,7 @@
 
 .happy2-agent-run-card__kind {
     display: block;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
@@ -93,7 +93,7 @@
 .happy2-agent-run-card__check {
     display: flex;
     flex: none;
-    color: var(--happy2-success);
+    color: var(--success);
 }
 
 .happy2-agent-run-card__toggle {
@@ -108,7 +108,7 @@
     background: transparent;
     border: 0;
     border-radius: var(--happy2-radius-sm);
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
     appearance: none;
     transition:
@@ -117,12 +117,12 @@
 }
 
 .happy2-agent-run-card__toggle:hover {
-    background-color: var(--happy2-bg-hover);
-    color: var(--happy2-text-secondary);
+    background-color: var(--surface-ripple);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-run-card__toggle:focus-visible {
-    outline: var(--happy2-focus-ring);
+    outline: var(--radio-active);
     outline-offset: 2px;
 }
 
@@ -139,7 +139,7 @@
 
 .happy2-agent-run-card__title {
     margin: 8px 0 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -161,19 +161,19 @@
 .happy2-agent-run-card__added {
     display: block;
     flex: none;
-    color: var(--happy2-diff-add);
+    color: var(--diff-success);
 }
 
 .happy2-agent-run-card__removed {
     display: block;
     flex: none;
-    color: var(--happy2-diff-del);
+    color: var(--diff-error);
 }
 
 .happy2-agent-run-card__detail {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     text-overflow: ellipsis;
 }
 
@@ -192,13 +192,13 @@
 .happy2-agent-run-card__branch-icon {
     display: flex;
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-run-card__branch-name {
     display: block;
     overflow: hidden;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     text-overflow: ellipsis;
 }
 
@@ -228,7 +228,7 @@
 }
 
 .happy2-agent-run-card__step[data-status="done"] .happy2-agent-run-card__step-glyph {
-    color: var(--happy2-success);
+    color: var(--success);
 }
 
 .happy2-agent-run-card__step-dot {
@@ -239,12 +239,12 @@
 }
 
 .happy2-agent-run-card__step[data-status="working"] .happy2-agent-run-card__step-dot {
-    background-color: var(--happy2-accent);
-    box-shadow: 0 0 0 3px var(--happy2-accent-soft);
+    background-color: var(--text-link);
+    box-shadow: 0 0 0 3px var(--surface-selected);
 }
 
 .happy2-agent-run-card__step[data-status="pending"] .happy2-agent-run-card__step-dot {
-    border: 1px solid var(--happy2-text-faint);
+    border: 1px solid var(--text-secondary);
     background-color: transparent;
 }
 
@@ -259,16 +259,16 @@
 }
 
 .happy2-agent-run-card__step[data-status="done"] .happy2-agent-run-card__step-label {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
 }
 
 .happy2-agent-run-card__step[data-status="working"] .happy2-agent-run-card__step-label {
-    color: var(--happy2-text);
+    color: var(--text);
     font-weight: 600;
 }
 
 .happy2-agent-run-card__step[data-status="pending"] .happy2-agent-run-card__step-label {
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
 }
 
 /* ---- Expanded children slot + actions --------------------------------- */

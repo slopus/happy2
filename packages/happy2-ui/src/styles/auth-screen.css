@@ -30,8 +30,8 @@
     height: 100%;
     overflow: hidden;
     margin: 0;
-    background: var(--happy2-bg-chrome);
-    color: var(--happy2-text);
+    background: var(--header-background);
+    color: var(--text);
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
 }
@@ -44,12 +44,8 @@
     align-self: stretch;
     /* Seam between the hero and the form panel; kept on the hero so the panel
      * border-box stays a clean 480px with a 384px content measure. */
-    border-right: 1px solid var(--happy2-border);
-    background-color: transparent;
-    background-image: var(--happy2-brand-gradient);
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: cover;
+    border-right: 1px solid var(--divider);
+    background: var(--button-primary-background);
 }
 
 /* ---- Form panel ------------------------------------------------------- */
@@ -60,7 +56,7 @@
     flex-direction: column;
     width: 480px;
     padding: 48px;
-    background: var(--happy2-bg-app);
+    background: var(--groupped-background);
 }
 
 /* ---- Brand mast ------------------------------------------------------- */
@@ -81,12 +77,12 @@
     height: 28px;
     overflow: hidden;
     border-radius: 8px;
-    background: var(--happy2-brand-gradient);
-    color: var(--happy2-text-on-accent);
+    background: var(--button-primary-background);
+    color: var(--button-primary-tint);
 }
 
 .happy2-auth-screen__brand-name {
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 15px;
     font-weight: 700;
     line-height: 20px;
@@ -106,7 +102,7 @@
 
 .happy2-auth-screen__kicker {
     margin: 0 0 12px;
-    color: var(--happy2-accent);
+    color: var(--text-link);
     font-size: 12px;
     font-weight: 700;
     line-height: 16px;
@@ -116,7 +112,7 @@
 
 .happy2-auth-screen__title {
     margin: 0;
-    color: var(--happy2-text);
+    color: var(--text);
     font-size: 28px;
     font-weight: 700;
     line-height: 34px;
@@ -126,7 +122,7 @@
 .happy2-auth-screen__copy {
     max-width: 320px;
     margin: 14px 0 0;
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 15px;
     font-weight: 400;
     line-height: 22px;
@@ -154,13 +150,13 @@
     flex: none;
     width: 20px;
     height: 20px;
-    border: 2px solid var(--happy2-border-strong);
-    border-top-color: var(--happy2-accent);
+    border: 2px solid var(--divider);
+    border-top-color: var(--text-link);
     border-radius: var(--happy2-radius-pill);
 }
 
 .happy2-auth-screen__loading-label {
-    color: var(--happy2-text-secondary);
+    color: var(--text-secondary);
     font-size: 14px;
     font-weight: 500;
     line-height: 20px;
@@ -170,7 +166,7 @@
 
 .happy2-auth-screen__footer {
     flex: none;
-    color: var(--happy2-text-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     font-weight: 400;
     line-height: 18px;
