@@ -1407,6 +1407,8 @@ export function ChatPage(props: ChatPageProps) {
                 images={message ? mediaModel.images(message) : []}
                 menuContributions={server ? props.messageContributions?.(server.id) : undefined}
                 menuItems={message ? messageActions.menuItems(message) : []}
+                noticeGroupedAfter={list[index + 1]?.kind === "notice"}
+                noticeGroupedBefore={list[index - 1]?.kind === "notice"}
                 profile={message ? infoModel.messageProfile(message) : undefined}
                 onImageOpen={(message, id) => void mediaModel.imageOpen(message, id)}
                 onMenuSelect={(message, action) => void messageActions.menuSelect(message, action)}

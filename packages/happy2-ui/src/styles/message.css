@@ -153,7 +153,7 @@
     display: flex;
     align-items: baseline;
     height: 20px;
-    margin-bottom: 3px;
+    margin-bottom: 5px;
 }
 
 .happy2-message:not([data-own]) .happy2-message__meta {
@@ -555,6 +555,18 @@
     line-height: 24px;
 }
 
+.happy2-message__body--markdown ul {
+    list-style: disc outside;
+}
+
+.happy2-message__body--markdown ol {
+    list-style: decimal outside;
+}
+
+.happy2-message__body--markdown li::marker {
+    color: var(--text-secondary);
+}
+
 .happy2-message__body--markdown li + li {
     margin-top: 6px;
 }
@@ -588,6 +600,8 @@
    and its inner <code> carries the 16px inset so the right pad survives
    horizontal scroll instead of being clipped by the overflow boundary. */
 .happy2-message__body--markdown pre {
+    margin-top: 12px;
+    margin-bottom: 12px;
     background: var(--surface-pressed);
     border-radius: 8px;
     overflow-x: auto;
@@ -995,9 +1009,20 @@
     justify-content: center;
     flex: none;
     gap: 8px;
-    padding: 6px 20px;
+    padding: 3px 20px;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
+}
+
+/* Consecutive service events read as one grouped activity block. The quiet
+ * interior rows stay compact while the first and last lines create a clear
+ * 16px separation from conversational messages. */
+.happy2-system-notice[data-group-start] {
+    padding-top: 16px;
+}
+
+.happy2-system-notice[data-group-end] {
+    padding-bottom: 16px;
 }
 
 .happy2-system-notice__icon {

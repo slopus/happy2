@@ -1733,8 +1733,8 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
         "justify-content": "center",
         "box-sizing": "border-box",
         "column-gap": "8px",
-        "padding-top": "6px",
-        "padding-bottom": "6px",
+        "padding-top": "16px",
+        "padding-bottom": "16px",
         "padding-left": "20px",
         "padding-right": "20px",
     });

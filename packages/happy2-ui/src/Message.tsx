@@ -689,6 +689,8 @@ function systemNoticeSegments(text: string): SystemNoticeSegment[] {
  */
 export function SystemNotice(props: {
     className?: string;
+    groupedAfter?: boolean;
+    groupedBefore?: boolean;
     icon?: IconName;
     style?: CSSProperties;
     text: string;
@@ -698,6 +700,8 @@ export function SystemNotice(props: {
         <div
             aria-label={props.text}
             className={["happy2-system-notice", props.className].filter(Boolean).join(" ")}
+            data-group-end={props.groupedAfter ? undefined : ""}
+            data-group-start={props.groupedBefore ? undefined : ""}
             data-happy2-ui="system-notice"
             role="note"
             style={props.style}

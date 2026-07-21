@@ -100,14 +100,17 @@ export function messagesGrouped(
     const previous = list[index - 1];
     if (previous?.kind !== "message") return false;
     const previousMessage = previous as LiveChatMessage;
+    const ownRun = previousMessage.own && message.own;
+    const sameAuthor = ownRun || previousMessage.author === message.author;
     return (
-        previousMessage.author === message.author &&
-        (previousMessage.serverMessage?.audience ?? "people") ===
-            (message.serverMessage?.audience ?? "people") &&
-        sameIds(
-            previousMessage.serverMessage?.agentUserIds ?? [],
-            message.serverMessage?.agentUserIds ?? [],
-        )
+        sameAuthor &&
+        (ownRun ||
+            ((previousMessage.serverMessage?.audience ?? "people") ===
+                (message.serverMessage?.audience ?? "people") &&
+                sameIds(
+                    previousMessage.serverMessage?.agentUserIds ?? [],
+                    message.serverMessage?.agentUserIds ?? [],
+                )))
     );
 }
 function sameIds(left: readonly string[], right: readonly string[]): boolean {
