@@ -54,7 +54,7 @@
         "@libsql/client": "^0.17.4",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@paralleldrive/cuid2": "^3.3.0",
-        "@slopus/rig": "^0.0.31",
+        "@slopus/rig": "^0.0.33",
         "drizzle-orm": "^0.45.2",
         "fastify": "^5.8.2",
         "jose": "^6.1.3",

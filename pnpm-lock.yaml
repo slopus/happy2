@@ -30,8 +30,8 @@ importers:
         specifier: ^3.3.0
         version: 3.3.0
       '@slopus/rig':
-        specifier: ^0.0.31
-        version: 0.0.31(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.6)(@types/node@26.1.1)
+        specifier: ^0.0.33
+        version: 0.0.33(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)(sql.js@1.14.1)
@@ -652,8 +652,8 @@ importers:
         specifier: ^3.3.0
         version: 3.3.0
       '@slopus/rig':
-        specifier: ^0.0.31
-        version: 0.0.31(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.6)(@types/node@26.1.1)
+        specifier: ^0.0.33
+        version: 0.0.33(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)(sql.js@1.14.1)
@@ -931,48 +931,48 @@ importers:
 
 packages:
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.215':
-    resolution: {integrity: sha512-KIOe3N/ypVIdsI7fnJUHT0Djei1RH01TbxK6LI2mgoHKZ6NVDt/Q9kQ1+On3b/l899RhE6C1SMAiQ0iB4sbkjA==}
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.216':
+    resolution: {integrity: sha512-TWtTUabXj+AMOBMknSe3EVQb/7qucw5pHYi0HWoKoixQt1JE6J/CiLDBIY69OD3eQn9k1XG6LaurT239kFxLUw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.215':
-    resolution: {integrity: sha512-cyjfQgkgF/zZbSJP6uJpPXoIJE/gYFOgz+u/SjklvakcO56BpEnsbdl/oHVu5G8GCw69V11hKFZ8T8YsVOiv2w==}
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.216':
+    resolution: {integrity: sha512-tULuvqhJUwGTj71Uln4uPumm0la4EO1XydFbISTbdc1BsuvGx3FOtFcVs0Qg3dhNBFAoU/iYVTO/B1rImeJZig==}
     cpu: [x64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.215':
-    resolution: {integrity: sha512-dXMR8afbZCFWUKQGyvn9swDYYvMtZWGqqbZ994ahS7HvGN4AgF63uvojHVErW1Xxn2601Bm+eCYQt+BSLk6iZQ==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.216':
+    resolution: {integrity: sha512-sisWj2nhQolKu6aGWnu+I7d8EU6/m5J3G6bGfR7YvZ1wkQTQZAX3aOq6DVLIfCaZSH22wtqyuXhE/gn5eU1syw==}
     cpu: [arm64]
     os: [linux]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.215':
-    resolution: {integrity: sha512-lb7ayxZeWLiEhlOjzF8oX+DdJHrVgR1hvwkwRdYo+LgTT3hSxv6h43sheS3hZ1I9LYvOTKWa2E0O1EnffOzyCg==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.216':
+    resolution: {integrity: sha512-kX6x0otwOuA1zIeEiuAKQqOk2TUAOkDUzm4MmLoQHOM2xWvr/pc+xY4DZxaX4ef9dUFQuHA4r5Vtbk7tPTL7Bw==}
     cpu: [arm64]
     os: [linux]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.215':
-    resolution: {integrity: sha512-jSmrjSupnWtw8/I1Wmr32J6lB02gFXytmNbse4kcLEgH6UGtdZckKnDVnh/ejHma4QE9WGSn54xLsSFnjHVrRg==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.216':
+    resolution: {integrity: sha512-3Ts2Ab6oEGG2r+epmWc6lOR1ahECjvH4y+lPb32qLKMdYxT2PU6TAc4Z/USLLuqDpgw3nSb8xuiYEH77rv88fw==}
     cpu: [x64]
     os: [linux]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.215':
-    resolution: {integrity: sha512-Iivu3oq7hIEc81dpTu1W0GJ/kCE8TRtj9tb+wdZCp1grsuGEJiS3Bh1tLxCrhLOTDxPggK6xZGVN/RPJh84ywA==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.216':
+    resolution: {integrity: sha512-WbJTLQafcYw9wl+gh/YpepdbWsOoJS7JZQA0obpzBBWzpx9PqPbjUDXDfCDrtzDI2fmr3Nz0//vC12bvlMZd8g==}
     cpu: [x64]
     os: [linux]
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.215':
-    resolution: {integrity: sha512-9Xtpwd4DzfObOycDkfYfQ7clhWoFu2fmRqmMZWyQRyk2mEHWR3gLBwUgpfjYb6m4Fke9eTmIx2lXDG2i1OaBzA==}
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.216':
+    resolution: {integrity: sha512-xGB8rKatsXl9enqmPXixYNvdjGh1AL2jFmMRC9lR9M1prf2FGl7dkpdHz8YyItKAciRwpPIfts/9dSGhxlgT3A==}
     cpu: [arm64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.215':
-    resolution: {integrity: sha512-DkPwdc1zS6KIf6YNKXhlqAw95wnjG8Uh5bSXRrFA+MxsaWedlVFeja6zFM5uZ84ouGrcHEeU3PGUcGaKR1U4cQ==}
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.216':
+    resolution: {integrity: sha512-cGbBgoKNzB6wRL6bMOwM2iJEG/wx0B6FCblmKF+ZAYKcj5oNi3jM6oQsnPJbKfrzVKrip3YEpXxopQ9O30LrSg==}
     cpu: [x64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk@0.3.215':
-    resolution: {integrity: sha512-fBktJCwfu8ZeOSnnSLcWVkIHyp/pjouJsGVGtRnQ0HkcRuOReIbRcB/6n2O5dYV331Ok+MfdGHiPaTORj7pCtQ==}
+  '@anthropic-ai/claude-agent-sdk@0.3.216':
+    resolution: {integrity: sha512-Fl/d9yGW7Pm0aGwUNkJMvruOVobleYcoprGJqufdP4J9W2XL/2xKXqanY8KqUdfySRMI2N46rY4/lryq5SfgFg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@anthropic-ai/sdk': '>=0.93.0'
@@ -2790,20 +2790,20 @@ packages:
   '@slopus/ghostty-web@0.1.0':
     resolution: {integrity: sha512-aSM7BH/SjdX0hHK7ryggmg0ytHmrVgjN8H4yP502jTRUeiNQvP4BzRdv5Oc8K+gH5MV+eaVEZ92bNApYr13amg==}
 
-  '@slopus/rig@0.0.31':
-    resolution: {integrity: sha512-Vwkd1F4uqVZ35c9l0EekXuDMvjdULT5zLi21UT/x5fdxLJiHAWmw47/2gKA2yDYeWvtnRjQbGR/tTjpVoTgniw==}
+  '@slopus/rig@0.0.33':
+    resolution: {integrity: sha512-+iB7Z6gs1yEidtcux3PxSpiMPVdQyfveCi5Lj9P1uChYoF5aUqmNYscM9YviNuRcZ9tp4YtcxcUI3pSPyEyeHg==}
     hasBin: true
 
-  '@smithy/core@3.29.5':
-    resolution: {integrity: sha512-i0dk2t5B+CwV/dcJdUHILYkOQF5lof8f44dFCfDWToGCxjT9YQ+CgHqTAvJxzc3+zqQwm2QtVoJ5IqiNar/CnQ==}
+  '@smithy/core@3.29.6':
+    resolution: {integrity: sha512-TO3w25cdGWBeYqKNDaqH3v4O3jjMPpKwf39YlG5X5xhqWfpOWJbi5gQi1lrllukuwohdhY0TPB8jBEv6UC50Vg==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/credential-provider-imds@4.4.10':
-    resolution: {integrity: sha512-MJenAe4OKRZUo1LdYYFDCsSHxaHvInIU/z52GsheO9vl1/VSySVCr0zkyKD6TFiGkSUaWGxvKZ/70OvgUZR5HQ==}
+  '@smithy/credential-provider-imds@4.4.11':
+    resolution: {integrity: sha512-6CUvZwS0tCcVCrcvh2TpwTXxmAkuY6JGNPeKODYRLjHtUUhFLGS3dNkNdRvT/ttJyqimqnhFMTS2nqp4pDZ7oQ==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/fetch-http-handler@5.6.7':
-    resolution: {integrity: sha512-3zpg8yqqyXzoK2TsRDdkqVOj2RDBFfLXwCczOZ5c7TWB4eiaebfSCsbMjDPYB3PJ9ihV62QaeadZ+wLadZtNGA==}
+  '@smithy/fetch-http-handler@5.6.8':
+    resolution: {integrity: sha512-AFuLou893FesRZeQcKMh87P9x4PF2/ksPOYLLI1ctW7WJxm55SWInFSHAhaNRBPBmbgZyUcCCDKepBX+1jZBBw==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/is-array-buffer@2.2.0':
@@ -2814,12 +2814,12 @@ packages:
     resolution: {integrity: sha512-/jPhevcTFPMVl6KNjbaI47iOg1zxC7IsnX4PQDGVZKMFceOXtB8IEYaB7a9VvkP/3oC60WzTeKocvSI7vLT0vA==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/node-http-handler@4.9.7':
-    resolution: {integrity: sha512-wCU8HCLjAtAVqxxe0j2xff9LcEPw3yjBbg5IdQDIYFnxnPxbxcSLc7rgex7kqm9L/WYOnJEgaWQlfDkZleozMA==}
+  '@smithy/node-http-handler@4.9.8':
+    resolution: {integrity: sha512-ArSSIN4t1wLutcIkHzaL6N11J7xpZK7W3T0pFz9cep9zIpEr9x5+lhJRcVUgObGI3OIMbnROq7w8bwzx+Nkf8A==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/signature-v4@5.6.6':
-    resolution: {integrity: sha512-efP6DN3UTFrzIsGO42/xcabv8jU7+9nwEdphFUH7yL0k010ERyAWaO41KFQIDLcFZLZ8xzIQr4wplFxNzslSGQ==}
+  '@smithy/signature-v4@5.6.7':
+    resolution: {integrity: sha512-32PmEsuZV9lz7SZk3gJcm+EfIAoIVu83AJyEzgALpwmSqLvuacdAu0fvCVNMbDbegyk1S0lHUDrMWIfR47Micw==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/types@4.16.1':
@@ -7121,44 +7121,44 @@ packages:
 
 snapshots:
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.215':
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.216':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.215':
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.216':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.215':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.216':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.215':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.216':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.215':
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.216':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.215':
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.216':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.215':
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.216':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.215':
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.216':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.215(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0)(zod@4.4.3)':
+  '@anthropic-ai/claude-agent-sdk@0.3.216(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0)(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.110.0(zod@4.4.3)
       '@modelcontextprotocol/sdk': 1.29.0
       zod: 4.4.3
     optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.215
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.216
 
   '@anthropic-ai/sandbox-runtime@0.0.64':
     dependencies:
@@ -7245,9 +7245,9 @@ snapshots:
       '@aws-sdk/middleware-websocket': 3.972.41
       '@aws-sdk/token-providers': 3.1048.0
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
-      '@smithy/fetch-http-handler': 5.6.7
-      '@smithy/node-http-handler': 4.9.7
+      '@smithy/core': 3.29.6
+      '@smithy/fetch-http-handler': 5.6.8
+      '@smithy/node-http-handler': 4.7.3
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7256,8 +7256,8 @@ snapshots:
       '@aws-sdk/types': 3.974.2
       '@aws-sdk/xml-builder': 3.972.36
       '@aws/lambda-invoke-store': 0.3.0
-      '@smithy/core': 3.29.5
-      '@smithy/signature-v4': 5.6.6
+      '@smithy/core': 3.29.6
+      '@smithy/signature-v4': 5.6.7
       '@smithy/types': 4.16.1
       bowser: 2.14.1
       tslib: 2.8.1
@@ -7266,7 +7266,7 @@ snapshots:
     dependencies:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7274,9 +7274,9 @@ snapshots:
     dependencies:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
-      '@smithy/fetch-http-handler': 5.6.7
-      '@smithy/node-http-handler': 4.9.7
+      '@smithy/core': 3.29.6
+      '@smithy/fetch-http-handler': 5.6.8
+      '@smithy/node-http-handler': 4.9.8
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7291,8 +7291,8 @@ snapshots:
       '@aws-sdk/credential-provider-web-identity': 3.972.65
       '@aws-sdk/nested-clients': 3.997.33
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
-      '@smithy/credential-provider-imds': 4.4.10
+      '@smithy/core': 3.29.6
+      '@smithy/credential-provider-imds': 4.4.11
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7301,7 +7301,7 @@ snapshots:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/nested-clients': 3.997.33
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7314,8 +7314,8 @@ snapshots:
       '@aws-sdk/credential-provider-sso': 3.973.3
       '@aws-sdk/credential-provider-web-identity': 3.972.65
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
-      '@smithy/credential-provider-imds': 4.4.10
+      '@smithy/core': 3.29.6
+      '@smithy/credential-provider-imds': 4.4.11
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7323,7 +7323,7 @@ snapshots:
     dependencies:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7333,7 +7333,7 @@ snapshots:
       '@aws-sdk/nested-clients': 3.997.33
       '@aws-sdk/token-providers': 3.1088.0
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7342,21 +7342,21 @@ snapshots:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/nested-clients': 3.997.33
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
   '@aws-sdk/eventstream-handler-node@3.972.29':
     dependencies:
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
   '@aws-sdk/middleware-eventstream@3.972.24':
     dependencies:
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7364,9 +7364,9 @@ snapshots:
     dependencies:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
-      '@smithy/fetch-http-handler': 5.6.7
-      '@smithy/signature-v4': 5.6.6
+      '@smithy/core': 3.29.6
+      '@smithy/fetch-http-handler': 5.6.8
+      '@smithy/signature-v4': 5.6.7
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7375,16 +7375,16 @@ snapshots:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/signature-v4-multi-region': 3.996.41
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
-      '@smithy/fetch-http-handler': 5.6.7
-      '@smithy/node-http-handler': 4.9.7
+      '@smithy/core': 3.29.6
+      '@smithy/fetch-http-handler': 5.6.8
+      '@smithy/node-http-handler': 4.9.8
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
   '@aws-sdk/signature-v4-multi-region@3.996.41':
     dependencies:
       '@aws-sdk/types': 3.974.2
-      '@smithy/signature-v4': 5.6.6
+      '@smithy/signature-v4': 5.6.7
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7393,7 +7393,7 @@ snapshots:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/nested-clients': 3.997.33
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7402,7 +7402,7 @@ snapshots:
       '@aws-sdk/core': 3.975.3
       '@aws-sdk/nested-clients': 3.997.33
       '@aws-sdk/types': 3.974.2
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -8930,9 +8930,9 @@ snapshots:
 
   '@slopus/ghostty-web@0.1.0': {}
 
-  '@slopus/rig@0.0.31(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.6)(@types/node@26.1.1)':
+  '@slopus/rig@0.0.33(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)':
     dependencies:
-      '@anthropic-ai/claude-agent-sdk': 0.3.215(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0)(zod@4.4.3)
+      '@anthropic-ai/claude-agent-sdk': 0.3.216(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0)(zod@4.4.3)
       '@anthropic-ai/sandbox-runtime': 0.0.64
       '@anthropic-ai/sdk': 0.110.0(zod@4.4.3)
       '@earendil-works/pi-ai': 0.80.10(@modelcontextprotocol/sdk@1.29.0)(ws@8.21.1)(zod@4.4.3)
@@ -8951,7 +8951,7 @@ snapshots:
       ignore: 7.0.6
       just-bash: 3.1.0
       lru-cache: 11.5.2
-      openai: 6.46.0(@aws-sdk/credential-provider-node@3.972.70)(@smithy/signature-v4@5.6.6)(ws@8.21.1)(zod@4.4.3)
+      openai: 6.46.0(@aws-sdk/credential-provider-node@3.972.70)(@smithy/signature-v4@5.6.7)(ws@8.21.1)(zod@4.4.3)
       proper-lockfile: 4.1.2
       qrcode: 1.5.4
       qrcode-terminal: 0.12.0
@@ -8965,14 +8965,14 @@ snapshots:
       yaml: 2.9.0
       zod: 4.4.3
     optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.215
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.215
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.216
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.216
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@cfworker/json-schema'
@@ -8988,20 +8988,20 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@smithy/core@3.29.5':
+  '@smithy/core@3.29.6':
     dependencies:
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@smithy/credential-provider-imds@4.4.10':
+  '@smithy/credential-provider-imds@4.4.11':
     dependencies:
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@smithy/fetch-http-handler@5.6.7':
+  '@smithy/fetch-http-handler@5.6.8':
     dependencies:
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -9011,19 +9011,19 @@ snapshots:
 
   '@smithy/node-http-handler@4.7.3':
     dependencies:
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@smithy/node-http-handler@4.9.7':
+  '@smithy/node-http-handler@4.9.8':
     dependencies:
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
-  '@smithy/signature-v4@5.6.6':
+  '@smithy/signature-v4@5.6.7':
     dependencies:
-      '@smithy/core': 3.29.5
+      '@smithy/core': 3.29.6
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -12224,10 +12224,10 @@ snapshots:
       ws: 8.21.1
       zod: 4.4.3
 
-  openai@6.46.0(@aws-sdk/credential-provider-node@3.972.70)(@smithy/signature-v4@5.6.6)(ws@8.21.1)(zod@4.4.3):
+  openai@6.46.0(@aws-sdk/credential-provider-node@3.972.70)(@smithy/signature-v4@5.6.7)(ws@8.21.1)(zod@4.4.3):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.70
-      '@smithy/signature-v4': 5.6.6
+      '@smithy/signature-v4': 5.6.7
       ws: 8.21.1
       zod: 4.4.3
 
