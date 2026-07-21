@@ -157,10 +157,37 @@ export class PortShareService {
         return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain) ? subdomain : undefined;
     }
 
+    async authenticateAccess(
+        host: string | undefined,
+        token: string | undefined,
+    ): Promise<{ portShare: PublicPortShare; userId: string }> {
+        const verified = await this.verifiedAccess(host, token);
+        return {
+            userId: verified.userId,
+            portShare: this.publicShare(verified.share),
+        };
+    }
+
     async authorize(
         host: string | undefined,
         token: string | undefined,
     ): Promise<{ portShare: PublicPortShare; upstream: string; userId: string }> {
+        const verified = await this.verifiedAccess(host, token);
+        const target = await this.targets.resolvePortShareTarget(
+            verified.share.containerName,
+            verified.share.containerPort,
+        );
+        return {
+            userId: verified.userId,
+            portShare: this.publicShare(verified.share),
+            upstream: `http://${target.host}:${target.port}`,
+        };
+    }
+
+    private async verifiedAccess(
+        host: string | undefined,
+        token: string | undefined,
+    ): Promise<{ userId: string; share: PortShareSummary }> {
         if (!token) throw new PortShareError("forbidden", "Port-share access token is required");
         let claims: Awaited<ReturnType<TokenService["verifyPortShareAccessToken"]>>;
         try {
@@ -168,16 +195,8 @@ export class PortShareService {
         } catch {
             throw new PortShareError("forbidden", "Port-share access token is invalid or expired");
         }
-        const cached = await this.claimedShare(host, claims);
-        const target = await this.targets.resolvePortShareTarget(
-            cached.containerName,
-            cached.containerPort,
-        );
-        return {
-            userId: claims.userId,
-            portShare: this.publicShare(cached),
-            upstream: `http://${target.host}:${target.port}`,
-        };
+        const share = await this.claimedShare(host, claims);
+        return { userId: claims.userId, share };
     }
 
     private async cachedShare(subdomain: string): Promise<PortShareSummary | undefined> {

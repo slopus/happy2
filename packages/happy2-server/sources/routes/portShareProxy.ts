@@ -1,6 +1,7 @@
 import proxy from "@fastify/http-proxy";
 import type { ClientOptions } from "ws";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { CollaborationError } from "../modules/chat/types.js";
 import type { PortShareService } from "../modules/port-share/service.js";
 import { PortShareError } from "../modules/port-share/types.js";
 import { portShareReturnTo } from "./portShareReturnTo.js";
@@ -58,7 +59,7 @@ export async function registerPortShareProxy(
             sessionCors(reply, request, corsOrigin);
             try {
                 const authorization = bearerToken(request);
-                const result = await portShares.authorize(request.host, authorization);
+                const result = await portShares.authenticateAccess(request.host, authorization);
                 reply.header("set-cookie", portShareCookie(authorization!, options.secureCookies));
                 return {
                     authenticated: true,
@@ -245,18 +246,31 @@ function portShareWebSocketHeaders(identities: WeakMap<object, string>) {
 }
 
 function handled(reply: FastifyReply, error: unknown) {
-    if (!(error instanceof PortShareError)) throw error;
+    const portShareError = normalizePortShareError(error);
+    if (!portShareError) throw error;
     return reply
         .code(
-            error.code === "not_found"
+            portShareError.code === "not_found"
                 ? 404
-                : error.code === "invalid"
+                : portShareError.code === "invalid"
                   ? 400
-                  : error.code === "conflict"
+                  : portShareError.code === "conflict"
                     ? 409
-                    : error.code === "not_ready"
+                    : portShareError.code === "not_ready"
                       ? 503
                       : 401,
         )
-        .send({ error: error.code, message: error.message });
+        .send({ error: portShareError.code, message: portShareError.message });
+}
+
+function normalizePortShareError(error: unknown): PortShareError | undefined {
+    if (error instanceof PortShareError) return error;
+    if (error instanceof CollaborationError && error.code === "conflict")
+        return new PortShareError("not_ready", error.message);
+    if (
+        error instanceof Error &&
+        /loopback mapping|container is not ready|cannot expose agent ports/i.test(error.message)
+    )
+        return new PortShareError("not_ready", "The shared preview is not ready yet");
+    return undefined;
 }
