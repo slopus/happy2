@@ -33,6 +33,7 @@ export type IconName =
     | "more"
     | "arrow-right"
     | "shield"
+    | "lock"
     | "eye"
     | "link"
     | "smile"
@@ -252,6 +253,12 @@ const glyphs: Record<IconName, () => ReactNode> = {
     ),
     shield: () => (
         <path d="M10 3.2c1.7 1.4 3.9 2.2 6.1 2.2v5c0 4 -2.5 6 -6.1 7.2C6.4 16.4 3.9 14.4 3.9 10.4V5.4c2.2 0 4.4 -0.8 6.1 -2.2Z" />
+    ),
+    lock: () => (
+        <>
+            <path d="M7 8.4V6.8A3 3 0 0 1 13 6.8V8.4" />
+            <path d="M6.5 8.4H13.5A1.7 1.7 0 0 1 15.2 10.1V13.5A1.7 1.7 0 0 1 13.5 15.2H6.5A1.7 1.7 0 0 1 4.8 13.5V10.1A1.7 1.7 0 0 1 6.5 8.4Z" />
+        </>
     ),
     eye: () => (
         <>

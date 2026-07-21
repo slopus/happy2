@@ -70,7 +70,7 @@ export type SidebarProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     title?: string;
 };
 function leadingIcon(item: SidebarItem): IconName {
-    if (item.kind === "channel") return "hash";
+    if (item.kind === "channel") return item.icon ?? "hash";
     if (item.kind === "action") return item.icon ?? "plus";
     return item.icon ?? "inbox";
 }

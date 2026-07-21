@@ -172,7 +172,7 @@ it("renders the entire pinned glyph set on the 20-unit grid", async () => {
         { width: 248, height: 236, padding: 12 },
     );
     await view.ready();
-    expect(iconNames.length).toBe(48);
+    expect(iconNames.length).toBe(49);
     for (const name of iconNames) {
         const icon = view.$(`[data-name="${name}"]`);
         const bounds = icon.bounds();

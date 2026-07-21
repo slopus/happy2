@@ -1048,7 +1048,8 @@ export function ChatPage(props: ChatPageProps) {
                             }}
                             onSectionAction={(sectionId) => {
                                 if (sectionId === "agents") setAgentCreateOpen(true);
-                                if (sectionId === "channels") setDirectoryOpen(true);
+                                if (sectionId === "shared" || sectionId === "private")
+                                    setDirectoryOpen(true);
                                 if (sectionId === "dms") setDirectMessageOpen(true);
                             }}
                             sections={

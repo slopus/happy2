@@ -1006,3 +1006,50 @@ it("nests child channels under their parent and dims archived rows", async () =>
 
     await view.screenshot("Sidebar.nested");
 }, 120_000);
+
+/*
+ * A channel row renders the hash glyph by default, but honours an explicit
+ * `icon` for the channel kind so a private channel can paint the lock glyph
+ * while staying a first-class `channel` row (same avatar-free leading lane and
+ * nesting behaviour). Other kinds still ignore hash/lock.
+ */
+it("paints the lock glyph for a private channel row and hash for a shared one", async () => {
+    const view = createRenderer();
+    view.render(
+        () => (
+            <Sidebar
+                activeItemId=""
+                data-testid="icons"
+                onItemSelect={() => {}}
+                sections={[
+                    {
+                        id: "shared",
+                        items: [{ id: "design", kind: "channel", label: "design" }],
+                        label: "Shared",
+                    },
+                    {
+                        id: "private",
+                        items: [
+                            { icon: "lock", id: "founders", kind: "channel", label: "founders" },
+                        ],
+                        label: "Private",
+                    },
+                ]}
+                title="Channel glyphs"
+            />
+        ),
+        { width: 360, height: 220 },
+    );
+    await view.ready();
+
+    const glyph = (id: string) =>
+        view
+            .$(`[data-testid="icons"] [data-item-id="${id}"] [data-happy2-ui="icon"]`)
+            .element.getAttribute("data-name");
+    expect(glyph("design"), "shared channel keeps the hash glyph").toBe("hash");
+    expect(glyph("founders"), "private channel paints the lock glyph").toBe("lock");
+    expect(
+        view.$(`[data-testid="icons"] [data-item-id="founders"]`).element.getAttribute("data-kind"),
+        "private channel stays a channel row",
+    ).toBe("channel");
+});

@@ -148,8 +148,15 @@ export function DesktopApp(props: DesktopAppProps) {
         });
     const appearanceToggle = () =>
         themeModeSelect(themeMode === "system" ? systemAppearance() : themeMode);
-    /** Profile control + appearance toggle pinned to the bottom of the sidebar. */
-    const sidebarFooter = (
+    /**
+     * Profile control, the permission-gated Administration control, and the
+     * appearance toggle pinned to the bottom of the sidebar, in that order.
+     * Administration is an icon-only cog next to the theme button: it is absent
+     * when no section is accessible and, when present, opens the first permitted
+     * section. `onAdminOpen` gates its presence so the footer stays free of the
+     * permission projection itself.
+     */
+    const renderSidebarFooter = (onAdminOpen?: () => void) => (
         <Box style={{ display: "flex", alignItems: "center", gap: "4px", width: "100%" }}>
             <button
                 aria-label="Open profile"
@@ -168,6 +175,16 @@ export function DesktopApp(props: DesktopAppProps) {
                 />
                 <span className="happy2-sidebar__profile-name">{userName()}</span>
             </button>
+            {onAdminOpen ? (
+                <Button
+                    aria-label="Administration"
+                    icon="settings"
+                    iconOnly
+                    onClick={onAdminOpen}
+                    size="small"
+                    variant="ghost"
+                />
+            ) : null}
             <Button
                 aria-label={
                     appearance() === "dark" ? "Use light appearance" : "Use dark appearance"
@@ -188,28 +205,23 @@ export function DesktopApp(props: DesktopAppProps) {
                     permissionAllowed(permissions, permission);
                 const adminSections = adminSectionsProject(permissions);
                 const canOpenAdmin = adminSections.length > 0;
-                // Workspace nav rows above the chat list: Apps (always available)
-                // and Administration (owner/permission gated). Selecting either
-                // pushes its drill-down sidebar (appsSidebar / adminSidebar).
+                const adminOpen = () =>
+                    primaryOpen({ kind: "admin", section: adminSections[0] ?? "users" });
+                // Administration lives in the sidebar footer beside the appearance
+                // toggle, so these workspace nav rows above the chat list are the
+                // always-available drill-downs: Apps and Documents.
                 const navItems: SidebarItem[] = [
                     { id: "apps", kind: "view", icon: "spark", label: "Apps" },
                     { id: "documents", kind: "view", icon: "doc", label: "Documents" },
                 ];
-                if (canOpenAdmin)
-                    navItems.push({
-                        id: "admin",
-                        kind: "view",
-                        icon: "settings",
-                        label: "Administration",
-                    });
                 const navSection: SidebarSection = { id: "workspace", items: navItems };
                 const navSelect = (id: string) => {
-                    if (id === "admin")
-                        primaryOpen({ kind: "admin", section: adminSections[0] ?? "users" });
-                    else if (id === "apps") primaryOpen({ kind: "apps" });
+                    if (id === "apps") primaryOpen({ kind: "apps" });
                     else if (id === "documents") primaryOpen({ kind: "documents" });
                     else chatOpen();
                 };
+                // Footer Administration is present only when a section is accessible.
+                const sidebarFooter = renderSidebarFooter(canOpenAdmin ? adminOpen : undefined);
                 const adminRoute = route.primary.kind === "admin" ? route.primary : undefined;
                 const adminSidebar =
                     adminRoute && canOpenAdmin ? (

@@ -91,6 +91,30 @@ describe("persistent desktop routing", () => {
             <DesktopSessionFixture navigation={navigation} sessionReady={() => {}} state={state} />,
         );
         const administration = await screen.findByRole("button", { name: "Administration" });
+        const footer = screen.container.querySelector<HTMLElement>(
+            '[data-happy2-ui="sidebar-footer"]',
+        );
+        if (!footer) throw new Error("sidebar footer not found");
+        // Location: the control lives in the persistent footer, not as a nav row.
+        expect(footer.contains(administration)).toBe(true);
+        expect(administration.closest('[data-happy2-ui="sidebar-item"]')).toBeNull();
+        expect(
+            screen.container.querySelector('[data-section-id="workspace"] [data-item-id="admin"]'),
+        ).toBeNull();
+        // Accessibility: the icon-only cog keeps its label and shows no text.
+        expect(administration.getAttribute("aria-label")).toBe("Administration");
+        expect(administration.hasAttribute("data-icon-only")).toBe(true);
+        expect(administration.textContent).toBe("");
+        // Order: profile control, then Administration, then the appearance toggle.
+        expect(
+            Array.from(footer.querySelectorAll<HTMLButtonElement>("button")).map((button) =>
+                button.getAttribute("aria-label"),
+            ),
+        ).toEqual([
+            "Open profile",
+            "Administration",
+            expect.stringMatching(/Use (light|dark) appearance/),
+        ]);
         fireEvent.click(administration);
         await waitFor(() => {
             expect(location.pathname).toBe("/admin/plugins");
@@ -98,6 +122,8 @@ describe("persistent desktop routing", () => {
         });
         expect(screen.queryByRole("tab", { name: "Users" })).toBeNull();
         expect(screen.queryByRole("tab", { name: "Roles" })).toBeNull();
+        // The persistent footer cog remains reachable inside the drill-down too.
+        expect(screen.getByRole("button", { name: "Administration" })).toBeTruthy();
     });
 
     it("denies a direct administration route when no effective permission grants a section", async () => {
@@ -115,7 +141,39 @@ describe("persistent desktop routing", () => {
         );
         expect(await screen.findByText("Administration unavailable")).toBeTruthy();
         expect(screen.queryByText("New role")).toBeNull();
+        // Only the /roles section is denied: the Plugins grant keeps the persistent
+        // footer cog present, and it stays in the footer rather than the nav rows.
+        const administration = screen.getByRole("button", { name: "Administration" });
+        expect(administration.closest('[data-happy2-ui="sidebar-footer"]')).toBeTruthy();
+        expect(administration.closest('[data-happy2-ui="sidebar-item"]')).toBeNull();
+    });
+
+    it("hides the footer Administration control when no section is accessible", async () => {
+        const state = happyStateCreate({
+            initialPermissions: { allowed: [], owner: false },
+        });
+        const navigation = desktopNavigationCreate();
+        onTestFinished(() => {
+            navigation[Symbol.dispose]();
+            state[Symbol.dispose]();
+        });
+        const screen = render(
+            <DesktopSessionFixture navigation={navigation} sessionReady={() => {}} state={state} />,
+        );
+        // The footer still renders (theme toggle present) but carries no admin cog,
+        // and no Administration nav row exists either.
+        const toggle = await screen.findByRole("button", { name: /Use (light|dark) appearance/ });
+        const footer = toggle.closest<HTMLElement>('[data-happy2-ui="sidebar-footer"]');
+        if (!footer) throw new Error("sidebar footer not found");
         expect(screen.queryByRole("button", { name: "Administration" })).toBeNull();
+        expect(
+            Array.from(footer.querySelectorAll<HTMLButtonElement>("button")).map((button) =>
+                button.getAttribute("aria-label"),
+            ),
+        ).toEqual(["Open profile", expect.stringMatching(/Use (light|dark) appearance/)]);
+        expect(
+            screen.container.querySelector('[data-section-id="workspace"] [data-item-id="admin"]'),
+        ).toBeNull();
     });
 
     it("turns activity rows into message, thread, and call destinations with human context", async () => {

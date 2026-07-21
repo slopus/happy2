@@ -15,7 +15,7 @@ const workspaceSections: SidebarSection[] = [
     },
     {
         action: { icon: "plus", label: "Add channel" },
-        id: "channels",
+        id: "shared",
         items: [
             { id: "launch-week", kind: "channel", label: "launch-week" },
             { depth: 1, id: "launch-week-ios", kind: "channel", label: "ios-rollout" },
@@ -31,7 +31,57 @@ const workspaceSections: SidebarSection[] = [
             { id: "design", kind: "channel", label: "design" },
             { archived: true, id: "support-fires", kind: "channel", label: "support-fires" },
         ],
-        label: "Channels",
+        label: "Shared",
+    },
+    {
+        action: { icon: "plus", label: "Add channel" },
+        id: "private",
+        items: [
+            { icon: "lock", id: "founders", kind: "channel", label: "founders" },
+            { depth: 1, icon: "lock", id: "founders-hiring", kind: "channel", label: "hiring" },
+            {
+                badge: 2,
+                icon: "lock",
+                id: "security",
+                kind: "channel",
+                label: "security",
+                unread: true,
+            },
+        ],
+        label: "Private",
+    },
+    {
+        id: "humans",
+        items: [
+            {
+                id: "maya",
+                initials: "MJ",
+                kind: "person",
+                label: "Maya Johnson",
+                online: true,
+                tone: "rose",
+            },
+            {
+                id: "arun",
+                initials: "AP",
+                kind: "person",
+                label: "Arun Patel",
+                meta: "12m",
+                tone: "ocean",
+            },
+            {
+                badge: 2,
+                id: "sofia",
+                initials: "SR",
+                kind: "person",
+                label: "Sofía Reyes",
+                online: true,
+                tone: "amber",
+                unread: true,
+            },
+            { id: "invite", kind: "action", label: "Invite teammates" },
+        ],
+        label: "Humans",
     },
     {
         action: { icon: "plus", label: "Add agent" },
@@ -64,39 +114,6 @@ const workspaceSections: SidebarSection[] = [
         ],
         label: "Agents",
     },
-    {
-        id: "direct",
-        items: [
-            {
-                id: "maya",
-                initials: "MJ",
-                kind: "person",
-                label: "Maya Johnson",
-                online: true,
-                tone: "rose",
-            },
-            {
-                id: "arun",
-                initials: "AP",
-                kind: "person",
-                label: "Arun Patel",
-                meta: "12m",
-                tone: "ocean",
-            },
-            {
-                badge: 2,
-                id: "sofia",
-                initials: "SR",
-                kind: "person",
-                label: "Sofía Reyes",
-                online: true,
-                tone: "amber",
-                unread: true,
-            },
-            { id: "invite", kind: "action", label: "Invite teammates" },
-        ],
-        label: "Direct",
-    },
 ];
 /* A tiny inline photo so the blueprint shows the image-avatar row state. */
 const PHOTO =
@@ -117,6 +134,7 @@ const treatmentSections: SidebarSection[] = [
         items: [
             { icon: "files", id: "kind-view", kind: "view", label: "View — 16px icon" },
             { id: "kind-channel", kind: "channel", label: "channel — hash" },
+            { icon: "lock", id: "kind-channel-lock", kind: "channel", label: "channel — lock" },
             {
                 id: "kind-person",
                 initials: "MJ",
@@ -155,44 +173,63 @@ const treatmentSections: SidebarSection[] = [
         label: "Row kinds",
     },
 ];
+/* Footer composition used by the app: profile control, then the permission-gated
+   Administration cog, then the appearance toggle. Administration is icon-only and
+   sits directly before the theme control. */
 function FooterUser() {
     return (
         <div
             style={{
                 alignItems: "center",
                 display: "flex",
-                gap: "10px",
+                gap: "4px",
                 width: "100%",
             }}
         >
-            <Avatar initials="SK" online size="sm" tone="ocean" />
-            <div style={{ display: "flex", flexDirection: "column", minWidth: "0" }}>
-                <span
-                    style={{
-                        color: "var(--happy2-text)",
-                        fontSize: "13px",
-                        fontWeight: "600",
-                        lineHeight: "16px",
-                    }}
-                >
-                    Sasha K.
-                </span>
-                <span
-                    style={{
-                        color: "var(--happy2-text-muted)",
-                        fontSize: "11px",
-                        lineHeight: "14px",
-                    }}
-                >
-                    Online
-                </span>
+            <div
+                style={{
+                    alignItems: "center",
+                    display: "flex",
+                    flex: "1 1 auto",
+                    gap: "10px",
+                    minWidth: "0",
+                }}
+            >
+                <Avatar initials="SK" online size="sm" tone="ocean" />
+                <div style={{ display: "flex", flexDirection: "column", minWidth: "0" }}>
+                    <span
+                        style={{
+                            color: "var(--happy2-text)",
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            lineHeight: "16px",
+                        }}
+                    >
+                        Sasha K.
+                    </span>
+                    <span
+                        style={{
+                            color: "var(--happy2-text-muted)",
+                            fontSize: "11px",
+                            lineHeight: "14px",
+                        }}
+                    >
+                        Online
+                    </span>
+                </div>
             </div>
             <Button
-                aria-label="Preferences"
+                aria-label="Administration"
                 icon="settings"
                 iconOnly
                 size="small"
-                style={{ marginLeft: "auto", marginRight: "-6px" }}
+                variant="ghost"
+            />
+            <Button
+                aria-label="Use light appearance"
+                icon="moon"
+                iconOnly
+                size="small"
                 variant="ghost"
             />
         </div>
@@ -376,7 +413,7 @@ export function SidebarPage() {
                 stage="app"
             >
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <Frame height={320}>
+                    <Frame height={380}>
                         <Sidebar
                             activeItemId=""
                             onCompose={() => {}}
@@ -387,13 +424,27 @@ export function SidebarPage() {
                                     action: { icon: "plus", label: "Add channel" },
                                     empty: {
                                         actionLabel: "Create a channel",
-                                        description: "Channels keep your team's work in one place.",
+                                        description:
+                                            "Shared channels keep your team's work in one place.",
                                         icon: "hash",
-                                        title: "No channels yet",
+                                        title: "No shared channels yet",
                                     },
-                                    id: "channels",
+                                    id: "shared",
                                     items: [],
-                                    label: "Channels",
+                                    label: "Shared",
+                                },
+                                {
+                                    action: { icon: "plus", label: "Add channel" },
+                                    empty: {
+                                        actionLabel: "Create a channel",
+                                        description:
+                                            "Private channels are visible only to members.",
+                                        icon: "lock",
+                                        title: "No private channels yet",
+                                    },
+                                    id: "private",
+                                    items: [],
+                                    label: "Private",
                                 },
                                 {
                                     action: { icon: "edit", label: "New message" },
@@ -405,7 +456,7 @@ export function SidebarPage() {
                                     },
                                     id: "dms",
                                     items: [],
-                                    label: "Direct messages",
+                                    label: "Humans",
                                 },
                             ]}
                             title="Empty workspace"
