@@ -23,8 +23,8 @@ export interface ComposerSnapshot {
     /** Client time of the most recent keystroke, focus, or blur. */
     readonly lastInteractionAt?: number;
     /**
-     * Who the next send addresses. Undefined means this surface does not route
-     * audience and the server keeps its own default (agent conversations).
+     * Who the next send addresses. New composers address agents by default;
+     * callers may explicitly select people for a human-directed message.
      */
     readonly audience?: MessageAudience;
     /** Additional agents explicitly selected beyond the chat's default agent. */
@@ -105,7 +105,7 @@ export function composerStoreCreate(
         revision: 0,
         submission: { status: "idle" },
         focused: false,
-        audience: options.audience,
+        audience: options.audience ?? "agents",
         agentUserIds: [...(options.agentUserIds ?? [])],
 
         textUpdate(text): void {

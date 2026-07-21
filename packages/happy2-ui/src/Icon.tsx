@@ -33,6 +33,7 @@ export type IconName =
     | "bell"
     | "more"
     | "arrow-right"
+    | "arrow-up"
     | "shield"
     | "lock"
     | "eye"
@@ -108,6 +109,7 @@ const glyphs: Record<IconName, IconGlyph> = {
     bell: { set: "ionicons", name: "notifications-outline" },
     more: { set: "ionicons", name: "ellipsis-horizontal" },
     "arrow-right": { set: "ionicons", name: "arrow-forward-outline" },
+    "arrow-up": { set: "ionicons", name: "arrow-up-outline" },
     shield: { set: "ionicons", name: "shield-checkmark-outline" },
     lock: { set: "ionicons", name: "lock-closed-outline" },
     eye: { set: "ionicons", name: "eye-outline" },

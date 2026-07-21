@@ -141,33 +141,21 @@ it("keeps the send action inside every measured toolbar stage", async () => {
         const sendBounds = send.bounds();
         const composerElement = composer.element as HTMLElement;
         const toolbarElement = toolbar.element as HTMLElement;
-        const fullHint = view.$(`${rootSelector} [data-happy2-ui="composer-hint"]`);
-        const compactHint = view.container.querySelector(
-            `${rootSelector} [data-happy2-ui="composer-hint-compact"]`,
-        );
 
         expect(composerElement.clientWidth).toBe(stage.contentWidth);
         expect(sendBounds.x + sendBounds.width, `${stage.testid} send right inset`).toBe(
-            composerBounds.x + composerBounds.width - 8,
+            composerBounds.x + composerBounds.width - 16,
         );
         expect(composerElement.scrollWidth).toBeLessThanOrEqual(composerElement.clientWidth);
         expect(toolbarElement.scrollWidth).toBeLessThanOrEqual(toolbarElement.clientWidth);
-        expect(fullHint.element.textContent).toBe("Enter to send · Shift+Tab to switch audience");
         expect(
-            fullHint.computedStyle("display") === "none",
-            `${stage.testid} full hint visibility`,
-        ).toBe(!stage.fullHint);
-        if (stage.provideCompactHint) {
-            expect(compactHint?.textContent).toBe("Enter to send");
-            expect(
-                view
-                    .$(`${rootSelector} [data-happy2-ui="composer-hint-compact"]`)
-                    .computedStyle("display") === "none",
-                `${stage.testid} compact hint visibility`,
-            ).toBe(!stage.compactHint);
-        } else {
-            expect(compactHint).toBeNull();
-        }
+            view.container.querySelector(`${rootSelector} [data-happy2-ui="composer-hint"]`),
+        ).toBeNull();
+        expect(
+            view.container.querySelector(
+                `${rootSelector} [data-happy2-ui="composer-hint-compact"]`,
+            ),
+        ).toBeNull();
 
         for (const label of ["Attach file", "Mention someone", "Add emoji"]) {
             const action = view.$(`${rootSelector} [aria-label="${label}"]`);

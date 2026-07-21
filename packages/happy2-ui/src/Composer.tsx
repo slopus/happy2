@@ -275,10 +275,11 @@ export type ComposerProps = {
     value: string;
 };
 const LINE_HEIGHT = 22;
+const MIN_LINES = 4;
 const MAX_LINES = 8;
 /**
  * Message composer: focus-within surface card with an auto-growing textarea
- * (1–8 lines), context chips, capability-driven file/mention/emoji actions,
+ * (4–8 lines), context chips, capability-driven file/mention/emoji actions,
  * a primary send control, and keyboard-accessible picker popovers.
  */
 export function Composer(props: ComposerProps) {
@@ -318,13 +319,14 @@ export function Composer(props: ComposerProps) {
         if (!props.audience) return;
         props.onAudienceChange?.(props.audience === "agents" ? "people" : "agents");
     };
-    /* Auto-grow: collapse to one line, then track content up to 8 lines. */
+    /* Keep a calm four-line writing canvas, then grow only for longer drafts. */
     useLayoutEffect(() => {
         void props.value;
         const el = textareaEl.current;
         if (!el) return;
-        el.style.height = `${LINE_HEIGHT}px`;
-        el.style.height = `${Math.min(el.scrollHeight, LINE_HEIGHT * MAX_LINES)}px`;
+        const minHeight = LINE_HEIGHT * MIN_LINES;
+        el.style.height = `${minHeight}px`;
+        el.style.height = `${Math.min(Math.max(el.scrollHeight, minHeight), LINE_HEIGHT * MAX_LINES)}px`;
     }, [props.value]);
     const closeMention = () => {
         setMentionStart(null);
@@ -566,7 +568,7 @@ export function Composer(props: ComposerProps) {
                     onSelect={rememberSelection}
                     placeholder={props.placeholder}
                     ref={textareaEl}
-                    rows={1}
+                    rows={MIN_LINES}
                     value={props.value}
                 />
             </div>
@@ -624,24 +626,11 @@ export function Composer(props: ComposerProps) {
                     ) : null}
                 </div>
                 <div className="happy2-composer__trailing" data-happy2-ui="composer-trailing">
-                    {props.hint ? (
-                        <span className="happy2-composer__hint" data-happy2-ui="composer-hint">
-                            {props.hint}
-                        </span>
-                    ) : null}
-                    {props.compactHint ? (
-                        <span
-                            className="happy2-composer__hint--compact"
-                            data-happy2-ui="composer-hint-compact"
-                        >
-                            {props.compactHint}
-                        </span>
-                    ) : null}
                     <Button
                         aria-label="Send message"
                         className="happy2-composer__send"
                         disabled={!canSend()}
-                        icon="send"
+                        icon="arrow-up"
                         iconOnly
                         onClick={send}
                         size="small"

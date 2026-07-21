@@ -103,6 +103,12 @@
     background: var(--fab-background);
 }
 
+/* A supplied avatar image owns the entire mark. This is especially important
+ * for Happy's transparent star, whose silhouette must not inherit a tile. */
+.happy2-avatar[data-image] {
+    background: transparent;
+}
+
 .happy2-avatar__initials {
     display: block;
 }

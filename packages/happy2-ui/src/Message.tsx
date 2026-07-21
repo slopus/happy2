@@ -11,9 +11,9 @@ import {
     type HTMLAttributes,
     type ReactNode,
 } from "react";
-import { Avatar, type ToneName } from "./Avatar";
+import { Avatar, type AvatarSize, type ToneName } from "./Avatar";
+import { happyLogoUrl } from "./assets";
 import { ReactionChip } from "./Badge";
-import { Button } from "./Button";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon, type IconName } from "./Icon";
 import { renderMessageMarkdown, type MessageGenerationStatus } from "./MessageMarkdown";
@@ -69,6 +69,8 @@ export type MessageProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     agent?: boolean;
     /** Who the message addressed, e.g. "To agents · Happy + 1". */
     audienceLabel?: string;
+    /** Compact optional action placed in the author metadata before the time. */
+    metaAccessory?: ReactNode;
     author: string;
     body: string | MessageSegment[];
     /** Attachment cards (runs, approvals, events) rendered below the body. */
@@ -162,7 +164,7 @@ function hasRenderableChild(value: ReactNode): boolean {
     );
 }
 /**
- * One chat message on the app surface: 36px avatar gutter, author/time row,
+ * One chat message on the app surface: a compact inline identity, author/time row,
  * rich body segments, attachment slot, reactions, and reply affordance.
  */
 export function Message(props: MessageProps) {
@@ -185,6 +187,7 @@ export function Message(props: MessageProps) {
         "onImageOpen",
         "initials",
         "menuItems",
+        "metaAccessory",
         "onAuthorSelect",
         "onMenuSelect",
         "onReactionAdd",
@@ -213,15 +216,30 @@ export function Message(props: MessageProps) {
     const hasAttachments = () => hasRenderableChild(attachments);
     const grouped = () => local.grouped || local.compact;
     const authorActionLabel = () => `View ${local.author}’s profile`;
-    const renderAvatar = () => (
+    const happyAgent = () => local.agent && local.author.trim().toLocaleLowerCase() === "happy";
+    const renderAvatar = (size: AvatarSize) => (
         <Avatar
-            imageUrl={local.imageUrl}
+            imageUrl={happyAgent() ? happyLogoUrl : local.imageUrl}
             initials={local.initials ?? deriveInitials(local.author)}
-            size="md"
+            size={size}
             tone={local.tone}
             type={local.agent ? "agent" : "human"}
         />
     );
+    const renderDanglingAvatar = () =>
+        local.onAuthorSelect ? (
+            <button
+                aria-label={authorActionLabel()}
+                className="happy2-message__identity happy2-message__avatar-dangling"
+                data-happy2-ui="message-identity"
+                onClick={() => local.onAuthorSelect?.()}
+                type="button"
+            >
+                {renderAvatar("xs")}
+            </button>
+        ) : (
+            <span className="happy2-message__avatar-dangling">{renderAvatar("xs")}</span>
+        );
     const deliveryState = () => local.deliveryState ?? "sent";
     const hasReactionAction = () =>
         Boolean(local.onReactionAdd) ||
@@ -230,9 +248,7 @@ export function Message(props: MessageProps) {
         Boolean(local.onMenuSelect) &&
         Boolean(local.menuItems?.some((item) => item.kind === "item"));
     const hasContributions = () => hasRenderableChild(local.contributions);
-    const hasActions = () =>
-        deliveryState() !== "sending" &&
-        (hasReactionAction() || hasMenuAction() || hasContributions());
+    const hasActions = () => deliveryState() !== "sending" && hasContributions();
     const filteredReactionOptions = () => {
         const query = reactionQuery.trim().toLocaleLowerCase();
         if (!query) return local.reactionOptions ?? [];
@@ -356,33 +372,12 @@ export function Message(props: MessageProps) {
             style={local.style}
         >
             <div className="happy2-message__gutter" data-happy2-ui="message-gutter">
-                {!grouped() ? (
-                    local.onAuthorSelect ? (
-                        <button
-                            aria-label={authorActionLabel()}
-                            className="happy2-message__identity"
-                            data-happy2-ui="message-identity"
-                            onClick={() => local.onAuthorSelect?.()}
-                            type="button"
-                        >
-                            {renderAvatar()}
-                        </button>
-                    ) : (
-                        renderAvatar()
-                    )
-                ) : (
-                    <span
-                        className="happy2-message__gutter-time"
-                        data-happy2-ui="message-gutter-time"
-                    >
-                        {local.gutterTime ?? local.time}
-                    </span>
-                )}
+                {!local.own && (!grouped() || local.metaAccessory) ? renderDanglingAvatar() : null}
             </div>
             <div className="happy2-message__content" data-happy2-ui="message-content">
                 {/* Own messages carry no meta row — the accent bubble on the
                     right is identity enough; no author, time, or audience pill. */}
-                {!grouped() && !local.own ? (
+                {!local.own && (!grouped() || local.metaAccessory) ? (
                     <div className="happy2-message__meta" data-happy2-ui="message-meta">
                         {local.onAuthorSelect ? (
                             <button
@@ -402,17 +397,12 @@ export function Message(props: MessageProps) {
                                 {local.author}
                             </span>
                         )}
-                        {local.agent ? (
-                            <span className="happy2-message__tag" data-happy2-ui="message-tag">
-                                AGENT
-                            </span>
-                        ) : null}
-                        {local.audienceLabel ? (
+                        {local.metaAccessory ? (
                             <span
-                                className="happy2-message__audience"
-                                data-happy2-ui="message-audience"
+                                className="happy2-message__meta-accessory"
+                                data-happy2-ui="message-meta-accessory"
                             >
-                                {local.audienceLabel}
+                                {local.metaAccessory}
                             </span>
                         ) : null}
                         <span className="happy2-message__time" data-happy2-ui="message-time">
@@ -487,55 +477,12 @@ export function Message(props: MessageProps) {
                                 key={`${reaction.emoji}-${index}`}
                             />
                         ))}
-                        {hasReactionAction() ? (
-                            <button
-                                aria-expanded={reactionOpen}
-                                aria-haspopup={local.reactionOptions?.length ? "dialog" : undefined}
-                                aria-label="Add reaction"
-                                className="happy2-message__react-add"
-                                data-happy2-ui="message-react-add"
-                                onClick={toggleReactionPicker}
-                                type="button"
-                            >
-                                <Icon name="smile" size={14} />
-                            </button>
-                        ) : null}
                     </div>
                 ) : null}
             </div>
             {hasActions() ? (
                 <>
                     <div className="happy2-message__actions" data-happy2-ui="message-actions">
-                        {hasReactionAction() ? (
-                            <Button
-                                aria-expanded={reactionOpen}
-                                aria-haspopup={local.reactionOptions?.length ? "dialog" : undefined}
-                                aria-label="Add reaction"
-                                className="happy2-message__action"
-                                icon="smile"
-                                iconOnly
-                                onClick={toggleReactionPicker}
-                                size="small"
-                                variant="ghost"
-                            />
-                        ) : null}
-                        {hasMenuAction() ? (
-                            <Button
-                                aria-expanded={menuOpen}
-                                aria-haspopup="menu"
-                                aria-label="More message actions"
-                                className="happy2-message__action"
-                                icon="more"
-                                iconOnly
-                                onClick={() => {
-                                    reactionOpenSet(false);
-                                    placePopover(196, menuHeight());
-                                    menuOpenSet(!menuOpen);
-                                }}
-                                size="small"
-                                variant="ghost"
-                            />
-                        ) : null}
                         {hasContributions() ? (
                             <span
                                 className="happy2-message__contributions"

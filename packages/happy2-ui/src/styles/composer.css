@@ -3,7 +3,7 @@
  *
  * Composer: solid inset card with no resting hairline (a 1px transparent
  * border keeps the box model stable while focus/agents paint the frame), 16px
- * radius, 16px visual text inset, auto-growing 16px/22px textarea (1–8 lines).
+ * radius, 16px visual text inset, auto-growing 16px/22px textarea (4–8 lines).
  * A 32px action lane (32px ghost actions + primary send on an 8px rhythm) sits
  * above an 8px shell bottom. Geometry mirrors the original app's unified input
  * panel (borderless solid fill, 16px corners, 32px controls, roomy text
@@ -76,7 +76,8 @@
 .happy2-composer__textarea {
     display: block;
     width: 100%;
-    height: 22px;
+    height: 88px; /* 4 lines × 22px */
+    min-height: 88px;
     max-height: 176px; /* 8 lines × 22px */
     margin: 0;
     padding: 0;
@@ -114,14 +115,14 @@
     cursor: wait;
 }
 
-/* 32px action lane, 8px shell sides. The 8px shell bottom lives on the card
- * (padding-bottom) so the lane stays symmetric and the hint/actions center in
- * it. */
+/* 32px action lane. The left action group keeps an 8px shell inset; the
+ * circular send button receives a 16px right inset so it sits outside the
+ * card's rounded-corner field as an independent round control. */
 .happy2-composer__toolbar {
     display: flex;
     align-items: center;
     height: 32px;
-    padding: 0 7px;
+    padding: 0 15px 0 7px;
 }
 
 .happy2-composer__actions {
@@ -171,34 +172,16 @@
 }
 
 .happy2-composer__send {
-    border-bottom-right-radius: 8px;
+    border-radius: 50%;
 }
 
-/* The toolbar uses a 16px paper plane in its 32px square. The slightly larger
- * ink matches the adjacent 14px line icons optically while retaining equal
+/* The toolbar uses a 16px upward arrow in its 32px circular send control. The
+ * slightly larger ink matches adjacent 14px line icons while retaining equal
  * transparent space on every edge of the directional glyph's bounds. */
-.happy2-composer__send .happy2-button__icon svg {
-    width: 16px;
-    height: 16px;
-}
-
-.happy2-composer__hint,
-.happy2-composer__hint--compact {
-    flex: none;
-    width: 200px;
-    overflow: hidden;
-    color: var(--text-secondary);
-    font-family: var(--happy2-font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    text-overflow: ellipsis;
-    line-height: 14px;
-    white-space: nowrap;
-}
-
-.happy2-composer__hint--compact {
-    display: none;
-    width: auto;
+.happy2-composer__send .happy2-button__icon .happy2-icon {
+    width: 16px !important;
+    height: 16px !important;
+    font-size: 16px !important;
 }
 
 .happy2-composer__popover {
@@ -227,44 +210,13 @@
     white-space: nowrap;
 }
 
-/* Composer stages follow the measured demand of each toolbar row. Audience
- * rows need about 614.4px of content width, so they switch to the host-owned
- * compact hint at 620px; all-composer rows switch at their 432px boundary.
- * At 420px the established narrow-panel stage also compacts the audience
- * control and hides every hint, keeping each action reachable beside a panel. */
-@container (max-width: 620px) {
-    .happy2-composer:where([data-audience]) .happy2-composer__hint {
-        display: none;
-    }
-
-    .happy2-composer:where([data-audience]) .happy2-composer__hint--compact {
-        display: block;
-    }
-}
-
-@container (max-width: 433px) {
-    .happy2-composer .happy2-composer__hint {
-        display: none;
-    }
-
-    .happy2-composer .happy2-composer__hint--compact {
-        display: block;
-    }
-}
-
+/* Audience controls compact only when a narrow desktop panel requires it. */
 @container (max-width: 423px) {
     .happy2-composer .happy2-audience-toggle .happy2-segmented-control {
         width: 120px;
     }
 
     .happy2-composer .happy2-audience-toggle .happy2-segmented-control__icon {
-        display: none;
-    }
-}
-
-@container (max-width: 420px) {
-    .happy2-composer .happy2-composer__hint,
-    .happy2-composer .happy2-composer__hint--compact {
         display: none;
     }
 }

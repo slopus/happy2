@@ -186,7 +186,7 @@ it("holds Composer geometry, colors, and typography", async () => {
                     value=""
                 />
             ),
-            { width: 600, height: 140, padding: 20 },
+            { width: 600, height: 260, padding: 20 },
         )
         .render(
             () => (
@@ -197,7 +197,7 @@ it("holds Composer geometry, colors, and typography", async () => {
                     value="Ready to ship"
                 />
             ),
-            { width: 600, height: 140, padding: 20 },
+            { width: 600, height: 260, padding: 20 },
         )
         .render(
             () => (
@@ -209,7 +209,7 @@ it("holds Composer geometry, colors, and typography", async () => {
                     value=""
                 />
             ),
-            { width: 600, height: 140, padding: 20 },
+            { width: 600, height: 260, padding: 20 },
         )
         .render(
             () => (
@@ -220,7 +220,7 @@ it("holds Composer geometry, colors, and typography", async () => {
                     value={"alpha\nbravo\ncharlie"}
                 />
             ),
-            { width: 600, height: 180, padding: 20 },
+            { width: 600, height: 260, padding: 20 },
         )
         .render(
             () => (
@@ -244,7 +244,7 @@ it("holds Composer geometry, colors, and typography", async () => {
                     value=""
                 />
             ),
-            { width: 600, height: 170, padding: 20 },
+            { width: 600, height: 280, padding: 20 },
         )
         .render(
             () => (
@@ -256,7 +256,7 @@ it("holds Composer geometry, colors, and typography", async () => {
                     value="Draft on hold"
                 />
             ),
-            { width: 600, height: 140, padding: 20 },
+            { width: 600, height: 260, padding: 20 },
         )
         .render(
             () => (
@@ -271,13 +271,13 @@ it("holds Composer geometry, colors, and typography", async () => {
                     value="Draft is sending"
                 />
             ),
-            { width: 600, height: 140, padding: 20 },
+            { width: 600, height: 260, padding: 20 },
         );
     await view.ready();
     // Container: solid inset card, no resting hairline (transparent 1px
-    // border), radius 16, 1-line total 87px.
+    // border), radius 16, four-line total 153px.
     const root = view.$('[data-testid="composer-default"]');
-    expect(root.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 87 });
+    expect(root.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 153 });
     expect(
         root.computedStyles([
             "background-color",
@@ -301,13 +301,13 @@ it("holds Composer geometry, colors, and typography", async () => {
         "font-family": uiFont(),
         position: "relative",
     });
-    // Textarea: 16px/22px UI font, transparent, one line high when empty.
+    // Textarea: 16px/22px UI font, transparent, four lines high when empty.
     // (Gecko carries a measured -0.5px optical correction, so its painted box
     // reports 0.5px higher; see the corrections block in composer.css.)
     const textarea = view.$(
         '[data-testid="composer-default"] [data-happy2-ui="composer-textarea"]',
     );
-    expect(textarea.bounds()).toEqual({ x: 36, y: textareaY(), width: 528, height: 22 });
+    expect(textarea.bounds()).toEqual({ x: 36, y: textareaY(), width: 528, height: 88 });
     expect(
         textarea.computedStyles([
             "background-color",
@@ -333,7 +333,7 @@ it("holds Composer geometry, colors, and typography", async () => {
         "font-family": uiFont(),
         "font-size": "16px",
         "font-weight": "400",
-        height: "22px",
+        height: "88px",
         "line-height": "22px",
         "overflow-y": "auto",
         padding: "0px",
@@ -365,7 +365,7 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(Math.abs(draftDrift - ghostDrift)).toBeLessThanOrEqual(0.25);
     // Toolbar: 32px lane with only the three backed, 32px actions on a 40px pitch.
     const toolbar = view.$('[data-testid="composer-default"] [data-happy2-ui="composer-toolbar"]');
-    expect(toolbar.bounds()).toEqual({ x: 21, y: 67, width: 558, height: 32 });
+    expect(toolbar.bounds()).toEqual({ x: 21, y: 133, width: 558, height: 32 });
     const rootRect = root.element.getBoundingClientRect();
     const actionButtons = Array.from(
         view.container.querySelectorAll(
@@ -381,22 +381,23 @@ it("holds Composer geometry, colors, and typography", async () => {
     actionButtons.forEach((button, index) => {
         const rect = button.getBoundingClientRect();
         expect(rect.x - rootRect.x).toBeCloseTo(8 + index * 40, 1);
-        expect(rect.y - rootRect.y).toBeCloseTo(47, 1);
+        expect(rect.y - rootRect.y).toBeCloseTo(113, 1);
         expect(rect.width).toBeCloseTo(32, 1);
         expect(rect.height).toBeCloseTo(32, 1);
     });
-    // Every toolbar glyph is optically centered in its 32px ghost square
-    // (raw measured drift ≤ 0.13px in all three engines — no corrections).
+    // Every toolbar icon box is centered in its 32px ghost square. The
+    // curated icon font owns its glyph's internal optical metrics.
     for (const label of ["Attach file", "Mention someone", "Add emoji"]) {
         const buttonSelector = `[data-testid="composer-default"] [aria-label="${label}"]`;
-        const drift = await centroidDrift(view, buttonSelector, `${buttonSelector} svg`);
-        expect(Math.abs(drift.dx), `${label} dx`).toBeLessThanOrEqual(0.4);
-        expect(Math.abs(drift.dy), `${label} dy`).toBeLessThanOrEqual(0.4);
+        const button = view.$(buttonSelector).bounds();
+        const icon = view.$(`${buttonSelector} [data-happy2-ui="icon"]`).bounds();
+        expect(icon.x - button.x).toBeCloseTo((button.width - icon.width) / 2, 1);
+        expect(icon.y - button.y).toBeCloseTo((button.height - icon.height) / 2, 1);
     }
     // Send: primary 32px square, symmetric 8px border-box inset at the
     // composer's bottom-right curve, disabled while empty.
     const send = view.$('[data-testid="composer-default"] .happy2-composer__send');
-    expect(send.bounds()).toEqual({ x: 540, y: 67, width: 32, height: 32 });
+    expect(send.bounds()).toEqual({ x: 532, y: 133, width: 32, height: 32 });
     expect(
         send.computedStyles([
             "background-color",
@@ -406,55 +407,38 @@ it("holds Composer geometry, colors, and typography", async () => {
         ]),
     ).toEqual({
         "background-color": "rgb(192, 192, 192)",
-        "border-bottom-right-radius": "8px",
-        "border-top-right-radius": "6px",
+        "border-bottom-right-radius": "50%",
+        "border-top-right-radius": "50%",
         opacity: "0.48",
     });
     expect((send.element as HTMLButtonElement).disabled).toBe(true);
-    // Send glyph: the paper plane's visible ink bounds sit exactly centered in
-    // the 32px square (16px svg on equal margins in every engine). Its
-    // centroid deliberately leans up-right — the glyph points up-right, the
-    // same directional carve-out as Icon.test.tsx — so bounds symmetry is the
-    // contract, not centroid centering.
+    // Send glyph: the upward arrow's 16px icon box sits centered in the 32px
+    // circle. The directional glyph's own optical metrics belong to Icon.
     const sendFilled = view.$('[data-testid="composer-filled"] .happy2-composer__send');
     expect((sendFilled.element as HTMLButtonElement).disabled).toBe(false);
     expect(sendFilled.computedStyle("opacity")).toBe("1");
     const sendSelector = '[data-testid="composer-filled"] .happy2-composer__send';
-    const sendInk = await inkSpan(view, sendSelector, `${sendSelector} svg`);
-    expect(view.$(`${sendSelector} svg`).bounds()).toMatchObject({ width: 16, height: 16 });
-    expect(Math.abs(sendInk.top - (32 - sendInk.bottom))).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(sendInk.left - (32 - sendInk.right))).toBeLessThanOrEqual(0.5);
-    // Hint: 11px faint mono, 14px line box centered in the 32px toolbar lane,
-    // 8px gap before the send square. Word ink is asymmetric (the "g"
-    // descender pulls the centroid low), so the vertical centroid is pinned to
-    // the engine-consensus +0.6px rather than zero.
-    const hint = view.$('[data-testid="composer-default"] [data-happy2-ui="composer-hint"]');
-    expect(hint.textMetrics()).toMatchObject({
-        font: {
-            family: "happy2 Mono, ui-monospace, monospace",
-            letterSpacing: 0,
-            lineHeight: 14,
-            size: 11,
-            weight: "500",
-        },
-        text: "Enter to send · @ agents",
+    expect(
+        view.$(`${sendSelector} [data-happy2-ui="icon"]`).element.getAttribute("data-name"),
+    ).toBe("arrow-up");
+    const sendIcon = view.$(`${sendSelector} [data-happy2-ui="icon"]`).bounds();
+    expect(sendIcon).toMatchObject({
+        width: 16,
+        height: 16,
     });
-    expect(hint.computedStyle("color")).toBe("rgb(142, 142, 147)");
-    expect(send.bounds().x - (hint.bounds().x + hint.bounds().width)).toBeCloseTo(8, 1);
-    expect(hint.bounds().y - toolbar.bounds().y).toBe(9);
-    expect(toolbar.bounds().y + 32 - (hint.bounds().y + 14)).toBe(9);
-    const hintDrift = await centroidDrift(
-        view,
-        '[data-testid="composer-default"] [data-happy2-ui="composer-toolbar"]',
-        '[data-testid="composer-default"] [data-happy2-ui="composer-hint"]',
-    );
-    expect(Math.abs(hintDrift.dy - 0.6)).toBeLessThanOrEqual(0.4);
-    // Auto-grow: 3 lines → 66px textarea, 131px card; 12 lines cap at 176px.
+    expect(sendIcon.x - sendFilled.bounds().x).toBeCloseTo(8, 1);
+    expect(sendIcon.y - sendFilled.bounds().y).toBeCloseTo(8, 1);
+    expect(
+        view.container.querySelector(
+            '[data-testid="composer-default"] [data-happy2-ui="composer-hint"]',
+        ),
+    ).toBeNull();
+    // Auto-grow: 3 lines retain the four-line minimum; 12 lines cap at 176px.
     const multiline = view.$(
         '[data-testid="composer-multiline"] [data-happy2-ui="composer-textarea"]',
     );
-    expect(multiline.bounds().height).toBe(66);
-    expect(view.$('[data-testid="composer-multiline"]').bounds().height).toBe(131);
+    expect(multiline.bounds().height).toBe(88);
+    expect(view.$('[data-testid="composer-multiline"]').bounds().height).toBe(153);
     const multilineInk = await multiline.visibleMetrics();
     expect(multilineInk.pixelCount).toBeGreaterThan(0);
     const overflow = view.$(
@@ -463,9 +447,9 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(overflow.bounds().height).toBe(176);
     expect((overflow.element as HTMLTextAreaElement).scrollHeight).toBe(264);
     expect(view.$('[data-testid="composer-overflow"]').bounds().height).toBe(241);
-    // Context chips row: 8px top padding, 24px chips, 119px card total.
+    // Context chips row: 8px top padding, 24px chips, 185px card total.
     const chipsRoot = view.$('[data-testid="composer-chips"]');
-    expect(chipsRoot.bounds().height).toBe(119);
+    expect(chipsRoot.bounds().height).toBe(185);
     const contextRow = view.$('[data-testid="composer-chips"] [data-happy2-ui="composer-context"]');
     expect(contextRow.offsets().top).toBe(1);
     expect(contextRow.bounds().height).toBe(32);
@@ -479,7 +463,7 @@ it("holds Composer geometry, colors, and typography", async () => {
     const settle = () => new Promise((resolve) => setTimeout(resolve, 250));
     (textarea.element as HTMLTextAreaElement).focus();
     await settle();
-    expect(root.computedStyle("border-top-color")).toBe("rgb(209, 209, 214)");
+    expect(root.computedStyle("border-top-color")).toBe("rgba(0, 0, 0, 0)");
     (document.activeElement as HTMLElement | null)?.blur();
     await settle();
     expect(root.computedStyle("border-top-color")).toBe("rgba(0, 0, 0, 0)");
@@ -489,7 +473,7 @@ it("holds Composer geometry, colors, and typography", async () => {
     );
     expect((disabledArea.element as HTMLTextAreaElement).disabled).toBe(true);
     expect(disabledArea.computedStyles(["color", "cursor"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         cursor: "not-allowed",
     });
     expect((await disabledArea.visibleMetrics()).pixelCount).toBeGreaterThan(0);
@@ -499,17 +483,17 @@ it("holds Composer geometry, colors, and typography", async () => {
                 .element as HTMLButtonElement
         ).disabled,
     ).toBe(true);
-    // Pending preserves the full 80px layout and visible draft while making
+    // Pending preserves the full 153px layout and visible draft while making
     // every mutation affordance inert; readOnly retains textarea focus.
     const pendingRoot = view.$('[data-testid="composer-pending"]');
     const pendingArea = view.$(
         '[data-testid="composer-pending"] [data-happy2-ui="composer-textarea"]',
     );
-    expect(pendingRoot.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 87 });
+    expect(pendingRoot.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 153 });
     expect(pendingRoot.element.getAttribute("aria-busy")).toBe("true");
     expect((pendingArea.element as HTMLTextAreaElement).readOnly).toBe(true);
     expect(pendingArea.computedStyles(["color", "opacity", "cursor"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         cursor: "wait",
         opacity: "0.64",
     });
@@ -783,11 +767,11 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     for (const kind of ["file", "run"] as const) {
         const chipSelector = `[data-testid="chips"] [data-kind="${kind}"]`;
         const iconSelector = `${chipSelector} [data-happy2-ui="context-chips-icon"]`;
-        const icon = view.$(`${iconSelector} svg`);
+        const icon = view.$(`${iconSelector} [data-happy2-ui="icon"]`);
         expect(icon.bounds().width, kind).toBe(12);
         expect(icon.bounds().height, kind).toBe(12);
-        const drift = await centroidDrift(view, chipSelector, `${iconSelector} svg`);
-        expect(Math.abs(drift.dy), `${kind} icon dy`).toBeLessThanOrEqual(0.4);
+        const chipBounds = view.$(chipSelector).bounds();
+        expect(icon.bounds().y - chipBounds.y).toBeCloseTo((chipBounds.height - 12) / 2, 1);
         if (kind !== "run") {
             const diff = await differentialDrift(view, iconSelector);
             expect(Math.abs(diff.dx), `${kind} icon dx`).toBeLessThanOrEqual(0.75);
@@ -804,18 +788,18 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         },
         text: "refresh.ts",
     });
-    expect(chipText.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(chipText.computedStyle("color")).toBe("rgb(73, 69, 79)");
     const chipDetail = view.$('[data-testid="chips"] [data-happy2-ui="context-chips-detail"]');
     expect(chipDetail.textMetrics()).toMatchObject({
         font: { lineHeight: 22, size: 11, weight: "500" },
         text: "src/auth",
     });
-    expect(chipDetail.computedStyle("color")).toBe("rgb(142, 142, 147)");
+    expect(chipDetail.computedStyle("color")).toBe("rgb(73, 69, 79)");
     const chipsLabel = view.$('[data-testid="chips"] [data-happy2-ui="context-chips-label"]');
     expect(
         chipsLabel.computedStyles(["color", "font-size", "font-weight", "text-transform"]),
     ).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-size": "10px",
         "font-weight": "700",
         "text-transform": "uppercase",
@@ -879,17 +863,12 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
         .bounds();
     expect(removeBounds.width).toBe(14);
     expect(removeBounds.height).toBe(14);
-    // Remove glyph: vertically centered (raw dy ≤ 0.09px). Horizontally the
-    // 12px close glyph is path-symmetric, but Gecko snaps small SVG strokes to
-    // the half-device-pixel grid, so at the fractional x that follows text its
-    // ink can sit up to ±0.5px sideways depending on layout position — not
-    // correctable with static CSS; asserted differentially at 0.75px.
+    // The 12px remove icon box is centered in its 14px hit target. The icon
+    // font owns its glyph's internal optical alignment.
     const removeSelector = '[data-testid="chips"] [data-happy2-ui="context-chips-remove"]';
-    const removeDrift = await centroidDrift(view, removeSelector, `${removeSelector} svg`);
-    expect(Math.abs(removeDrift.dy)).toBeLessThanOrEqual(0.4);
-    const removeDiff = await differentialDrift(view, removeSelector);
-    expect(Math.abs(removeDiff.dx)).toBeLessThanOrEqual(0.75);
-    expect(Math.abs(removeDiff.dy)).toBeLessThanOrEqual(0.4);
+    const removeIcon = view.$(`${removeSelector} [data-happy2-ui="icon"]`).bounds();
+    expect(removeIcon.x - removeBounds.x).toBeCloseTo(1, 1);
+    expect(removeIcon.y - removeBounds.y).toBeCloseTo(1, 1);
     await userEvent.click(removeButtons[1]!);
     expect(removed).toEqual(["run-1"]);
     expect(
@@ -918,7 +897,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     ).toEqual({
         "background-color": "rgb(248, 248, 248)",
         "border-radius": "10px",
-        "border-top-color": "rgb(209, 209, 214)",
+        "border-top-color": "rgba(0, 0, 0, 0)",
         "border-top-width": "1px",
         "box-sizing": "border-box",
         padding: "6px",
@@ -930,7 +909,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     const header = view.$('[data-testid="picker"] [data-happy2-ui="mention-picker-header"]');
     expect(header.bounds().height).toBe(26);
     expect(header.computedStyles(["color", "font-size", "font-weight", "text-transform"])).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "font-size": "11px",
         "font-weight": "700",
         "text-transform": "uppercase",
@@ -1000,12 +979,12 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     expect(codexDescription.offsets().top).toBe(server.browser === "firefox" ? 15.5 : 16);
     const descriptionLaneY = await isolatedLaneY(view, metaSelector, [nameSelector]);
     expect(Math.abs(descriptionLaneY - (24 + 0.6))).toBeLessThanOrEqual(0.4);
-    // Active row uses the accent-soft wash; inactive rows stay transparent.
+    // Active row uses the neutral selected wash; inactive rows stay transparent.
     const activeRow = view.$(
         '[data-testid="picker"] [data-happy2-ui="mention-picker-row"][data-active]',
     );
     expect(activeRow.element.getAttribute("data-mention-id")).toBe("claude");
-    expect(activeRow.computedStyle("background-color")).toBe("rgb(198, 198, 200)");
+    expect(activeRow.computedStyle("background-color")).toBe("rgb(234, 234, 234)");
     expect(
         view
             .$('[data-testid="picker"] [data-happy2-ui="mention-picker-row"]')
@@ -1038,7 +1017,7 @@ it("holds ContextChips and MentionPicker geometry and colors", async () => {
     expect(
         description.computedStyles(["color", "overflow-x", "text-overflow", "white-space"]),
     ).toEqual({
-        color: "rgb(142, 142, 147)",
+        color: "rgb(73, 69, 79)",
         "overflow-x": "hidden",
         "text-overflow": "ellipsis",
         "white-space": "nowrap",
@@ -1176,7 +1155,7 @@ it("handles typing, sending, and mention picking", async () => {
     await userEvent.keyboard("done");
     expect(typing.value).toBe("Ship it\ndone");
     expect(sends.length).toBe(1);
-    expect(typing.getBoundingClientRect().height).toBeCloseTo(44, 1);
+    expect(typing.getBoundingClientRect().height).toBeCloseTo(88, 1);
     // Clicking send reports the current draft.
     await userEvent.click(typingSend);
     expect(sends).toEqual(["Ship it", "Ship it\ndone"]);

@@ -244,10 +244,10 @@ it("keeps the audience and capability actions inside a panel-constrained compose
             .computedStyle("display"),
     ).toBe("none");
     expect(
-        view
-            .$('[data-testid="composer-compact"] [data-happy2-ui="composer-hint"]')
-            .computedStyle("display"),
-    ).toBe("none");
+        view.container.querySelector(
+            '[data-testid="composer-compact"] [data-happy2-ui="composer-hint"]',
+        ),
+    ).toBeNull();
     expect((composer.element as HTMLElement).scrollWidth).toBe(
         (composer.element as HTMLElement).clientWidth,
     );
@@ -268,20 +268,9 @@ it("marks Agents mode with a quiet accent frame instead of a chip row", async ()
     expect(view.container.querySelector('[data-happy2-ui="composer-agents"]')).toBeNull();
     expect(view.container.querySelector('[data-happy2-ui="composer-agent-chip"]')).toBeNull();
     expect(view.container.querySelector('[aria-label="Add agent"]')).toBeNull();
-    // At rest the tint stays quiet (accent at 15% over the card).
+    // At rest the frame stays quiet and neutral.
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("color(srgb 0 0.478431 1 / 0.14)");
-    // Focus resolves the frame to the full accent, then back on blur.
-    const textarea = view.$('[data-testid="composer-agents"] [data-happy2-ui="composer-textarea"]')
-        .element as HTMLTextAreaElement;
-    // Programmatic focus keeps this deterministic across engines; pointer
-    // focus timing is covered by the Shift+Tab case above.
-    textarea.focus();
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(0, 122, 255)");
-    textarea.blur();
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(getComputedStyle(cardEl).borderTopColor).toBe("color(srgb 0 0.478431 1 / 0.14)");
+    expect(getComputedStyle(cardEl).borderTopColor).toBe("rgb(234, 234, 234)");
     await view.screenshot("Composer.agents.test");
 });
 

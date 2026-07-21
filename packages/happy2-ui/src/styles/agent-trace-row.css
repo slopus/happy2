@@ -82,6 +82,35 @@
     color: var(--text-link);
 }
 
+/* A trace link in a message header follows the timestamp's quiet mono style;
+ * the surrounding Message metadata controls its hover visibility. */
+.happy2-agent-trace-row[data-variant="meta"] {
+    width: auto;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-family: var(--happy2-font-mono);
+}
+
+.happy2-agent-trace-row[data-variant="meta"] .happy2-agent-trace-row__dot,
+.happy2-agent-trace-row[data-variant="meta"] .happy2-agent-trace-row__icon,
+.happy2-agent-trace-row[data-variant="meta"] .happy2-agent-trace-row__detail,
+.happy2-agent-trace-row[data-variant="meta"] .happy2-agent-trace-row__count {
+    display: none;
+}
+
+.happy2-agent-trace-row[data-variant="meta"] .happy2-agent-trace-row__title,
+.happy2-agent-trace-row[data-variant="meta"][data-status="complete"] .happy2-agent-trace-row__title,
+.happy2-agent-trace-row[data-variant="meta"][data-status="failed"] .happy2-agent-trace-row__title {
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+}
+
 .happy2-agent-trace-row__detail {
     /* Zero flex basis: the detail absorbs only the leftover space, so the
      * title keeps its natural width and the detail truncates first. */

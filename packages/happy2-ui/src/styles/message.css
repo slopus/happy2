@@ -24,7 +24,7 @@
     display: flex;
     align-items: flex-start;
     column-gap: 12px;
-    padding: 6px 20px;
+    padding: 16px 20px;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     color: var(--text);
@@ -35,8 +35,8 @@
    vertical padding than a fresh author group, so a run of follow-ups reads as
    one block and the single line of body text stays centered in its hover row. */
 .happy2-message[data-grouped] {
-    padding-top: 2px;
-    padding-bottom: 2px;
+    padding-top: 4px;
+    padding-bottom: 4px;
 }
 
 /* Sending changes paint only: author, avatar, body, attachments, and reactions
@@ -65,6 +65,40 @@
     justify-content: flex-end;
     width: 36px;
     min-width: 0;
+}
+
+/* Incoming identities hang in the narrow left gutter. The content itself never
+ * pays for an avatar column, so names and message text stay on the centered
+ * composer measure. */
+.happy2-message:not([data-own]) .happy2-message__gutter {
+    position: absolute;
+    top: 18px;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 16px;
+    height: 16px;
+}
+
+.happy2-message[data-grouped]:not([data-own]) .happy2-message__gutter {
+    top: 6px;
+}
+
+/* Agent response measure begins at the composer's 16px text inset. Its right
+ * edge holds an extra 8px of air so long prose does not crowd controls. */
+.happy2-message[data-agent] {
+    padding-right: 44px;
+    padding-left: 30px;
+}
+
+/* Incoming human bubbles include 12px horizontal interior padding. Pull the
+ * row outward by that amount so the actual text—not merely the bubble edge—
+ * aligns with agent text and the composer. The identity row restores that
+ * inset independently, so avatar, author, and body text share one start line. */
+.happy2-message:not([data-agent]):not([data-own]) {
+    padding-right: 32px;
+    padding-left: 18px;
 }
 
 /*
@@ -122,6 +156,14 @@
     margin-bottom: 3px;
 }
 
+.happy2-message:not([data-own]) .happy2-message__meta {
+    align-items: center;
+}
+
+.happy2-message:not([data-agent]):not([data-own]) .happy2-message__meta {
+    margin-left: 12px;
+}
+
 .happy2-message__meta > * + *::before {
     content: "·";
     margin: 0 6px;
@@ -139,15 +181,19 @@
     white-space: nowrap;
 }
 
-.happy2-message__tag {
-    font-family: var(--happy2-font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 20px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-    white-space: nowrap;
+/* The dangling mark is tight to its hit target; the gutter supplies all
+ * surrounding air, keeping the avatar clear of the name and bubble. */
+.happy2-message__avatar-dangling {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+}
+
+.happy2-message__avatar-dangling .happy2-avatar {
+    width: 12px;
+    height: 12px;
 }
 
 /* Clickable identity (opt-in via `onAuthorSelect`): the avatar and the author
@@ -170,7 +216,13 @@
 }
 
 .happy2-message[data-agent] .happy2-message__identity {
-    border-radius: 9px;
+    border-radius: 6px;
+}
+
+/* The compact clickable lane is transparent and not a visual container; only
+ * the 16px avatar paints a rounded corner. */
+.happy2-message .happy2-message__identity.happy2-message__avatar-dangling {
+    border-radius: 0;
 }
 
 .happy2-message__identity:hover {
@@ -208,22 +260,33 @@
     line-height: 16px;
     color: var(--text-secondary);
     white-space: nowrap;
+    /* The mono glyphs' ascent is optically high beside the UI author face. */
+    position: relative;
+    top: 1px;
+    opacity: 0;
+    transition: opacity 100ms ease;
 }
 
-.happy2-message__audience {
-    display: inline-flex;
+.happy2-message__meta-accessory {
+    display: flex;
     align-items: center;
     height: 16px;
-    padding: 0 6px;
-    border-radius: var(--happy2-radius-pill);
-    background: color-mix(in srgb, var(--radio-active) 14%, transparent);
-    color: var(--radio-active);
-    font-family: var(--happy2-font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 16px;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
+    position: relative;
+    top: 1px;
+    opacity: 0;
+    transition: opacity 100ms ease;
+}
+
+.happy2-message:hover .happy2-message__time,
+.happy2-message:focus-within .happy2-message__time,
+.happy2-message[data-actions-visible] .happy2-message__time {
+    opacity: 1;
+}
+
+.happy2-message:hover .happy2-message__meta-accessory,
+.happy2-message:focus-within .happy2-message__meta-accessory,
+.happy2-message[data-actions-visible] .happy2-message__meta-accessory {
+    opacity: 1;
 }
 
 .happy2-message__body {

@@ -137,11 +137,11 @@ export function ChatView(props: ChatViewProps) {
                     chatId: nextChatId,
                     conversationKind: nextConversationKind,
                     chat,
-                    // Channels route message audience; direct messages keep
-                    // the server's own default (agent DMs stay agent-addressed).
+                    // Channels expose the same agent-first routing control as
+                    // direct conversations; people remains an explicit choice.
                     composer: state.composer(
                         nextChatId,
-                        nextConversationKind === "channel" ? { audience: "people" } : {},
+                        nextConversationKind === "channel" ? { audience: "agents" } : {},
                     ),
                     // One retained chat-contribution surface fans out to the
                     // header, composer, and every message row.

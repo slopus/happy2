@@ -4,6 +4,7 @@ import "./styles.css";
 import { expect, it } from "vitest";
 import { FileAttachment } from "./FileAttachment";
 import { DayDivider, Message, MessageList, SystemNotice } from "./Message";
+import { happyLogoUrl } from "./assets";
 import { assertParallelRoundedCorners, createRenderer, type RenderedElement } from "./testing";
 /* Fixtures render on the app surface color so screenshots are representative. */
 function stage(testid: string, children: ReactNode) {
@@ -59,7 +60,7 @@ async function glyphVsBox(part: () => RenderedElement<Element>) {
         dy: glyph.center.y - bounds.height / 2,
     };
 }
-it("shows the audience pill in the meta row without shifting author or time vertically", async () => {
+it("does not render audience routing labels in the message header", async () => {
     const view = createRenderer()
         .render(
             () =>
@@ -107,20 +108,6 @@ it("shows the audience pill in the meta row without shifting author or time vert
             { width: 620, height: 80, padding: 16 },
         );
     await view.ready();
-    const audience = view.$('[data-testid="message-audience"] [data-happy2-ui="message-audience"]');
-    expect(audience.element.textContent).toBe("To agents · Happy + 1");
-    expect(audience.bounds().height).toBe(16);
-    expect(
-        audience.computedStyles(["font-size", "font-weight", "border-radius", "color"]),
-    ).toMatchObject({
-        "font-size": "10px",
-        "font-weight": "700",
-        "border-radius": "999px",
-        color: "rgb(0, 122, 255)",
-    });
-    const ink = await audience.visibleMetrics();
-    expect(ink.pixelCount).toBeGreaterThan(0);
-    // The pill sits in the meta row between the author and the timestamp.
     const author = view.$('[data-testid="message-audience"] [data-happy2-ui="message-author"]');
     const time = view.$('[data-testid="message-audience"] [data-happy2-ui="message-time"]');
     const plainAuthor = view.$('[data-testid="message-plain"] [data-happy2-ui="message-author"]');
@@ -136,19 +123,13 @@ it("shows the audience pill in the meta row without shifting author or time vert
         width: plainTime.bounds().width,
         height: plainTime.bounds().height,
     });
-    /* Meta items now abut: the "·" separator renders inside the following
-       item's box via `::before` margins, so each box starts exactly at the
-       previous item's right edge (allow float rounding). */
-    expect(audience.bounds().x).toBeGreaterThanOrEqual(
+    expect(time.bounds().x).toBeGreaterThanOrEqual(
         author.bounds().x + author.bounds().width - 0.01,
     );
-    expect(time.bounds().x).toBeGreaterThanOrEqual(
-        audience.bounds().x + audience.bounds().width - 0.01,
-    );
-    // The label never renders without a meta row or when absent.
+    // Routing labels never render, whether supplied or not.
     expect(
         view.container.querySelector(
-            '[data-testid="message-plain"] [data-happy2-ui="message-audience"]',
+            '[data-testid="message-audience"] [data-happy2-ui="message-audience"]',
         ),
     ).toBeNull();
     expect(
@@ -278,15 +259,15 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
         "column-gap": "12px",
         display: "flex",
         "padding-bottom": "6px",
-        "padding-left": "20px",
-        "padding-right": "20px",
+        "padding-left": "24px",
+        "padding-right": "32px",
         "padding-top": "6px",
     });
     const avatar = view.$('[data-testid="m1"] [data-happy2-ui="avatar"]');
-    expect(avatar.bounds()).toEqual({ x: 20, y: 6, width: 36, height: 36 });
+    expect(avatar.bounds()).toEqual({ x: 8, y: 8, width: 16, height: 16 });
     const content = view.$('[data-testid="m1"] [data-happy2-ui="message-content"]');
-    expect(content.bounds().x).toBe(68); /* 20 pad + 36 avatar + 12 gap */
-    expect(content.bounds().width).toBe(560 - 68 - 20);
+    expect(content.bounds().x).toBe(24);
+    expect(content.bounds().width).toBe(560 - 24 - 32);
     expect(content.computedStyles(["display", "flex-direction", "flex-grow"])).toEqual({
         display: "flex",
         "flex-direction": "column",
@@ -337,37 +318,28 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
         "font-weight": "500",
     });
     expect(time.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
-    /* Human message has no AGENT tag; agent message shows the muted mono one
-       (the blue Badge was replaced by the plain `.happy2-message__tag`). */
+    /* Messages do not carry an AGENT label; the compact identity avatar is the
+       only agent marker. */
     expect(view.container.querySelector('[data-testid="m1"] [data-happy2-ui="badge"]')).toBeNull();
     expect(
         view.container.querySelector('[data-testid="m1"] [data-happy2-ui="message-tag"]'),
     ).toBeNull();
     expect(view.container.querySelector('[data-testid="m2"] [data-happy2-ui="badge"]')).toBeNull();
-    const tag = view.$('[data-testid="m2"] [data-happy2-ui="message-tag"]');
-    expect(tag.element.textContent).toBe("AGENT");
-    expect(tag.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
-    expect(tag.computedStyles(["color", "font-size", "font-weight", "text-transform"])).toEqual({
-        color: "rgb(73, 69, 79)",
-        "font-size": "11px",
-        "font-weight": "600",
-        "text-transform": "uppercase",
-    });
-    /* The tag rides the 20px baseline meta row right after the author; its own
-       box begins at the author's right edge (the "·" separator paints inside
-       the tag's box via `::before` margins). */
+    expect(
+        view.container.querySelector('[data-testid="m2"] [data-happy2-ui="message-tag"]'),
+    ).toBeNull();
     const m2Meta = view.$('[data-testid="m2"] [data-happy2-ui="message-meta"]');
     expect(m2Meta.height()).toBe(20);
     const m2Author = view.$('[data-testid="m2"] [data-happy2-ui="message-author"]');
-    expect(tag.bounds().x).toBeGreaterThanOrEqual(
-        m2Author.bounds().x + m2Author.bounds().width - 0.01,
-    );
-    /* Agent avatar is the rounded-square type. */
-    expect(
-        view.$('[data-testid="m2"] [data-happy2-ui="avatar"]').element.getAttribute("data-type"),
-    ).toBe("agent");
+    /* Incoming identities hang in the left gutter, leaving the content column free. */
+    const m2Avatar = view.$('[data-testid="m2"] [data-happy2-ui="avatar"]');
+    expect(m2Avatar.element.getAttribute("data-type")).toBe("agent");
+    expect(m2Avatar.bounds()).toEqual({ x: 8, y: 8, width: 16, height: 16 });
+    expect(m2Author.bounds().x - (m2Avatar.bounds().x + m2Avatar.bounds().width)).toBe(12);
+    expect(view.$('[data-testid="m2"] [data-happy2-ui="message-content"]').bounds().x).toBe(36);
     /* ---- Body + segments ------------------------------------------------ */
     const body = view.$('[data-testid="m1"] [data-happy2-ui="message-body"]');
+    expect(body.bounds().x).toBe(24);
     expect(body.computedStyles(["color", "font-size", "line-height"])).toEqual({
         color: "rgb(0, 0, 0)",
         "font-size": "15px",
@@ -448,7 +420,7 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
         color: "rgb(73, 69, 79)",
     });
     const addIcon = await view
-        .$('[data-testid="m1"] [data-happy2-ui="message-react-add"] svg')
+        .$('[data-testid="m1"] [data-happy2-ui="message-react-add"] [data-happy2-ui="icon"]')
         .visibleMetrics();
     expect(addIcon.pixelCount).toBeGreaterThan(0);
     (chipA.element as HTMLButtonElement).click();
@@ -487,16 +459,11 @@ it("holds Message anatomy, segment styling, and affordances", async () => {
     expect(
         view.container.querySelector('[data-testid="m3"] [data-happy2-ui="message-meta"]'),
     ).toBeNull();
-    const gutterTime = view.$('[data-testid="m3"] [data-happy2-ui="message-gutter-time"]');
-    expect(gutterTime.computedStyles(["color", "font-size", "line-height"])).toEqual({
-        color: "rgb(73, 69, 79)",
-        "font-size": "11px",
-        "line-height": "22px",
-    });
-    expect(gutterTime.textMetrics().font.family).toBe("happy2 Mono, ui-monospace, monospace");
-    expect((await gutterTime.visibleMetrics()).pixelCount).toBeGreaterThan(0);
-    /* Compact body stays on the same 68px content column, segments intact. */
-    expect(view.$('[data-testid="m3"] [data-happy2-ui="message-body"]').bounds().x).toBe(68);
+    expect(
+        view.container.querySelector('[data-testid="m3"] [data-happy2-ui="message-gutter-time"]'),
+    ).toBeNull();
+    /* Compact body stays on the same incoming content measure, segments intact. */
+    expect(view.$('[data-testid="m3"] [data-happy2-ui="message-body"]').bounds().x).toBe(24);
     expect(
         (await view.$('[data-testid="m3"] [data-happy2-ui="message-code"]').visibleMetrics())
             .pixelCount,
@@ -558,7 +525,7 @@ it("makes the avatar and author name a profile affordance without shifting geome
         { width: 560, height: 40 },
     );
     await view.ready();
-    /* ---- Avatar becomes a button but keeps the exact gutter geometry ------ */
+    /* ---- Avatar becomes a button but keeps the compact inline geometry ----- */
     const identity = view.$('[data-testid="id-human"] [data-happy2-ui="message-identity"]');
     expect(identity.element.tagName).toBe("BUTTON");
     expect(identity.element.getAttribute("type")).toBe("button");
@@ -571,13 +538,12 @@ it("makes the avatar and author name a profile affordance without shifting geome
         "padding-top": "0px",
         "background-color": "rgba(0, 0, 0, 0)",
     });
-    /* Identical to the non-interactive anatomy fixture: 20px pad + 36px avatar. */
+    /* Identical to the non-interactive incoming anatomy fixture. */
     const avatar = view.$('[data-testid="id-human"] [data-happy2-ui="avatar"]');
-    expect(avatar.bounds()).toEqual({ x: 20, y: 6, width: 36, height: 36 });
-    /* The button wraps the avatar tightly — no extra hit-area or offset. */
-    expect(identity.bounds()).toEqual({ x: 20, y: 6, width: 36, height: 36 });
+    expect(avatar.bounds()).toEqual({ x: 8, y: 8, width: 16, height: 16 });
+    expect(identity.bounds()).toEqual({ x: 8, y: 8, width: 16, height: 16 });
     const content = view.$('[data-testid="id-human"] [data-happy2-ui="message-content"]');
-    expect(content.bounds().x).toBe(68);
+    expect(content.bounds().x).toBe(24);
     /* ---- Author name becomes a button with unchanged typography ----------- */
     const author = view.$('[data-testid="id-human"] [data-happy2-ui="message-author"]');
     expect(author.element.tagName).toBe("BUTTON");
@@ -598,16 +564,23 @@ it("makes the avatar and author name a profile affordance without shifting geome
     (identity.element as HTMLButtonElement).click();
     (author.element as HTMLButtonElement).click();
     expect(humanOpens).toBe(2);
-    /* ---- Agent identity: the AGENT tag still trails the name -------------- */
+    /* ---- Agent identity stays compact beside the name ---------------------- */
     const agentAuthor = view.$('[data-testid="id-agent"] [data-happy2-ui="message-author"]');
     expect(agentAuthor.element.tagName).toBe("BUTTON");
-    const agentTag = view.$('[data-testid="id-agent"] [data-happy2-ui="message-tag"]');
-    /* The tag's box begins at the author's right edge — the "·" separator and
-       its 6px margins paint inside the tag's own box via `::before`. */
-    expect(agentTag.bounds().x).toBeGreaterThanOrEqual(
-        agentAuthor.bounds().x + agentAuthor.bounds().width - 0.01,
-    );
+    expect(
+        view.container.querySelector('[data-testid="id-agent"] [data-happy2-ui="message-tag"]'),
+    ).toBeNull();
     const agentIdentity = view.$('[data-testid="id-agent"] [data-happy2-ui="message-identity"]');
+    expect(agentIdentity.bounds()).toEqual({ x: 8, y: 8, width: 16, height: 16 });
+    expect(view.$('[data-testid="id-agent"] [data-happy2-ui="avatar"]').bounds()).toEqual({
+        x: 8,
+        y: 8,
+        width: 16,
+        height: 16,
+    });
+    expect(view.$('[data-testid="id-agent"] [data-happy2-ui="message-content"]').bounds().x).toBe(
+        36,
+    );
     (agentIdentity.element as HTMLButtonElement).click();
     (agentAuthor.element as HTMLButtonElement).click();
     expect(agentOpens).toEqual(["agent", "agent"]);
@@ -617,6 +590,26 @@ it("makes the avatar and author name a profile affordance without shifting geome
     expect(groupedRoot.element.querySelector('[data-happy2-ui="message-author"]')).toBeNull();
     expect(groupedRoot.element.querySelector('[data-happy2-ui="avatar"]')).toBeNull();
     await view.screenshot("Message.identity.test");
+});
+it("uses the Happy star as Happy’s compact inline agent avatar", async () => {
+    const view = createRenderer().render(
+        () =>
+            stage(
+                "happy-agent",
+                <Message agent author="Happy" body="On it." initials="H" time="10:43" />,
+            ),
+        { width: 560, height: 80 },
+    );
+    await view.ready();
+    const avatar = view.$('[data-testid="happy-agent"] [data-happy2-ui="avatar"]');
+    expect(avatar.bounds()).toEqual({ x: 8, y: 8, width: 16, height: 16 });
+    expect(avatar.element.getAttribute("data-size")).toBe("xs");
+    expect(avatar.computedStyle("background-color")).toBe("rgba(0, 0, 0, 0)");
+    const image = view.$('[data-testid="happy-agent"] [data-happy2-ui="avatar-image"]');
+    expect((image.element as HTMLImageElement).src).toBe(happyLogoUrl);
+    expect(view.$('[data-testid="happy-agent"] [data-happy2-ui="message-author"]').bounds().x).toBe(
+        36,
+    );
 });
 it("keeps file attachments intrinsic inside the full-width attachment slot", async () => {
     const view = createRenderer();
@@ -721,7 +714,7 @@ it("exposes real hover actions and keeps grouped sending geometry stable", async
         ),
     ).toBeNull();
     const toolbar = view.$('[data-testid="actions"] [data-happy2-ui="message-actions"]');
-    expect(toolbar.bounds()).toEqual({ x: 450, y: 4, width: 90, height: 34 });
+    expect(toolbar.bounds()).toEqual({ x: 478, y: 4, width: 62, height: 34 });
     expect(
         toolbar.computedStyles([
             "background-color",
@@ -847,6 +840,7 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
             stage(
                 "o1",
                 <Message
+                    actionsVisible
                     agent
                     author="Maya Johnson"
                     body={[
@@ -927,15 +921,6 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
     /* The included dot ink drags the centroid off the digit center; measured
        0.0 (Blink) / 1.16 (Gecko) / 1.14 (WebKit) with the dot in the box. */
     expect(Math.abs(timeRowY - metaRect.height / 2), "time optical y").toBeLessThanOrEqual(1.5);
-    /* The muted mono AGENT tag rides the same 20px baseline row as the author
-       (no pill box any more — the blue Badge was removed). */
-    const tag = view.$('[data-testid="o1"] [data-happy2-ui="message-tag"]');
-    const tagInk = await tag.visibleMetrics();
-    expect(tagInk.pixelCount, "tag pixels").toBeGreaterThan(0);
-    const tagRect = tag.element.getBoundingClientRect();
-    /* The ui-font "·" `::before` inflates the inline box asymmetrically per
-       engine; measured offset 0.0 (Blink) / 1.0 (Gecko) / 0.94 (WebKit). */
-    expect(Math.abs(tagRect.y - metaRect.y)).toBeLessThanOrEqual(1.5);
     /* ---- Inline pills: glyph ink centered in the pill background ---------- */
     /* "@Claude" / "MOB-217" ink is horizontally content-weighted (the dense @
        leads), so the pills assert the vertical centroid only. Measured dy:
@@ -948,24 +933,12 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
         view.$('[data-testid="o1"] [data-happy2-ui="message-code"]'),
     );
     expect(Math.abs(codeDrift.dy), "code glyph optical y").toBeLessThanOrEqual(0.75);
-    /* ---- Compact gutter time sits on the first body baseline -------------- */
-    const gutterTime = view.$('[data-testid="o2"] [data-happy2-ui="message-gutter-time"]');
-    const gutterInk = await gutterTime.visibleMetrics();
-    expect(gutterInk.pixelCount, "gutter time pixels").toBeGreaterThan(0);
+    /* ---- Compact agent messages keep the same left content measure -------- */
+    expect(
+        view.container.querySelector('[data-testid="o2"] [data-happy2-ui="message-gutter-time"]'),
+    ).toBeNull();
     const compactBody = view.$('[data-testid="o2"] [data-happy2-ui="message-body"]');
-    const bodyInk = await compactBody.visibleMetrics();
-    expect(bodyInk.pixelCount, "compact body pixels").toBeGreaterThan(0);
-    /* Both inks are descender-free, so ink bottoms are baseline proxies.
-       The agent Markdown body now rides a 16px/24px line while the gutter time
-       keeps its 22px line + 1px drop tuned for the old 15px body; measured
-       residual: 1.00 (Blink) / 1.50 (Gecko) / 1.50 (WebKit). */
-    const gutterBaseline =
-        gutterTime.element.getBoundingClientRect().y + gutterInk.bounds.y + gutterInk.bounds.height;
-    const bodyBaseline =
-        compactBody.element.getBoundingClientRect().y + bodyInk.bounds.y + bodyInk.bounds.height;
-    expect(Math.abs(gutterBaseline - bodyBaseline), "gutter time baseline").toBeLessThanOrEqual(
-        1.75,
-    );
+    expect(compactBody.bounds().x).toBe(36);
     /* ---- Plain DayDivider label -------------------------------------------- */
     /* "TODAY" is glyph-symmetric enough for both axes. */
     const todayDrift = await glyphVsBox(() =>
@@ -1005,7 +978,9 @@ it("centers painted ink optically in every Message text-in-a-box part", async ()
     ).toBeLessThanOrEqual(1);
     /* ---- Ghost add-reaction button: smile glyph centered ------------------- */
     const addButton = view.$('[data-testid="o3"] [data-happy2-ui="message-react-add"]');
-    const addIconEl = view.$('[data-testid="o3"] [data-happy2-ui="message-react-add"] svg');
+    const addIconEl = view.$(
+        '[data-testid="o3"] [data-happy2-ui="message-react-add"] [data-happy2-ui="icon"]',
+    );
     const iconInk = await addIconEl.visibleMetrics();
     expect(iconInk.pixelCount, "add icon pixels").toBeGreaterThan(0);
     const buttonRect = addButton.element.getBoundingClientRect();
@@ -1281,7 +1256,7 @@ it("follows the newest content in MessageList unless the reader scrolled up", as
     await nextFrame();
     expect(atBottom(), "follows again after returning to bottom").toBe(true);
 });
-it("reveals the grouped gutter time on hover, tightens grouped rows, and lays out media without a text body", async () => {
+it("keeps grouped rows aligned to incoming messages and lays out media without a text body", async () => {
     const view = createRenderer();
     const photo = (w: number, h: number) =>
         `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'><rect width='100%' height='100%' fill='rgb(139,124,247)'/></svg>`)}`;
@@ -1344,25 +1319,25 @@ it("reveals the grouped gutter time on hover, tightens grouped rows, and lays ou
         { width: 480, height: 360 },
     );
     await view.ready();
-    /* Grouped gutter time: hidden by default, revealed on hover / forced actions. */
-    const hidden = view.$('[data-testid="g-hidden"] [data-happy2-ui="message-gutter-time"]');
-    expect(hidden.computedStyle("opacity"), "grouped time hidden by default").toBe("0");
-    const shown = view.$('[data-testid="g-shown"] [data-happy2-ui="message-gutter-time"]');
-    expect(shown.computedStyle("opacity"), "grouped time revealed").toBe("1");
-    /* The compact gutter time ("12:55", not the wide "12:55 AM") fits the 36px
-       gutter and keeps the full 12px gutter gap to the body — never touching it. */
-    expect(shown.element.textContent).toBe("12:55");
-    expect(shown.bounds().width, "compact gutter time fits the gutter").toBeLessThanOrEqual(40);
+    /* Grouped incoming text keeps the same composer-aligned measure and does
+       not reserve a second, visually disconnected timestamp gutter. */
     const shownRoot = view.$('[data-testid="g-shown"] [data-happy2-ui="message"]');
     const shownBody = view.$('[data-testid="g-shown"] [data-happy2-ui="message-body"]');
-    const timeRight = shown.bounds().x + shown.bounds().width;
-    expect(shownBody.bounds().x - timeRight, "gutter time → body gap").toBeGreaterThanOrEqual(8);
-    expect(shown.bounds().x, "gutter time stays within the row").toBeGreaterThanOrEqual(
-        shownRoot.bounds().x,
-    );
-    /* First message: inline time, always visible; no separate gutter time. */
+    expect(
+        view.container.querySelector(
+            '[data-testid="g-hidden"] [data-happy2-ui="message-gutter-time"]',
+        ),
+    ).toBeNull();
+    expect(
+        view.container.querySelector(
+            '[data-testid="g-shown"] [data-happy2-ui="message-gutter-time"]',
+        ),
+    ).toBeNull();
+    expect(shownBody.bounds().x).toBe(24);
+    expect(shownRoot.computedStyle("padding-left")).toBe("24px");
+    /* First-message time reserves its meta geometry but paints only on hover. */
     const firstTime = view.$('[data-testid="first"] [data-happy2-ui="message-time"]');
-    expect(firstTime.computedStyle("opacity")).toBe("1");
+    expect(firstTime.computedStyle("opacity")).toBe("0");
     expect(
         view.container.querySelector(
             '[data-testid="first"] [data-happy2-ui="message-gutter-time"]',
@@ -1795,7 +1770,9 @@ it("centers SystemNotice service lines and lifts @user / #channel refs", async (
     /* ---- Leading glyph: faint, 14px, painted -------------------------------- */
     const iconSlot = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"]');
     expect(iconSlot.computedStyle("color")).toBe("rgb(153, 153, 153)");
-    const iconSvg = view.$('[data-testid="n1"] [data-happy2-ui="system-notice-icon"] svg');
+    const iconSvg = view.$(
+        '[data-testid="n1"] [data-happy2-ui="system-notice-icon"] [data-happy2-ui="icon"]',
+    );
     const iconBounds = iconSvg.bounds();
     expect(iconBounds.width).toBe(14);
     expect(iconBounds.height).toBe(14);

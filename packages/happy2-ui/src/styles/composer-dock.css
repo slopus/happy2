@@ -19,5 +19,5 @@
     width: 100%;
     max-width: var(--happy2-chat-measure);
     margin: 0 auto;
-    padding: 12px 20px 16px;
+    padding: 12px 20px 16px 12px;
 }

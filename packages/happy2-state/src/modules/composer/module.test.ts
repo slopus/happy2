@@ -36,17 +36,16 @@ describe("composer module", () => {
         });
     });
 
-    it("keeps audience routing off and unsent for surfaces created without an audience", () => {
+    it("addresses agents by default when a surface does not name an audience", () => {
         const output = vi.fn();
         const binding = composerStoreCreate("dm-1", { output });
-        expect(binding.getState().audience).toBeUndefined();
+        expect(binding.getState().audience).toBe("agents");
         binding.getState().textUpdate("hello agent");
         binding.getState().textSubmit();
         const submitted = output.mock.calls
             .map(([event]) => event)
             .find((event) => event.type === "textSubmitted");
-        expect(submitted).toMatchObject({ agentUserIds: [] });
-        expect(submitted.audience).toBeUndefined();
+        expect(submitted).toMatchObject({ audience: "agents", agentUserIds: [] });
     });
 
     it("toggles audience, selects agents, submits them, and keeps the mode after confirmation", () => {

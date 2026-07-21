@@ -31,6 +31,7 @@ export function Avatar(props: AvatarProps) {
         <span
             {...rest}
             className={["happy2-avatar", local.className].filter(Boolean).join(" ")}
+            data-image={local.imageUrl ? "" : undefined}
             data-happy2-ui="avatar"
             data-size={size()}
             data-tone={tone()}

@@ -24,6 +24,8 @@ export interface AgentTraceRowProps {
     readonly onOpen?: () => void;
     /** Accessible name, default "Agent activity". */
     readonly label?: string;
+    /** A compact metadata link placed beside an assistant name. */
+    readonly variant?: "meta" | "row";
 }
 const KIND_ICONS: Record<AgentTraceRowKind, IconName> = {
     reasoning: "spark",
@@ -60,8 +62,10 @@ export function AgentTraceRow(props: AgentTraceRowProps) {
         "open",
         "onOpen",
         "label",
+        "variant",
     ]);
     const running = () => local.status === "running";
+    const meta = () => local.variant === "meta";
     return (
         <button
             aria-expanded={local.open === true ? "true" : "false"}
@@ -69,6 +73,7 @@ export function AgentTraceRow(props: AgentTraceRowProps) {
             className={["happy2-agent-trace-row", local.className].filter(Boolean).join(" ")}
             data-happy2-ui="agent-trace-row"
             data-status={local.status}
+            data-variant={meta() ? "meta" : "row"}
             data-testid={local["data-testid"]}
             onClick={() => local.onOpen?.()}
             style={local.style}
@@ -79,7 +84,7 @@ export function AgentTraceRow(props: AgentTraceRowProps) {
                 className="happy2-agent-trace-row__dot"
                 data-happy2-ui="agent-trace-row-dot"
             />
-            {running() && local.kind !== undefined
+            {!meta() && running() && local.kind !== undefined
                 ? ((kind) => (
                       <span
                           aria-hidden="true"
@@ -91,9 +96,9 @@ export function AgentTraceRow(props: AgentTraceRowProps) {
                   ))(local.kind)
                 : null}
             <span className="happy2-agent-trace-row__title" data-happy2-ui="agent-trace-row-title">
-                {running() ? (local.title ?? "Working") : "View trace"}
+                {meta() ? "View trace" : running() ? (local.title ?? "Working") : "View trace"}
             </span>
-            {running() && local.detail !== undefined ? (
+            {!meta() && running() && local.detail !== undefined ? (
                 <span
                     className="happy2-agent-trace-row__detail"
                     data-happy2-ui="agent-trace-row-detail"
@@ -101,14 +106,14 @@ export function AgentTraceRow(props: AgentTraceRowProps) {
                     {local.detail}
                 </span>
             ) : null}
-            {running() ? null : (
+            {!meta() && !running() ? (
                 <span
                     className="happy2-agent-trace-row__count"
                     data-happy2-ui="agent-trace-row-count"
                 >
                     {`${local.entryCount} steps`}
                 </span>
-            )}
+            ) : null}
         </button>
     );
 }
