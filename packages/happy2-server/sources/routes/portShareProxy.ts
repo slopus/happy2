@@ -5,6 +5,7 @@ import { CollaborationError } from "../modules/chat/types.js";
 import type { PortShareService } from "../modules/port-share/service.js";
 import { PortShareError } from "../modules/port-share/types.js";
 import { portShareWebHandoffPath } from "../portShareWebHandoff.js";
+import { portShareErrorPageSend } from "./portShareErrorPage.js";
 import { portShareReturnTo } from "./portShareReturnTo.js";
 
 export const portShareAuthenticationCookieName = "happy2_port_share";
@@ -83,7 +84,7 @@ export async function registerPortShareProxy(
                     .header("set-cookie", portShareCookie(accessToken, options.secureCookies))
                     .redirect(input.returnTo);
             } catch (error) {
-                return handled(reply, error);
+                return handled(reply, error, "page");
             }
         },
     });
@@ -113,16 +114,18 @@ export async function registerPortShareProxy(
                             options.appPublicUrl,
                         );
                     } catch (redirectError) {
-                        return handled(reply, redirectError);
+                        return handled(reply, redirectError, "page");
                     }
                 }
-                return handled(reply, error);
+                return handled(reply, error, "page");
             }
         },
         replyOptions: {
             getUpstream: (request) => requiredUpstream(upstreams, request),
             rewriteRequestHeaders: (request, headers) =>
                 upstreamHeaders(headers, request, identities.get(request)),
+            onError: (reply, { error }) =>
+                portShareErrorPageSend(reply, upstreamFailureStatus(error)),
         },
         wsClientOptions: {
             rewriteRequestHeaders: portShareWebSocketHeaders(identities),
@@ -243,22 +246,31 @@ function portShareWebSocketHeaders(identities: WeakMap<object, string>) {
         upstreamHeaders(headers, request, identities.get(request));
 }
 
-function handled(reply: FastifyReply, error: unknown) {
+function handled(reply: FastifyReply, error: unknown, response: "json" | "page" = "json") {
     const portShareError = normalizePortShareError(error);
     if (!portShareError) throw error;
+    const statusCode =
+        portShareError.code === "not_found"
+            ? 404
+            : portShareError.code === "invalid"
+              ? 400
+              : portShareError.code === "conflict"
+                ? 409
+                : portShareError.code === "not_ready"
+                  ? 503
+                  : 401;
+    if (response === "page") return portShareErrorPageSend(reply, statusCode);
     return reply
-        .code(
-            portShareError.code === "not_found"
-                ? 404
-                : portShareError.code === "invalid"
-                  ? 400
-                  : portShareError.code === "conflict"
-                    ? 409
-                    : portShareError.code === "not_ready"
-                      ? 503
-                      : 401,
-        )
+        .code(statusCode)
         .send({ error: portShareError.code, message: portShareError.message });
+}
+
+function upstreamFailureStatus(error: Error): number {
+    const statusCode =
+        "statusCode" in error && typeof error.statusCode === "number"
+            ? error.statusCode
+            : undefined;
+    return statusCode === 503 || statusCode === 504 ? statusCode : 502;
 }
 
 function normalizePortShareError(error: unknown): PortShareError | undefined {

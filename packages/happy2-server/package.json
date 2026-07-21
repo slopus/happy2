@@ -29,7 +29,7 @@
         "predev": "pnpm --dir ../.. plugins:prepare",
         "dev": "tsx watch sources/cli.ts",
         "build": "pnpm run build:server",
-        "build:server": "rm -rf dist && tsc --project tsconfig.json && pnpm run plugins:assemble",
+        "build:server": "rm -rf dist && tsc --project tsconfig.json && cp sources/routes/portShareErrorPage.html dist/routes/portShareErrorPage.html && pnpm run plugins:assemble",
         "plugins:assemble": "tsx tooling/plugin-catalog/cli.ts",
         "start": "node dist/cli.js",
         "start:server": "node dist/cli.js",

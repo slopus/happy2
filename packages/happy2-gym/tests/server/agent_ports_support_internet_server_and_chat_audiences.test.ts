@@ -53,6 +53,8 @@ describe("agent port sharing audiences", () => {
         const upstreamAddress = upstream.address();
         if (!upstreamAddress || typeof upstreamAddress === "string")
             throw new Error("Preview upstream did not bind a TCP port");
+        let upstreamWebSocketsClosed = false;
+        let upstreamClosed = false;
         await using rig = await createMockRigDaemon();
         rig.setAutomaticReply(undefined);
         const sandbox = new MockAgentSandboxRuntime();
@@ -284,22 +286,20 @@ describe("agent port sharing audiences", () => {
             ).toBe(404);
             const invalidRedemption = new URL(redemption);
             invalidRedemption.searchParams.set("returnTo", "//evil.example/preview");
-            expect(
-                (
-                    await publicRequest(
-                        serverUrl,
-                        host,
-                        `${invalidRedemption.pathname}${invalidRedemption.search}`,
-                    )
-                ).statusCode,
-            ).toBe(400);
-            expect(
-                (
-                    await publicRequest(serverUrl, host, "/redemption-is-not-access", {
-                        authorization: `Bearer ${redemptionToken}`,
-                    })
-                ).statusCode,
-            ).toBe(401);
+            expectPortShareErrorPage(
+                await publicRequest(
+                    serverUrl,
+                    host,
+                    `${invalidRedemption.pathname}${invalidRedemption.search}`,
+                ),
+                400,
+            );
+            expectPortShareErrorPage(
+                await publicRequest(serverUrl, host, "/redemption-is-not-access", {
+                    authorization: `Bearer ${redemptionToken}`,
+                }),
+                401,
+            );
             const redeemed = await publicRequest(
                 serverUrl,
                 host,
@@ -483,13 +483,12 @@ describe("agent port sharing audiences", () => {
                 302,
             );
             expect(sandbox.portResolutionCount).toBe(3);
-            expect(
-                (
-                    await publicRequest(serverUrl, host, "/replaced", {
-                        authorization: `Bearer ${access.token}`,
-                    })
-                ).statusCode,
-            ).toBe(404);
+            expectPortShareErrorPage(
+                await publicRequest(serverUrl, host, "/replaced", {
+                    authorization: `Bearer ${access.token}`,
+                }),
+                404,
+            );
 
             const disabled = await ownerClient.post(
                 `/v0/chats/${chatId}/portShares/${replacementShare.id}/disablePortShare`,
@@ -568,9 +567,16 @@ describe("agent port sharing audiences", () => {
             expect(await websocketRoundTrip(serverUrl, internetHost, "/socket", "public")).toBe(
                 "agent websocket public",
             );
-        } finally {
             await new Promise<void>((resolve) => upstreamWebSockets.close(() => resolve()));
+            upstreamWebSocketsClosed = true;
             await new Promise<void>((resolve) => upstream.close(() => resolve()));
+            upstreamClosed = true;
+            expectPortShareErrorPage(await publicRequest(serverUrl, internetHost, "/stopped"), 502);
+        } finally {
+            if (!upstreamWebSocketsClosed)
+                await new Promise<void>((resolve) => upstreamWebSockets.close(() => resolve()));
+            if (!upstreamClosed)
+                await new Promise<void>((resolve) => upstream.close(() => resolve()));
             await rm(pluginRoot, { recursive: true, force: true });
         }
     }, 30_000);
@@ -887,6 +893,22 @@ async function publicRequest(
         request.once("error", reject);
         request.end();
     });
+}
+
+function expectPortShareErrorPage(
+    response: Awaited<ReturnType<typeof publicRequest>>,
+    statusCode: number,
+): void {
+    expect(response.statusCode).toBe(statusCode);
+    expect(response.headers["content-type"]).toBe("text/html; charset=utf-8");
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.headers["referrer-policy"]).toBe("no-referrer");
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["content-security-policy"]).toContain("default-src 'none'");
+    expect(response.body).toMatch(/^<!doctype html>/);
+    expect(response.body).toContain("This preview isn’t available");
+    expect(response.body).toContain("@media (prefers-color-scheme: dark)");
+    expect(response.body).not.toMatch(/<(?:script|link)\b|\b(?:href|src)=|https?:\/\//i);
 }
 
 async function websocketUpgradeStatus(
