@@ -53,13 +53,17 @@ export function Button(props: ButtonProps) {
             type={local.type ?? "button"}
         >
             <span className="happy2-button__content" data-happy2-ui="button-content">
-                {local.icon
-                    ? ((name) => (
-                          <span className="happy2-button__icon" data-happy2-ui="button-icon">
-                              <Icon name={name} size={iconSizes[size()]} />
-                          </span>
-                      ))(local.icon)
-                    : null}
+                {local.icon ? (
+                    ((name) => (
+                        <span className="happy2-button__icon" data-happy2-ui="button-icon">
+                            <Icon name={name} size={iconSizes[size()]} />
+                        </span>
+                    ))(local.icon)
+                ) : local.iconOnly ? (
+                    <span className="happy2-button__icon" data-happy2-ui="button-icon">
+                        {local.children}
+                    </span>
+                ) : null}
                 {!local.iconOnly ? (
                     <span className="happy2-button__label" data-happy2-ui="button-label">
                         {local.children}

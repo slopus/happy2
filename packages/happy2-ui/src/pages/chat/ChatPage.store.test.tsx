@@ -1533,6 +1533,16 @@ it("projects live subagents and terminals into the strip with stable row identit
     );
     await view.ready();
     expect(view.container.querySelector('[data-happy2-ui="agent-activity-strip"]')).toBeNull();
+    const messageList = view.container.querySelector<HTMLElement>(
+        '[data-happy2-ui="message-list"]',
+    )!;
+    const initialComposerCard = view.container.querySelector<HTMLElement>(
+        '[data-happy2-ui="composer"]',
+    )!;
+    expect(
+        initialComposerCard.getBoundingClientRect().top -
+            messageList.getBoundingClientRect().bottom,
+    ).toBeCloseTo(0, 1);
 
     // The composer keeps its DOM node, focus, value, and selection across
     // strip mount, live updates, and unmount.
@@ -1647,6 +1657,7 @@ it("projects live subagents and terminals into the strip with stable row identit
     expect(
         composerCard.getBoundingClientRect().top - maxStrip.getBoundingClientRect().bottom,
     ).toBeCloseTo(8, 1);
+    expect(surfaceRect.bottom - composerCard.getBoundingClientRect().bottom).toBeCloseTo(24, 1);
 
     // Scrolling the strip and then receiving a live update keeps the scroll
     // offset and the row DOM identity.

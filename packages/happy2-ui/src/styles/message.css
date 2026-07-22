@@ -967,14 +967,15 @@
     background: transparent;
 }
 
-/* Inner content wrapper owns the 12px top/bottom breathing room; it fills the
+/* The inner content wrapper keeps 12px above the history and a compact 8px
+   clearance beneath its newest message before the composer. It fills the
    scrollport height so the spacer's `margin-top: auto` still bottom-aligns a
    short thread, and it preserves the virtual container's offset exactly. */
 .happy2-message-list__content {
     display: flex;
     flex: 1 0 auto;
     flex-direction: column;
-    padding: 12px 0;
+    padding: 12px 0 8px;
 }
 
 .happy2-message-list__spacer {

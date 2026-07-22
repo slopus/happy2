@@ -10,7 +10,7 @@ import { Composer } from "./Composer";
 import { Message } from "./Message";
 import { createRenderer } from "./testing";
 
-it("renders composer contribution triggers in the composer action group", async () => {
+it("renders composer contribution triggers immediately before the attachment control", async () => {
     const view = createRenderer().render(
         () => (
             <Composer
@@ -19,6 +19,7 @@ it("renders composer contribution triggers in the composer action group", async 
                         Insert
                     </button>
                 }
+                onAttachFile={() => undefined}
                 onSend={() => undefined}
                 onValueChange={() => undefined}
                 value=""
@@ -28,9 +29,14 @@ it("renders composer contribution triggers in the composer action group", async 
     );
     const slot = view.$('[data-happy2-ui="composer-contributions"]');
     expect(slot.element).not.toBeNull();
-    // The trigger sits inside the composer's action group, next to the built-ins.
-    const actions = view.$('[data-happy2-ui="composer-actions"]').element;
-    expect(actions.contains(slot.element)).toBe(true);
+    const trailing = view.$('[data-happy2-ui="composer-trailing"]').element;
+    expect(trailing.contains(slot.element)).toBe(true);
+    const attachment = view.$('[aria-label="Attach file"]').element;
+    expect(slot.element.nextElementSibling).toBe(attachment);
+    expect(
+        attachment.getBoundingClientRect().x -
+            (slot.element.getBoundingClientRect().x + slot.element.getBoundingClientRect().width),
+    ).toBeCloseTo(8, 1);
     expect(slot.element.querySelector('[data-testid="composer-trigger"]')).not.toBeNull();
     await view.screenshot("ChatContributionSlots.composer.test");
 }, 120000);

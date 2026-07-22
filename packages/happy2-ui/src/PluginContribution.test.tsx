@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 import type {
     PluginButtonControl,
     PluginContributionActionValue,
@@ -7,6 +8,7 @@ import type {
 } from "happy2-state";
 import "./theme.css";
 import "./styles/button.css";
+import "./styles/composer.css";
 import "./styles/checkbox.css";
 import "./styles/text-field.css";
 import "./styles/plugin-contribution.css";
@@ -122,3 +124,43 @@ it("opens a static menu contribution and invokes the chosen item", async () => {
     expect(invoke).toHaveBeenCalledWith("clear");
     await view.screenshot("PluginContribution.menu.test");
 }, 120000);
+
+it("renders a composer-icon contribution as a true icon-only button", async () => {
+    const invoke = vi.fn((_actionId: string) => undefined);
+    const view = createRenderer().render(
+        () => (
+            <div className="happy2-composer">
+                <div className="happy2-composer__toolbar">
+                    <div className="happy2-composer__actions">
+                        <span className="happy2-composer__contributions">
+                            <PluginContributionMenuButton
+                                actionId="todos-open-composer"
+                                data-testid="todo-composer-icon"
+                                description="Open TODO lists"
+                                iconOnly
+                                kind="button"
+                                onInvoke={invoke}
+                                title="Open TODOs"
+                                triggerGlyph={<span data-testid="todo-glyph">✓</span>}
+                            />
+                        </span>
+                    </div>
+                </div>
+            </div>
+        ),
+        { width: 120, height: 96, padding: 16 },
+    );
+    const button = view.$('[data-testid="todo-composer-icon"] [data-happy2-ui="button"]');
+    expect(button.element.getAttribute("data-icon-only")).toBe("");
+    expect(button.bounds()).toMatchObject({ height: 32, width: 32 });
+    expect(button.element.getAttribute("aria-label")).toBe("Open TODOs");
+    expect(button.element.textContent).toBe("✓");
+    await userEvent.hover(button.element);
+    for (const animation of button.element.getAnimations()) animation.finish();
+    expect(button.computedStyles(["background-color", "color"])).toEqual({
+        "background-color": "rgb(240, 240, 242)",
+        color: "rgb(0, 0, 0)",
+    });
+    (button.element as HTMLButtonElement).click();
+    expect(invoke).toHaveBeenCalledWith("todos-open-composer");
+});

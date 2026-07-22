@@ -3,9 +3,9 @@
  *
  * Composer: solid inset card with no resting hairline (a 1px transparent
  * border keeps the box model stable while focus/agents paint the frame), 16px
- * radius, 16px visual text inset, auto-growing 16px/22px textarea (4–8 lines).
+ * radius, 16px visual text inset, auto-growing 16px/22px textarea (1–8 lines).
  * A 32px action lane (32px ghost actions + primary send on an 8px rhythm) sits
- * above an 8px shell bottom. Geometry mirrors the original app's unified input
+ * within a 16px bottom inset. Geometry mirrors the original app's unified input
  * panel (borderless solid fill, 16px corners, 32px controls, roomy text
  * field). ContextChips: 24px inset chips. MentionPicker: 320px raised popover
  * with 44px agent rows.
@@ -61,23 +61,23 @@
 }
 
 /* Chips sit clear of the card's 16px corner field (inset ≥ radius) and align
- * with the textarea's 16px left edge; a chip cannot nest concentrically inside
+ * with the textarea's 20px left edge; a chip cannot nest concentrically inside
  * the larger card corner (see the nested-corner contract in testing). */
 .happy2-composer__context {
     display: flex;
-    padding: 8px 16px 0;
+    padding: 8px 20px 0;
 }
 
-/* 16px visual text inset: 1px transparent border + 15px pad. */
+/* 20px visual text inset with a 24px buffer before the toolbar controls. */
 .happy2-composer__input {
-    padding: 16px 15px 8px;
+    padding: 20px 19px 24px;
 }
 
 .happy2-composer__textarea {
     display: block;
     width: 100%;
-    height: 88px; /* 4 lines × 22px */
-    min-height: 88px;
+    height: 22px; /* 1 line × 22px */
+    min-height: 22px;
     max-height: 176px; /* 8 lines × 22px */
     margin: 0;
     padding: 0;
@@ -115,14 +115,13 @@
     cursor: wait;
 }
 
-/* 32px action lane. The left action group keeps an 8px shell inset; the
- * circular send button receives a 16px right inset so it sits outside the
- * card's rounded-corner field as an independent round control. */
+/* 32px action lane. Controls receive a 16px left and bottom inset; the
+ * circular send button keeps the matching 16px right inset. */
 .happy2-composer__toolbar {
     display: flex;
     align-items: center;
-    height: 32px;
-    padding: 0 15px 0 7px;
+    height: 40px;
+    padding: 0 15px 8px;
 }
 
 .happy2-composer__actions {
@@ -145,18 +144,20 @@
     width: 32px;
 }
 
-/* The edge actions enter the composer's 16px bottom-corner field. The 8px
- * border-box inset (1px border + 7px shell pad) leaves a parallel 8px arc. */
-.happy2-composer__actions > .happy2-button:first-child {
-    border-bottom-left-radius: 8px;
-}
-
-/* Native plugin composer contribution triggers sit inline with the built-in
-   composer actions. */
+/* Native plugin composer contribution triggers sit immediately before the
+ * attachment affordance in the trailing toolbar controls. */
 .happy2-composer__contributions {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+}
+
+/* Composer ghost controls share the destination toggle's hover treatment so
+ * attachment, native, and contributed controls read as one toolbar. */
+.happy2-composer__contributions .happy2-button[data-variant="ghost"]:hover:not(:disabled),
+.happy2-composer__trailing .happy2-button[data-variant="ghost"]:hover:not(:disabled) {
+    background: var(--surface-pressed);
+    color: var(--text);
 }
 
 .happy2-composer__trailing {
@@ -166,8 +167,16 @@
     margin-left: auto;
 }
 
-.happy2-composer__send {
+.happy2-composer__send.happy2-button {
     border-radius: 50%;
+    /* Availability fades this one stable light control in and out. Its black
+     * arrow never swaps color as the draft becomes sendable. */
+    background: var(--button-primary-disabled);
+    color: var(--button-primary-background);
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        opacity 120ms ease;
 }
 
 /* The toolbar uses a 16px upward arrow in its 32px circular send control. The
@@ -183,6 +192,14 @@
     width: 16px !important;
     height: 16px !important;
     font-size: 16px !important;
+}
+
+/* The attachment plus needs a fuller 20px stroke presence in its 32px target;
+ * the directional send glyph remains 16px for its lighter arrow silhouette. */
+.happy2-composer__trailing > .happy2-button[aria-label="Attach file"] .happy2-icon {
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 20px !important;
 }
 
 .happy2-composer__popover {

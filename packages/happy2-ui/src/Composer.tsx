@@ -275,11 +275,11 @@ export type ComposerProps = {
     value: string;
 };
 const LINE_HEIGHT = 22;
-const MIN_LINES = 4;
+const MIN_LINES = 1;
 const MAX_LINES = 8;
 /**
- * Message composer: focus-within surface card with an auto-growing textarea
- * (4–8 lines), context chips, capability-driven file/mention/emoji actions,
+ * Message composer: focus-within surface card with a one-line resting textarea
+ * that grows through eight lines, context chips, capability-driven file/mention/emoji actions,
  * a primary send control, and keyboard-accessible picker popovers.
  */
 export function Composer(props: ComposerProps) {
@@ -319,7 +319,7 @@ export function Composer(props: ComposerProps) {
         if (!props.audience) return;
         props.onAudienceChange?.(props.audience === "agents" ? "people" : "agents");
     };
-    /* Keep a calm four-line writing canvas, then grow only for longer drafts. */
+    /* Start as one line, then grow up to eight lines for longer drafts. */
     useLayoutEffect(() => {
         void props.value;
         const el = textareaEl.current;
@@ -581,6 +581,8 @@ export function Composer(props: ComposerProps) {
                             value={props.audience!}
                         />
                     ) : null}
+                </div>
+                <div className="happy2-composer__trailing" data-happy2-ui="composer-trailing">
                     {props.contributions ? (
                         <span
                             className="happy2-composer__contributions"
@@ -589,13 +591,11 @@ export function Composer(props: ComposerProps) {
                             {props.contributions}
                         </span>
                     ) : null}
-                </div>
-                <div className="happy2-composer__trailing" data-happy2-ui="composer-trailing">
                     {hasAttachmentAction() ? (
                         <Button
                             aria-label="Attach file"
                             disabled={busy}
-                            icon="paperclip"
+                            icon="plus"
                             iconOnly
                             onClick={triggerAttachment}
                             size="small"

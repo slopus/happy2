@@ -4,6 +4,7 @@ import { expect, it } from "vitest";
 import { server, userEvent } from "vitest/browser";
 import "./theme.css";
 import "./styles/avatar.css";
+import "./styles/audience-toggle.css";
 import "./styles/badge.css";
 import "./styles/button.css";
 import "./styles/composer.css";
@@ -24,7 +25,7 @@ const uiFont = () =>
         ? "happy2 Figtree, system-ui, sans-serif"
         : '"happy2 Figtree", system-ui, sans-serif';
 /* The Gecko textarea correction (translateY(-0.5px)) moves the painted box. */
-const textareaY = () => (server.browser === "firefox" ? 36.5 : 37);
+const textareaY = () => (server.browser === "firefox" ? 40.5 : 41);
 const mentions: Mentionable[] = [
     {
         description: "Ships code end to end",
@@ -175,11 +176,13 @@ it("holds Composer geometry, colors, and typography", async () => {
         .render(
             () => (
                 <Composer
+                    audience="people"
                     mentions={mentions}
                     data-testid="composer-default"
                     emoji={emoji}
                     hint="Enter to send · @ agents"
                     onAttachFile={noop}
+                    onAudienceChange={noop}
                     onSend={noop}
                     onValueChange={noop}
                     placeholder="Message #launch-week"
@@ -275,9 +278,9 @@ it("holds Composer geometry, colors, and typography", async () => {
         );
     await view.ready();
     // Container: solid inset card, no resting hairline (transparent 1px
-    // border), radius 16, four-line total 153px.
+    // border), radius 16, single-line total 115px.
     const root = view.$('[data-testid="composer-default"]');
-    expect(root.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 153 });
+    expect(root.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 115 });
     expect(
         root.computedStyles([
             "background-color",
@@ -301,13 +304,13 @@ it("holds Composer geometry, colors, and typography", async () => {
         "font-family": uiFont(),
         position: "relative",
     });
-    // Textarea: 16px/22px UI font, transparent, four lines high when empty.
+    // Textarea: 16px/22px UI font, transparent, one line high when empty.
     // (Gecko carries a measured -0.5px optical correction, so its painted box
     // reports 0.5px higher; see the corrections block in composer.css.)
     const textarea = view.$(
         '[data-testid="composer-default"] [data-happy2-ui="composer-textarea"]',
     );
-    expect(textarea.bounds()).toEqual({ x: 36, y: textareaY(), width: 528, height: 88 });
+    expect(textarea.bounds()).toEqual({ x: 40, y: textareaY(), width: 520, height: 22 });
     expect(
         textarea.computedStyles([
             "background-color",
@@ -333,7 +336,7 @@ it("holds Composer geometry, colors, and typography", async () => {
         "font-family": uiFont(),
         "font-size": "16px",
         "font-weight": "400",
-        height: "88px",
+        height: "22px",
         "line-height": "22px",
         "overflow-y": "auto",
         padding: "0px",
@@ -356,67 +359,78 @@ it("holds Composer geometry, colors, and typography", async () => {
         const visible = await area.visibleMetrics();
         expect(visible.pixelCount, `${testid} draft paints no pixels`).toBeGreaterThan(0);
         const centroidY = visible.center.y + area.bounds().y - wrapper.bounds().y;
-        return centroidY - 27;
+        return centroidY - 31;
     };
     const draftDrift = await firstLineDrift("composer-filled");
     const ghostDrift = await firstLineDrift("composer-ghost");
     expect(Math.abs(draftDrift - 0.8)).toBeLessThanOrEqual(0.4);
     expect(Math.abs(ghostDrift - 0.8)).toBeLessThanOrEqual(0.4);
     expect(Math.abs(draftDrift - ghostDrift)).toBeLessThanOrEqual(0.25);
-    // Toolbar: 32px lane with only the three backed, 32px actions on a 40px pitch.
+    // Toolbar: a 32px lane plus an 8px bottom inset. Its destination toggle
+    // begins at the matching 16px left inset.
     const toolbar = view.$('[data-testid="composer-default"] [data-happy2-ui="composer-toolbar"]');
-    expect(toolbar.bounds()).toEqual({ x: 21, y: 133, width: 558, height: 32 });
+    expect(toolbar.bounds()).toEqual({ x: 21, y: 87, width: 558, height: 40 });
     const rootRect = root.element.getBoundingClientRect();
     const actionButtons = Array.from(
         view.container.querySelectorAll(
             '[data-testid="composer-default"] [data-happy2-ui="composer-actions"] > button',
         ),
     );
-    expect(actionButtons.length).toBe(3);
-    expect(actionButtons.map((button) => button.getAttribute("aria-label"))).toEqual([
-        "Attach file",
-        "Mention someone",
-        "Add emoji",
-    ]);
+    expect(actionButtons.length).toBe(1);
+    expect(actionButtons[0]?.getAttribute("aria-label")).toBe("Switch to Agents");
     actionButtons.forEach((button, index) => {
         const rect = button.getBoundingClientRect();
-        expect(rect.x - rootRect.x).toBeCloseTo(8 + index * 40, 1);
-        expect(rect.y - rootRect.y).toBeCloseTo(113, 1);
-        expect(rect.width).toBeCloseTo(32, 1);
+        expect(rect.x - rootRect.x).toBeCloseTo(16 + index * 40, 1);
+        expect(rect.y - rootRect.y).toBeCloseTo(67, 1);
         expect(rect.height).toBeCloseTo(32, 1);
     });
-    // Every toolbar icon box is centered in its 32px ghost square. The
-    // curated icon font owns its glyph's internal optical metrics.
-    for (const label of ["Attach file", "Mention someone", "Add emoji"]) {
-        const buttonSelector = `[data-testid="composer-default"] [aria-label="${label}"]`;
-        const button = view.$(buttonSelector).bounds();
-        const icon = view.$(`${buttonSelector} [data-happy2-ui="icon"]`).bounds();
-        expect(icon.x - button.x).toBeCloseTo((button.width - icon.width) / 2, 1);
-        expect(icon.y - button.y).toBeCloseTo((button.height - icon.height) / 2, 1);
-    }
-    // Send: primary 32px square, symmetric 8px border-box inset at the
-    // composer's bottom-right curve, disabled while empty.
+    // Send: primary 32px circle, inset 16px from the composer's bottom-right
+    // edge, disabled while empty.
     const send = view.$('[data-testid="composer-default"] .happy2-composer__send');
-    expect(send.bounds()).toEqual({ x: 532, y: 133, width: 32, height: 32 });
+    expect(send.bounds()).toEqual({ x: 532, y: 87, width: 32, height: 32 });
     expect(
         send.computedStyles([
             "background-color",
             "border-bottom-right-radius",
             "border-top-right-radius",
+            "color",
             "opacity",
         ]),
     ).toEqual({
         "background-color": "rgb(192, 192, 192)",
         "border-bottom-right-radius": "50%",
         "border-top-right-radius": "50%",
+        color: "rgb(0, 0, 0)",
         opacity: "0.48",
     });
     expect((send.element as HTMLButtonElement).disabled).toBe(true);
+    // Attachment shares the audience and contributed-control hover treatment.
+    const attachment = view.$('[data-testid="composer-default"] [aria-label="Attach file"]');
+    expect(
+        attachment.element.querySelector('[data-happy2-ui="icon"]')?.getAttribute("data-name"),
+    ).toBe("plus");
+    expect(
+        view
+            .$(
+                '[data-testid="composer-default"] [aria-label="Attach file"] [data-happy2-ui="icon"]',
+            )
+            .bounds(),
+    ).toMatchObject({ height: 20, width: 20 });
+    await userEvent.hover(attachment.element);
+    for (const animation of attachment.element.getAnimations()) animation.finish();
+    expect(attachment.computedStyles(["background-color", "color"])).toEqual({
+        "background-color": "rgb(240, 240, 242)",
+        color: "rgb(0, 0, 0)",
+    });
     // Send glyph: the upward arrow's 16px icon box sits centered in the 32px
     // circle. The directional glyph's own optical metrics belong to Icon.
     const sendFilled = view.$('[data-testid="composer-filled"] .happy2-composer__send');
     expect((sendFilled.element as HTMLButtonElement).disabled).toBe(false);
     expect(sendFilled.computedStyle("opacity")).toBe("1");
+    expect(sendFilled.computedStyles(["background-color", "color"])).toEqual({
+        "background-color": "rgb(192, 192, 192)",
+        color: "rgb(0, 0, 0)",
+    });
     const sendSelector = '[data-testid="composer-filled"] .happy2-composer__send';
     expect(
         view.$(`${sendSelector} [data-happy2-ui="icon"]`).element.getAttribute("data-name"),
@@ -433,12 +447,12 @@ it("holds Composer geometry, colors, and typography", async () => {
             '[data-testid="composer-default"] [data-happy2-ui="composer-hint"]',
         ),
     ).toBeNull();
-    // Auto-grow: 3 lines retain the four-line minimum; 12 lines cap at 176px.
+    // Auto-grow: the resting composer is one line and long drafts cap at eight lines.
     const multiline = view.$(
         '[data-testid="composer-multiline"] [data-happy2-ui="composer-textarea"]',
     );
-    expect(multiline.bounds().height).toBe(88);
-    expect(view.$('[data-testid="composer-multiline"]').bounds().height).toBe(153);
+    expect(multiline.bounds().height).toBe(66);
+    expect(view.$('[data-testid="composer-multiline"]').bounds().height).toBe(159);
     const multilineInk = await multiline.visibleMetrics();
     expect(multilineInk.pixelCount).toBeGreaterThan(0);
     const overflow = view.$(
@@ -446,17 +460,17 @@ it("holds Composer geometry, colors, and typography", async () => {
     );
     expect(overflow.bounds().height).toBe(176);
     expect((overflow.element as HTMLTextAreaElement).scrollHeight).toBe(264);
-    expect(view.$('[data-testid="composer-overflow"]').bounds().height).toBe(241);
-    // Context chips row: 8px top padding, 24px chips, 185px card total.
+    expect(view.$('[data-testid="composer-overflow"]').bounds().height).toBe(269);
+    // Context chips row: 8px top padding, 24px chips, 147px card total.
     const chipsRoot = view.$('[data-testid="composer-chips"]');
-    expect(chipsRoot.bounds().height).toBe(185);
+    expect(chipsRoot.bounds().height).toBe(147);
     const contextRow = view.$('[data-testid="composer-chips"] [data-happy2-ui="composer-context"]');
     expect(contextRow.offsets().top).toBe(1);
     expect(contextRow.bounds().height).toBe(32);
     const firstChip = view.$(
         '[data-testid="composer-chips"] [data-happy2-ui="context-chips-chip"]',
     );
-    expect(firstChip.bounds().x - chipsRoot.bounds().x).toBe(17);
+    expect(firstChip.bounds().x - chipsRoot.bounds().x).toBe(21);
     expect(firstChip.bounds().y - chipsRoot.bounds().y).toBe(9);
     expect(firstChip.bounds().height).toBe(24);
     // Focus-within paints the otherwise transparent frame (120ms transition).
@@ -483,13 +497,13 @@ it("holds Composer geometry, colors, and typography", async () => {
                 .element as HTMLButtonElement
         ).disabled,
     ).toBe(true);
-    // Pending preserves the full 153px layout and visible draft while making
+    // Pending preserves the full 115px layout and visible draft while making
     // every mutation affordance inert; readOnly retains textarea focus.
     const pendingRoot = view.$('[data-testid="composer-pending"]');
     const pendingArea = view.$(
         '[data-testid="composer-pending"] [data-happy2-ui="composer-textarea"]',
     );
-    expect(pendingRoot.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 153 });
+    expect(pendingRoot.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 115 });
     expect(pendingRoot.element.getAttribute("aria-busy")).toBe("true");
     expect((pendingArea.element as HTMLTextAreaElement).readOnly).toBe(true);
     expect(pendingArea.computedStyles(["color", "opacity", "cursor"])).toEqual({
@@ -505,6 +519,32 @@ it("holds Composer geometry, colors, and typography", async () => {
         ).every((button) => button.disabled),
     ).toBe(true);
     await view.screenshot("Composer.test");
+});
+
+it("keeps the ready send control light in an explicit dark theme", async () => {
+    const view = createRenderer().render(
+        () => (
+            <div className="happy2-theme-dark">
+                <Composer
+                    data-testid="composer-dark-ready"
+                    onSend={() => {}}
+                    onValueChange={() => {}}
+                    value="Ready"
+                />
+            </div>
+        ),
+        { width: 240, height: 160, padding: 20 },
+    );
+    await view.ready();
+    expect(
+        view
+            .$('[data-testid="composer-dark-ready"] .happy2-composer__send')
+            .computedStyles(["background-color", "color", "opacity"]),
+    ).toEqual({
+        "background-color": "rgb(192, 192, 192)",
+        color: "rgb(0, 0, 0)",
+        opacity: "1",
+    });
 });
 it("exposes only backed actions and handles host-owned and native attachments", async () => {
     let attachments = 0;
@@ -1155,7 +1195,7 @@ it("handles typing, sending, and mention picking", async () => {
     await userEvent.keyboard("done");
     expect(typing.value).toBe("Ship it\ndone");
     expect(sends.length).toBe(1);
-    expect(typing.getBoundingClientRect().height).toBeCloseTo(88, 1);
+    expect(typing.getBoundingClientRect().height).toBeCloseTo(44, 1);
     // Clicking send reports the current draft.
     await userEvent.click(typingSend);
     expect(sends).toEqual(["Ship it", "Ship it\ndone"]);

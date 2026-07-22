@@ -2,7 +2,8 @@
  * ComposerDock — the grounded chat input bar. A solid full-width surface bar
  * whose boundary with the transcript is intentionally seamless, as in Happy.
  * Its inner compose column (activity strip + Composer) centers at the same
- * measure as the message column so the input lines up under the transcript.
+ * measure as the message column so the input starts flush with the transcript
+ * and retains 24px desktop breathing room below.
  */
 
 .happy2-composer-dock {
@@ -19,5 +20,5 @@
     width: 100%;
     max-width: var(--happy2-chat-measure);
     margin: 0 auto;
-    padding: 12px 20px 16px 12px;
+    padding: 0 20px 24px 12px;
 }

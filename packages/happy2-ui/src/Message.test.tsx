@@ -1243,8 +1243,8 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
     /* ---- Sparse history bottom-anchors ---------------------------------- */
     const sparse = view.$('[data-testid="sparse"] [data-happy2-ui="message-list"]');
     expect(sparse.bounds().height).toBe(360);
-    /* Scrollport edge-to-edge; the inner content wrapper owns the 12px top/bottom
-       breathing room. */
+    /* Scrollport edge-to-edge; the inner content wrapper owns its 12px top
+       breathing room and 8px clearance before the composer. */
     expect(
         sparse.computedStyles([
             "display",
@@ -1265,7 +1265,7 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
             .$('[data-testid="sparse"] [data-happy2-ui="message-list-content"]')
             .computedStyles(["padding-bottom", "padding-top"]),
     ).toEqual({
-        "padding-bottom": "12px",
+        "padding-bottom": "8px",
         "padding-top": "12px",
     });
     /* No scrolling needed. */
@@ -1274,10 +1274,10 @@ it("anchors MessageList to the bottom and lays out sparse histories", async () =
     /* The spacer absorbs the free space above the history. */
     const spacer = view.$('[data-testid="sparse"] [data-happy2-ui="message-list-spacer"]');
     expect(spacer.bounds().height).toBe(0);
-    /* The newest message sits exactly against the 12px bottom padding. */
+    /* The newest message retains an 8px clearance before the composer. */
     const lastMessage = view.$('[data-testid="sparse-last"]');
     const lastBottom = lastMessage.bounds().y + lastMessage.bounds().height;
-    expect(Math.abs(lastBottom - (sparse.bounds().y + 360 - 12))).toBeLessThanOrEqual(1);
+    expect(Math.abs(lastBottom - (sparse.bounds().y + 360 - 8))).toBeLessThanOrEqual(1);
     /* Chronology preserved: divider, first, last from top to bottom. */
     const divider = view.$('[data-testid="sparse"] [data-happy2-ui="day-divider"]');
     const firstMessage = view.$('[data-testid="sparse-first"]');

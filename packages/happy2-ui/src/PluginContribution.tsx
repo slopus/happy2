@@ -331,6 +331,7 @@ export function PluginContributionMenuButton(props: PluginContributionMenuButton
                 aria-haspopup={props.kind === "button" ? undefined : "menu"}
                 aria-label={props.iconOnly ? props.title : undefined}
                 disabled={running}
+                iconOnly={props.iconOnly}
                 onClick={onTrigger}
                 size={props.size ?? "small"}
                 title={props.description}
