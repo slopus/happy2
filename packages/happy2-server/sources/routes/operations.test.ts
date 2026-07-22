@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AuthService, Authenticated } from "../modules/auth/service.js";
+import { LocalPubSub } from "../modules/realtime/index.js";
 import { registerOperationsRoutes } from "./operations.js";
 interface Identity {
     account: Account;
@@ -21,6 +22,7 @@ describe("operations routes", () => {
     let client: Client;
     let executor: DrizzleExecutor;
     let app: FastifyInstance;
+    let pubsub: LocalPubSub;
     let admin: Identity;
     let member: Identity;
     beforeEach(async () => {
@@ -36,6 +38,7 @@ describe("operations routes", () => {
         app = Fastify({
             trustProxy: false,
         });
+        pubsub = new LocalPubSub();
         registerOperationsRoutes(
             app,
             fakeAuth(() => ({
@@ -43,10 +46,12 @@ describe("operations routes", () => {
                 member,
             })),
             executor,
+            pubsub,
         );
     });
     afterEach(async () => {
         await app.close();
+        await pubsub.close();
         client.close();
         await rm(directory, {
             recursive: true,

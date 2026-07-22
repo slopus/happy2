@@ -27,8 +27,10 @@ import { requestMetadata } from "../modules/auth/metadata.js";
 import {
     OperationsError,
     type DataExportStatus,
+    type OperationsSyncHint,
     type RetentionScope,
 } from "../modules/operations/types.js";
+import { realtimeTopics, type PubSub } from "../modules/realtime/index.js";
 const MAX_ID_LENGTH = 128;
 const MAX_CURSOR_LENGTH = 1_024;
 const MAX_JSON_BYTES = 32_768;
@@ -41,6 +43,7 @@ export function registerOperationsRoutes(
     app: FastifyInstance,
     auth: AuthService,
     executor: DrizzleExecutor,
+    pubsub: PubSub,
 ): void {
     app.get(
         "/v0/admin/auditLogs",
@@ -200,7 +203,7 @@ export function registerOperationsRoutes(
         "/v0/admin/reports/:reportId/takeAction",
         authenticated(auth, async (request, _reply, actorUserId) => {
             const body = requestBody(request, ["action", "reason", "expiresAt", "metadata"]);
-            return moderationActionTake(executor, {
+            const result = await moderationActionTake(executor, {
                 actorUserId,
                 reportId: pathId(request, "reportId"),
                 action: requiredEnum(body, "action", [
@@ -217,6 +220,9 @@ export function registerOperationsRoutes(
                 metadata: optionalJsonObject(body, "metadata"),
                 context: auditContext(request),
             });
+            if (result.sync && result.action.action === "remove_file")
+                await publishFileRemoval(pubsub, result.sync);
+            return result;
         }),
     );
     app.post(
@@ -517,6 +523,10 @@ export function registerOperationsRoutes(
             };
         }),
     );
+}
+
+async function publishFileRemoval(pubsub: PubSub, hint: OperationsSyncHint): Promise<void> {
+    await pubsub.publish(realtimeTopics.server, { type: "sync", ...hint });
 }
 function authenticated(auth: AuthService, handler: AuthenticatedHandler) {
     return async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {

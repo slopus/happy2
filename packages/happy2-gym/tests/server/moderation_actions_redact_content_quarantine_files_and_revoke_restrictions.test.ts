@@ -117,6 +117,8 @@ describe("moderation action effects", () => {
             fileId: file.id,
             reason: "Attachment violates policy",
         });
+        const beforeFileRemoval = (await asReporter.get("/v0/sync/state")).json().state;
+        const reporterStream = await openFrames(await server.listen(), reporter.token);
         const removedFile = await asAdmin.post(`/v0/admin/reports/${fileReportId}/takeAction`, {
             action: "remove_file",
             reason: "Quarantined by moderation",
@@ -129,6 +131,24 @@ describe("moderation action effects", () => {
                 areas: ["files", "documents"],
             },
         });
+        const removalHint = await reporterStream.frames.until(
+            (frame) =>
+                frame.name === "sync" && frame.data.sequence === removedFile.json().sync.sequence,
+        );
+        expect(removalHint.data).toMatchObject({
+            chats: [{ chatId, pts: expect.any(String) }],
+            areas: ["files", "documents"],
+        });
+        reporterStream.abort.abort();
+        await reporterStream.frames.cancel();
+        const removalDifference = await asReporter.post("/v0/sync/getDifference", {
+            state: beforeFileRemoval,
+            limit: 200,
+        });
+        expect(removalDifference.statusCode).toBe(200);
+        expect(removalDifference.json().areas).toEqual(
+            expect.arrayContaining(["files", "documents"]),
+        );
         expect((await asReporter.get(`/v0/files/${file.id}`)).statusCode).toBe(404);
         expect((await asRestricted.get(`/v0/files/${file.id}`)).statusCode).toBe(404);
         expect(
@@ -242,6 +262,74 @@ describe("moderation action effects", () => {
         );
     });
 });
+
+async function openFrames(
+    baseUrl: string,
+    token: string,
+): Promise<{ abort: AbortController; frames: SseFrames }> {
+    const abort = new AbortController();
+    const response = await fetch(`${baseUrl}/v0/sync/events`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: abort.signal,
+    });
+    const frames = new SseFrames(response.body!.getReader());
+    expect((await frames.next()).name).toBe("ready");
+    return { abort, frames };
+}
+
+class SseFrames {
+    private buffer = "";
+
+    constructor(private readonly reader: ReadableStreamDefaultReader<Uint8Array>) {}
+
+    async next(): Promise<{ name: string; data: Record<string, unknown> }> {
+        for (;;) {
+            const delimiter = this.buffer.indexOf("\n\n");
+            if (delimiter >= 0) {
+                const frame = this.buffer.slice(0, delimiter);
+                this.buffer = this.buffer.slice(delimiter + 2);
+                const name = /^event: ([^\n]+)$/m.exec(frame)?.[1];
+                const rawData = /^data: (.*)$/m.exec(frame)?.[1];
+                if (name && rawData) return { name, data: JSON.parse(rawData) };
+                continue;
+            }
+            const result = await withTimeout(this.reader.read(), 3_000);
+            if (result.done)
+                throw new Error("Moderation SSE stream ended before the expected frame");
+            this.buffer += new TextDecoder().decode(result.value, { stream: true });
+        }
+    }
+
+    async until(
+        predicate: (frame: { name: string; data: Record<string, unknown> }) => boolean,
+    ): Promise<{ name: string; data: Record<string, unknown> }> {
+        for (;;) {
+            const frame = await this.next();
+            if (predicate(frame)) return frame;
+        }
+    }
+
+    async cancel(): Promise<void> {
+        await this.reader.cancel().catch(() => undefined);
+    }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((_, reject) => {
+                timer = setTimeout(
+                    () => reject(new Error("Timed out waiting for a moderation SSE frame")),
+                    timeoutMs,
+                );
+            }),
+        ]);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
 
 async function createReport(
     client: GymRequestClient,

@@ -406,7 +406,7 @@ async function buildServerWithLogging(
         registerDocumentRoutes(app, auth, executor, livePubsub);
         if (agentService) registerAgentRoutes(app, auth, agentService);
         registerAutomationRoutes(app, auth, executor, automationRuntime, livePubsub);
-        registerOperationsRoutes(app, auth, executor);
+        registerOperationsRoutes(app, auth, executor, livePubsub);
         registerIntegrationRoutes(app, auth, executor, secretProtector, webhookUrlPolicy, now, {
             incomingWebhook: {
                 sendMessage: async (message) => {
