@@ -4,7 +4,7 @@ import { createFakeServer, jsonResponse } from "../src/testing/index.js";
 import { message } from "./fixtures.js";
 
 describe("channel composer audience routing", () => {
-    it("submits the selected audience and agents, then reseeds a reopened composer from session memory", async () => {
+    it("submits the selected audience and agents, then preserves the detached composer", async () => {
         const server = createFakeServer();
         server.respond(
             "POST",
@@ -39,7 +39,7 @@ describe("channel composer audience routing", () => {
 
         state.composerRelease("chat-1");
         const reopened = state.composer("chat-1", { audience: "people" });
-        expect(reopened).not.toBe(composer);
+        expect(reopened).toBe(composer);
         expect(reopened.getState()).toMatchObject({
             audience: "agents",
             agentUserIds: ["agent-2"],

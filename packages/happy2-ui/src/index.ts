@@ -176,6 +176,7 @@ export {
     type MessageDeliveryState,
     type MessageImage,
     type MessageListProps,
+    type MessageListScrollPosition,
     type MessageProps,
     type MessageReaction,
     type MessageSegment,

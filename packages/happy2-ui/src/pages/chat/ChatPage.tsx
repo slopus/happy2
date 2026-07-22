@@ -62,6 +62,7 @@ import { useChatMessageMediaModel } from "./chatMessageMediaModel.js";
 import { ChatConversation } from "./ChatConversation.js";
 import { ComposerDock } from "./ComposerDock.js";
 import { ComposeModal } from "../compose/ComposeModal.js";
+import type { MessageListScrollPosition } from "../../Message.js";
 import { chatSidebarModelCreate } from "./chatSidebarModel.js";
 import { chatSharedLinksSectionCreate, sharedLinkUriFromItemId } from "./chatSharedLinksModel.js";
 import { useChatInfoModel } from "./chatInfoModel.js";
@@ -145,6 +146,10 @@ export type ChatPageProps = {
      * fans the shared snapshot out to each row and never subscribes per message.
      */
     messageContributions?: (messageId: string) => ReactNode;
+    /** Saved message viewport for the active conversation. */
+    messageListScrollPosition?: MessageListScrollPosition;
+    /** Reports the active conversation's message viewport to application-owned cache state. */
+    onMessageListScrollPositionChange?: (position: MessageListScrollPosition) => void;
 };
 /** The identity and inline summary of one MCP App handed to the app renderer. */
 export interface McpAppRenderInput {
@@ -1199,6 +1204,7 @@ export function ChatPage(props: ChatPageProps) {
                                 ...pluginRequestEntries(),
                                 ...documentWriteRequestEntries(),
                             ]}
+                            messageListScrollPosition={props.messageListScrollPosition}
                             onAudienceChange={(audience) =>
                                 props.composer?.getState().audienceUpdate(audience)
                             }
@@ -1214,6 +1220,9 @@ export function ChatPage(props: ChatPageProps) {
                             onInfoOpen={() => infoModel.open()}
                             onJoin={() => void channelModel.join()}
                             onMenuSelect={channelModel.menuSelect}
+                            onMessageListScrollPositionChange={
+                                props.onMessageListScrollPositionChange
+                            }
                             onPortShareDisable={portShareDisable}
                             onPortShareOpen={portShareOpen}
                             onSend={sendMessage}

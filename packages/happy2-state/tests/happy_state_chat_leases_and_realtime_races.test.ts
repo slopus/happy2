@@ -250,7 +250,7 @@ describe("HappyState chat leases and realtime races", () => {
         ).toHaveLength(1);
     });
 
-    it("drops an initial chat completion after the final lease closes", async () => {
+    it("keeps an initial chat completion cached after the final attachment closes", async () => {
         const server = createFakeServer();
         let release!: () => void;
         server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: chat() }));
@@ -265,10 +265,11 @@ describe("HappyState chat leases and realtime races", () => {
         handle[Symbol.dispose]();
         release();
         await state.whenIdle();
-        expect(handle.getState()).toBe(beforeRelease);
-        expect(handle.getState().status.type).toBe("loading");
+        expect(handle.getState()).not.toBe(beforeRelease);
+        expect(handle.getState().status.type).toBe("ready");
         const reopened = state.chatOpen("chat-1");
-        expect(reopened).not.toBe(handle);
+        expect(reopened.getState).toBe(handle.getState);
+        expect(server.requests.filter(({ path }) => path.endsWith("?limit=100"))).toHaveLength(1);
         reopened[Symbol.dispose]();
     });
 

@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import babel from "@rolldown/plugin-babel";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
     plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
@@ -17,6 +17,7 @@ export default defineConfig({
         },
     },
     test: {
+        exclude: [...configDefaults.exclude, "**/*.gym.test.tsx"],
         environment: "jsdom",
         setupFiles: [resolve(import.meta.dirname, "src/testing/setup.ts")],
     },

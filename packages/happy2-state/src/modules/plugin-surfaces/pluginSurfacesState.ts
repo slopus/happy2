@@ -488,7 +488,7 @@ interface PluginAppLoadState {
 }
 const appLoadStates = new WeakMap<PluginAppInstanceStore, PluginAppLoadState>();
 
-/** Coalesces durable app refreshes and drops completions after the last instance lease closes. */
+/** Coalesces durable app refreshes and drops completions only after the cached instance is evicted. */
 export async function pluginAppLoad(
     context: PluginAppActionContext,
     instanceId: string,

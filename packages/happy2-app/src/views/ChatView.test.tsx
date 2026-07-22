@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { happyStateCreate } from "happy2-state";
 import { createFakeServer, jsonResponse } from "happy2-state/testing";
 import { afterEach, expect, it, onTestFinished, vi } from "vitest";
@@ -153,4 +153,59 @@ it("acquires and releases exactly one trace lease per routed panel lifetime", as
     expect(leases[3]).toEqual({ messageId: "message-3", disposeCount: 0 });
     screen.unmount();
     expect(leases.map(({ disposeCount }) => disposeCount)).toEqual([1, 1, 1, 1]);
+});
+
+it("restores each routed chat's message scroll position", async () => {
+    const server = createFakeServer();
+    for (const chatId of ["chat-1", "chat-2"]) {
+        server.respond(
+            "GET",
+            `/v0/chats/${chatId}`,
+            jsonResponse(200, { chat: chatSummary(chatId) }),
+        );
+        server.respond(
+            "GET",
+            `/v0/chats/${chatId}/messages?limit=100`,
+            jsonResponse(200, { messages: [], hasMore: false, chatPts: "0" }),
+        );
+    }
+    const state = happyStateCreate({ transport: server.transport });
+    onTestFinished(() => state[Symbol.dispose]());
+    const navigation = navigationStub();
+    const view = (route: DesktopRoute) => (
+        <ChatView
+            adminStartSection="users"
+            canOpenAdmin={false}
+            navigation={navigation}
+            route={route}
+            state={state}
+        />
+    );
+    const screen = render(view(chatRoute("chat-1")));
+    const messageList = () =>
+        screen.container.querySelector<HTMLElement>('[data-happy2-ui="message-list"]')!;
+    await waitFor(() => expect(messageList()).toBeTruthy());
+    const first = messageList();
+    Object.defineProperties(first, {
+        scrollHeight: { configurable: true, value: 1_000 },
+        clientHeight: { configurable: true, value: 300 },
+    });
+    first.scrollTop = 137;
+    fireEvent.scroll(first);
+
+    screen.rerender(view(chatRoute("chat-2")));
+    await waitFor(() => expect(messageList()).not.toBe(first));
+    const second = messageList();
+    Object.defineProperties(second, {
+        scrollHeight: { configurable: true, value: 1_000 },
+        clientHeight: { configurable: true, value: 300 },
+    });
+    second.scrollTop = 52;
+    fireEvent.scroll(second);
+
+    screen.rerender(view(chatRoute("chat-1")));
+    await waitFor(() => {
+        expect(messageList()).not.toBe(second);
+        expect(messageList().scrollTop).toBe(137);
+    });
 });

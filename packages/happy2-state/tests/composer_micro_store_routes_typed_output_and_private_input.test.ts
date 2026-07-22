@@ -160,8 +160,13 @@ describe("HappyState registry shell", () => {
         expect(first.getState().text).toBe("still acquired");
         state.composerRelease("chat-1");
         first.getState().textUpdate("detached store");
+        first.getState().attachmentAdd({ id: "file-1", name: "notes.txt", size: 12 });
         expect(first.getState().text).toBe("detached store");
-        expect(state.composer("chat-1")).not.toBe(first);
+        const reopened = state.composer("chat-1");
+        expect(reopened).toBe(first);
+        expect(reopened.getState().attachments).toEqual([
+            { id: "file-1", name: "notes.txt", size: 12 },
+        ]);
         state[Symbol.dispose]();
     });
 

@@ -166,7 +166,7 @@ export async function workspaceFileDelete(
     });
 }
 
-/** Loads one retained editor file and discards completion after its final lease closes. */
+/** Loads one retained editor file and discards completion only if its cached store was evicted. */
 export async function workspaceFileLoad(
     context: WorkspaceFileActionContext,
     chatId: string,

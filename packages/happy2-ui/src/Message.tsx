@@ -1,5 +1,5 @@
 import { partitionComponentProps } from "./componentProps";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import {
     Children,
     isValidElement,
@@ -650,6 +650,10 @@ export function Message(props: MessageProps) {
 export type MessageListProps = {
     children: ReactNode;
     className?: string;
+    /** Restores a previously detached reader position on this list's first layout. */
+    initialScrollPosition?: MessageListScrollPosition;
+    /** Reports user scrolling and the final position before this list detaches. */
+    onScrollPositionChange?: (position: MessageListScrollPosition) => void;
     style?: CSSProperties;
     /**
      * Enables TanStack Virtual for this list's entire mounted lifetime. Callers
@@ -658,6 +662,12 @@ export type MessageListProps = {
      */
     virtualize?: boolean;
 };
+export interface MessageListScrollPosition {
+    readonly scrollTop: number;
+    readonly following: boolean;
+    /** Measured virtual rows needed to interpret scrollTop after this list remounts. */
+    readonly measurements?: readonly VirtualItem[];
+}
 /** A reader this close to the bottom (px) still follows appended content. */
 const FOLLOW_BOTTOM_THRESHOLD = 8;
 /**
@@ -672,7 +682,10 @@ const FOLLOW_BOTTOM_THRESHOLD = 8;
  */
 export function MessageList(props: MessageListProps) {
     const list = useRef<HTMLDivElement>(null);
-    const following = useRef(true);
+    const following = useRef(props.initialScrollPosition?.following ?? true);
+    const measurements = useRef(props.initialScrollPosition?.measurements);
+    const positionChange = useRef(props.onScrollPositionChange);
+    positionChange.current = props.onScrollPositionChange;
     const items = Children.toArray(props.children);
     const virtualized = props.virtualize === true;
     // TanStack Virtual deliberately owns mutable measurement functions; this leaf
@@ -686,7 +699,12 @@ export function MessageList(props: MessageListProps) {
             return isValidElement(item) && item.key !== null ? item.key : index;
         },
         getScrollElement: () => list.current,
-        initialOffset: virtualized ? items.length * 72 : 0,
+        initialOffset: virtualized
+            ? (props.initialScrollPosition?.scrollTop ?? items.length * 72)
+            : 0,
+        initialMeasurementsCache: props.initialScrollPosition?.measurements
+            ? [...props.initialScrollPosition.measurements]
+            : [],
         overscan: 12,
         useFlushSync: false,
     });
@@ -697,11 +715,32 @@ export function MessageList(props: MessageListProps) {
     useLayoutEffect(() => {
         const element = list.current;
         if (!element) return;
-        scrollToBottom();
+        const savedScrollTop = props.initialScrollPosition?.scrollTop;
+        if (following.current) scrollToBottom();
+        else element.scrollTop = savedScrollTop ?? 0;
+        // Virtual-row measurement can compensate the scroll offset after this
+        // layout effect. Reapply a parked reader's exact pixel offset once those
+        // initial measurements have landed.
+        const restoreFrame =
+            !following.current && savedScrollTop !== undefined
+                ? requestAnimationFrame(() => {
+                      element.scrollTop = savedScrollTop;
+                  })
+                : undefined;
+        const positionReport = (captureMeasurements = false) => {
+            if (captureMeasurements && virtualized)
+                measurements.current = virtualizer.takeSnapshot();
+            positionChange.current?.({
+                scrollTop: element.scrollTop,
+                following: following.current,
+                measurements: measurements.current,
+            });
+        };
         const onScroll = () => {
             following.current =
                 element.scrollHeight - element.scrollTop - element.clientHeight <=
                 FOLLOW_BOTTOM_THRESHOLD;
+            positionReport();
         };
         element.addEventListener("scroll", onScroll, { passive: true });
         const observer = new MutationObserver(() => {
@@ -709,10 +748,12 @@ export function MessageList(props: MessageListProps) {
         });
         observer.observe(element, { characterData: true, childList: true, subtree: true });
         return () => {
+            if (restoreFrame !== undefined) cancelAnimationFrame(restoreFrame);
+            positionReport(true);
             observer.disconnect();
             element.removeEventListener("scroll", onScroll);
         };
-    }, []);
+    }, [props.initialScrollPosition?.scrollTop, virtualized, virtualizer]);
     useLayoutEffect(() => {
         if (!following.current) return;
         if (virtualized && items.length > 0)

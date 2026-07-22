@@ -12,6 +12,7 @@ import {
 } from "./ChatPageComponents.js";
 import type { TerminalSnapshot } from "happy2-state";
 import type { AudienceValue } from "../../AudienceToggle.js";
+import type { MessageListScrollPosition } from "../../Message.js";
 import { ComposerDock } from "./ComposerDock.js";
 import { type Conversation, type PortShareView } from "./chatPageModels.js";
 export interface ChatConversationProps {
@@ -26,6 +27,7 @@ export interface ChatConversationProps {
     /** Native plugin composer contribution triggers, shown in the composer toolbar. */
     composerContributions?: ReactNode;
     messageEntries: ReactNode;
+    messageListScrollPosition?: MessageListScrollPosition;
     activities: readonly DeepReadonly<AgentActivityState>[];
     activityNow: number;
     contextItems: ContextItem[];
@@ -44,6 +46,7 @@ export interface ChatConversationProps {
     onInfoOpen(): void;
     onJoin(): void;
     onMenuSelect(id: string): void;
+    onMessageListScrollPositionChange?(position: MessageListScrollPosition): void;
     onSend(): void;
     onStarToggle(): void;
     onValueChange(value: string): void;
@@ -136,7 +139,14 @@ export function ChatConversation(props: ChatConversationProps) {
                 title={props.conversation.title}
                 topic={props.conversation.topic}
             />
-            <MessageList virtualize>{props.messageEntries}</MessageList>
+            <MessageList
+                initialScrollPosition={props.messageListScrollPosition}
+                key={props.activeConversationId}
+                onScrollPositionChange={props.onMessageListScrollPositionChange}
+                virtualize
+            >
+                {props.messageEntries}
+            </MessageList>
             <ComposerDock
                 activities={props.activities}
                 activityNow={props.activityNow}

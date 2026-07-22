@@ -18,7 +18,7 @@ const loadStates = new WeakMap<DocumentListStore, DocumentListLoadState>();
 /**
  * Loads one channel's document summaries with single-flight coalescing, so a
  * burst of documents-area hints costs at most one trailing refetch and a
- * completion after the surface was released is discarded.
+ * completion after the cached surface was evicted is discarded.
  */
 export async function documentListLoad(
     context: DocumentListActionContext,
@@ -65,7 +65,7 @@ export interface DocumentListOpenContext {
     documentListLoad(chatId: string): void;
 }
 
-/** Acquires one deduplicated channel document list and frees it on final release. */
+/** Acquires one deduplicated channel document list without discarding it on final detach. */
 export function documentListOpen(
     context: DocumentListOpenContext,
     chatId: string,

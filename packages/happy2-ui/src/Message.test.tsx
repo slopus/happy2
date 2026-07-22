@@ -1435,6 +1435,56 @@ it("follows the newest content in MessageList unless the reader scrolled up", as
     await nextFrame();
     expect(atBottom(), "follows again after returning to bottom").toBe(true);
 });
+it("restores each virtualized MessageList position across keyed lifetimes", async () => {
+    const view = createRenderer();
+    const positions = new Map([
+        ["chat-1", { scrollTop: 176, following: false }],
+        ["chat-2", { scrollTop: 264, following: false }],
+        ["chat-3", { scrollTop: 0, following: true }],
+    ]);
+    let chatSelect!: (chatId: string) => void;
+    function RestorableFeed() {
+        const [chatId, setChatId] = useState("chat-1");
+        chatSelect = setChatId;
+        return stage(
+            "restorable-feed",
+            <MessageList
+                initialScrollPosition={positions.get(chatId)}
+                key={chatId}
+                onScrollPositionChange={(position) => positions.set(chatId, position)}
+                virtualize
+            >
+                {Array.from({ length: 100 }, (_, index) => (
+                    <div key={index} style={{ height: 44 }}>
+                        {chatId} message {index + 1}
+                    </div>
+                ))}
+            </MessageList>,
+        );
+    }
+    view.render(RestorableFeed, { width: 620, height: 360 });
+    await view.ready();
+    await nextFrame();
+    const list = () =>
+        view.$('[data-testid="restorable-feed"] [data-happy2-ui="message-list"]')
+            .element as HTMLDivElement;
+
+    expect(list().scrollTop).toBe(176);
+    list().scrollTop = 88;
+    list().dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    expect(positions.get("chat-1")).toMatchObject({ scrollTop: 88, following: false });
+
+    flushSync(() => chatSelect("chat-2"));
+    await nextFrame();
+    expect(list().scrollTop).toBe(264);
+    flushSync(() => chatSelect("chat-3"));
+    await nextFrame();
+    expect(list().scrollHeight - list().scrollTop - list().clientHeight).toBeLessThanOrEqual(1);
+    flushSync(() => chatSelect("chat-1"));
+    await nextFrame();
+    expect(list().scrollTop).toBe(88);
+});
 it("keeps grouped rows aligned to incoming messages and lays out media without a text body", async () => {
     const view = createRenderer();
     const photo = (w: number, h: number) =>

@@ -6,6 +6,7 @@ import {
     type ChatPageActions,
     type ChatPageNavigation,
     type ChatPagePanel,
+    type MessageListScrollPosition,
     type SidebarSection,
 } from "happy2-ui";
 import type {
@@ -74,6 +75,16 @@ type ChatResources = {
     documentListChatId?: string;
     documentId?: string;
 };
+const CHAT_SCROLL_CACHE_CAPACITY = 128;
+const chatScrollCaches = new WeakMap<HappyState, Map<string, MessageListScrollPosition>>();
+
+function chatScrollCache(state: HappyState): Map<string, MessageListScrollPosition> {
+    const existing = chatScrollCaches.get(state);
+    if (existing) return existing;
+    const created = new Map<string, MessageListScrollPosition>();
+    chatScrollCaches.set(state, created);
+    return created;
+}
 /** Owns route-keyed HappyState leases while the reusable ChatPage remains props-only. */
 export function ChatView(props: ChatViewProps) {
     const state = props.state;
@@ -83,6 +94,7 @@ export function ChatView(props: ChatViewProps) {
         {},
     );
     const resourcesRef = useRef<ChatResources>({});
+    const chatScrollPositions = chatScrollCache(state);
     const conversation =
         props.route.primary.kind === "conversation" ? props.route.primary : undefined;
     const workspaceFileRoute =
@@ -104,6 +116,14 @@ export function ChatView(props: ChatViewProps) {
     const resourcesCommit = (next: ChatResources) => {
         resourcesRef.current = next;
         resourcesReplace(next);
+    };
+    const chatScrollPositionUpdate = (chatId: string, position: MessageListScrollPosition) => {
+        const cache = chatScrollPositions;
+        cache.delete(chatId);
+        cache.set(chatId, position);
+        if (cache.size <= CHAT_SCROLL_CACHE_CAPACITY) return;
+        const oldestChatId = cache.keys().next().value;
+        if (oldestChatId) cache.delete(oldestChatId);
     };
     useLayoutEffect(() => {
         let next = resourcesRef.current;
@@ -352,14 +372,14 @@ export function ChatView(props: ChatViewProps) {
         },
     };
     const pageNavigation = (): ChatPageNavigation => {
-        const selected = conversation;
+        const renderedChatId = resources.chatId;
         const file = workspaceFileRoute;
         return {
-            chatId: selected?.chatId,
+            chatId: renderedChatId,
             panel: props.route.panel,
-            workspaceFilePath: file?.chatId === selected?.chatId ? file?.path : undefined,
+            workspaceFilePath: file?.chatId === renderedChatId ? file?.path : undefined,
             documentId:
-                documentRoute?.chatId === selected?.chatId ? documentRoute?.documentId : undefined,
+                documentRoute?.chatId === renderedChatId ? documentRoute?.documentId : undefined,
         };
     };
     const renderPage = (contributions: {
@@ -378,9 +398,17 @@ export function ChatView(props: ChatViewProps) {
             createRequest={props.createRequest}
             directory={state.directory()}
             messageContributions={contributions.messageContributions}
+            messageListScrollPosition={
+                resources.chatId ? chatScrollPositions.get(resources.chatId) : undefined
+            }
             navActiveId={props.navActiveId}
             navSection={props.navSection}
             navigation={pageNavigation()}
+            onMessageListScrollPositionChange={
+                resources.chatId
+                    ? (position) => chatScrollPositionUpdate(resources.chatId!, position)
+                    : undefined
+            }
             onNavSelect={props.onNavSelect}
             renderMcpApp={(input) => <MessageApp input={input} state={state} />}
             sidebar={state.sidebar()}

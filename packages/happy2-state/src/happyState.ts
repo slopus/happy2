@@ -316,22 +316,39 @@ export interface HappyStateOptions extends StateRuntimeOptions {
  * method is a store accessor or a thin forwarder into a same-named product action.
  */
 export class HappyState implements AsyncDisposable, Disposable {
-    private readonly composers = new StoreRegistry<string, ComposerStore>();
+    private static readonly surfaceCacheOptions = { maxDetachedEntries: 128 } as const;
+    private readonly composers = new StoreRegistry<string, ComposerStore>(
+        HappyState.surfaceCacheOptions,
+    );
     /** Session-only memory of each chat's last composer audience mode and agent selection. */
     private readonly composerAudiences = new Map<
         string,
         { audience: MessageAudience; agentUserIds: readonly string[] }
     >();
-    private readonly chats = new StoreRegistry<string, ChatStore>();
-    private readonly workspaces = new StoreRegistry<string, WorkspaceStore>();
-    private readonly workspaceFiles = new StoreRegistry<string, WorkspaceFileStore>();
-    private readonly agentTraces = new StoreRegistry<string, AgentTraceStore>();
-    private readonly mcpApps = new StoreRegistry<string, McpAppStore>();
+    private readonly chats = new StoreRegistry<string, ChatStore>(HappyState.surfaceCacheOptions);
+    private readonly workspaces = new StoreRegistry<string, WorkspaceStore>(
+        HappyState.surfaceCacheOptions,
+    );
+    private readonly workspaceFiles = new StoreRegistry<string, WorkspaceFileStore>(
+        HappyState.surfaceCacheOptions,
+    );
+    private readonly agentTraces = new StoreRegistry<string, AgentTraceStore>(
+        HappyState.surfaceCacheOptions,
+    );
+    private readonly mcpApps = new StoreRegistry<string, McpAppStore>(
+        HappyState.surfaceCacheOptions,
+    );
     private readonly documents = new StoreRegistry<string, DocumentStore>();
-    private readonly documentLists = new StoreRegistry<string, DocumentListStore>();
+    private readonly documentLists = new StoreRegistry<string, DocumentListStore>(
+        HappyState.surfaceCacheOptions,
+    );
     private documentCollectionBinding?: DocumentCollectionStore;
-    private readonly pluginApps = new StoreRegistry<string, PluginAppInstanceStore>();
-    private readonly chatContributions = new StoreRegistry<string, ChatContributionsStore>();
+    private readonly pluginApps = new StoreRegistry<string, PluginAppInstanceStore>(
+        HappyState.surfaceCacheOptions,
+    );
+    private readonly chatContributions = new StoreRegistry<string, ChatContributionsStore>(
+        HappyState.surfaceCacheOptions,
+    );
     private pluginNavigationBinding?: PluginNavigationStore;
     private readonly sidebarBinding = sidebarStoreCreate();
     private filesBinding?: FilesStore;

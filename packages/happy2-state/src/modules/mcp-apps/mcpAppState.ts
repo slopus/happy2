@@ -125,7 +125,7 @@ export interface McpAppOpenContext {
 
 /**
  * Acquires one deduplicated MCP App surface for an assistant message's tool call
- * and frees it on final release. The returned handle exposes the store snapshot
+ * and detaches it without discarding its cached view. The returned handle exposes the store snapshot
  * plus the two app-initiated bridge actions (tool call, resource read) and a
  * reload trigger, so the UI glue never touches transport directly.
  */

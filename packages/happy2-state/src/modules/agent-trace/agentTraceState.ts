@@ -95,7 +95,7 @@ export interface AgentTraceOpenContext {
     agentTraceLoad(messageId: string): void;
 }
 
-/** Acquires one deduplicated trace surface and frees its projection on final release. */
+/** Acquires one deduplicated trace surface and detaches it without discarding its cached projection. */
 export function agentTraceOpen(
     context: AgentTraceOpenContext,
     messageId: string,
