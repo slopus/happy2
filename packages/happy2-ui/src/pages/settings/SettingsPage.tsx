@@ -40,6 +40,38 @@ const notificationSegments: SegmentedControlSegment[] = [
     { value: "mentions", label: "Mentions" },
     { value: "none", label: "Nothing" },
 ];
+interface AvatarCrop {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+}
+
+/** Returns a centered square in the browser-decoded, orientation-corrected image. */
+export function avatarCropCreate(width: number, height: number): AvatarCrop {
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1)
+        throw new Error("Choose a valid image file for your avatar.");
+    const size = Math.min(width, height);
+    return {
+        x: Math.floor((width - size) / 2),
+        y: Math.floor((height - size) / 2),
+        width: size,
+        height: size,
+    };
+}
+
+async function avatarCropRead(file: File): Promise<AvatarCrop> {
+    let image: ImageBitmap | undefined;
+    try {
+        image = await createImageBitmap(file, { imageOrientation: "from-image" });
+        return avatarCropCreate(image.width, image.height);
+    } catch {
+        throw new Error("Choose a valid image file for your avatar.");
+    } finally {
+        image?.close();
+    }
+}
+
 /** Complete settings page: one coarse SettingsStore subscription plus typed field actions. */
 export function SettingsPage(props: SettingsPageProps) {
     const [handleDraft, setHandleDraft] = useState(props.store.getState().profile.username);
@@ -91,8 +123,10 @@ export function SettingsPage(props: SettingsPageProps) {
         setAvatarUploading(true);
         setLocalError(undefined);
         try {
+            const crop = await avatarCropRead(file);
             const body = new FormData();
             body.set("visibility", "public");
+            body.set("crop", JSON.stringify(crop));
             body.set("file", file, file.name);
             const uploaded = await props.avatarActions.avatarUpload(body);
             await props.avatarActions.avatarSet(uploaded.id);

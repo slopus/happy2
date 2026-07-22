@@ -4,7 +4,7 @@ import { expect, it, onTestFinished, vi } from "vitest";
 import { server } from "vitest/browser";
 import "../../styles.css";
 import { createRenderer } from "../../testing";
-import { SettingsPage } from "./SettingsPage";
+import { avatarCropCreate, SettingsPage } from "./SettingsPage";
 
 type AvatarUploadResult = Awaited<ReturnType<HappyState["avatarUpload"]>>;
 
@@ -53,6 +53,17 @@ function rect(element: Element) {
     return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
 }
 
+function avatarImageDecodeMock(width: number, height: number) {
+    const close = vi.fn();
+    const decode = vi.spyOn(globalThis, "createImageBitmap").mockResolvedValue({
+        close,
+        height,
+        width,
+    } as unknown as ImageBitmap);
+    onTestFinished(() => decode.mockRestore());
+    return { close, decode };
+}
+
 const pageHostStyle = {
     background: "var(--groupped-background)",
     display: "flex",
@@ -78,6 +89,7 @@ it("is silent at rest and keeps an empty save-status slot", async () => {
 
 it("shows quiet pending copy for dirty, saving, and avatar-uploading states", async () => {
     const fixture = readyFixture();
+    avatarImageDecodeMock(640, 480);
     let resolveUpload!: (value: AvatarUploadResult) => void;
     const avatarUpload = vi.fn(
         () =>
@@ -128,6 +140,61 @@ it("shows quiet pending copy for dirty, saving, and avatar-uploading states", as
     });
     await vi.waitFor(() => expect(status()).toBe(""));
     expect(avatarSet).toHaveBeenCalledWith("avatar-1");
+});
+
+it("uploads a centered square crop from the orientation-corrected image dimensions", async () => {
+    const fixture = readyFixture();
+    const { close, decode } = avatarImageDecodeMock(1201, 800);
+    const uploaded: AvatarUploadResult = {
+        id: "avatar-1",
+        originalName: "face.png",
+        contentType: "image/png",
+        isPublic: true,
+        kind: "photo",
+        size: 4,
+    };
+    const avatarUpload = vi.fn().mockResolvedValue(uploaded);
+    const avatarSet = vi.fn().mockResolvedValue(undefined);
+    const onAvatarChanged = vi.fn().mockResolvedValue(undefined);
+    const view = createRenderer();
+    view.render(
+        () => (
+            <SettingsPage
+                avatarActions={{ avatarSet, avatarUpload }}
+                onAvatarChanged={onAvatarChanged}
+                store={fixture.store}
+            />
+        ),
+        { width: 1024, height: 704 },
+    );
+    await view.ready();
+
+    const file = new File(["face"], "face.png", { type: "image/png" });
+    const fileInput = view.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [file] });
+    fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+    await vi.waitFor(() => expect(avatarUpload).toHaveBeenCalledTimes(1));
+    expect(decode).toHaveBeenCalledWith(file, { imageOrientation: "from-image" });
+    expect(close).toHaveBeenCalledOnce();
+    const body = avatarUpload.mock.calls[0]![0] as FormData;
+    expect(body.get("visibility")).toBe("public");
+    expect(body.get("file")).toMatchObject({ name: "face.png", size: 4, type: "image/png" });
+    expect(JSON.parse(String(body.get("crop")))).toEqual({
+        x: 200,
+        y: 0,
+        width: 800,
+        height: 800,
+    });
+    await vi.waitFor(() => expect(avatarSet).toHaveBeenCalledWith("avatar-1"));
+    expect(onAvatarChanged).toHaveBeenCalledWith("avatar-1");
+});
+
+it("creates centered integer crops for portrait, landscape, and square images", () => {
+    expect(avatarCropCreate(400, 900)).toEqual({ x: 0, y: 250, width: 400, height: 400 });
+    expect(avatarCropCreate(901, 400)).toEqual({ x: 250, y: 0, width: 400, height: 400 });
+    expect(avatarCropCreate(512, 512)).toEqual({ x: 0, y: 0, width: 512, height: 512 });
+    expect(() => avatarCropCreate(0, 512)).toThrow("Choose a valid image file");
 });
 
 it("keeps save and local failures loud with source-specific titles", async () => {
