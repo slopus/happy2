@@ -1,6 +1,7 @@
 import { UserError, type PortShareAccess, type PortShareAccessTarget } from "happy2-state";
 
 const SESSION_PATH = "/.happy2/auth/session";
+const PORT_SHARE_AUTHORIZATION_HEADER = "X-Happy2-Port-Share-Authorization";
 
 /**
  * The desktop/web capability that opens a chat port share in an external browser
@@ -30,7 +31,7 @@ export function portShareAccessCreate(): PortShareAccess {
             const exchange = async (url: string, token: string): Promise<void> => {
                 const response = await fetch(`${url}${SESSION_PATH}`, {
                     method: "GET",
-                    headers: { authorization: `Bearer ${token}` },
+                    headers: { [PORT_SHARE_AUTHORIZATION_HEADER]: `Bearer ${token}` },
                     credentials: "include",
                     cache: "no-store",
                 });

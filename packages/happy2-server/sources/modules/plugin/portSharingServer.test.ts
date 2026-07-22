@@ -5,12 +5,19 @@ import { describe, expect, test } from "vitest";
 
 describe("bundled Port Sharing MCP server", () => {
     test("exposes contextual share tools, keeps probe tokens internal, and calls the scoped host API", async () => {
-        const previewRequests: Array<{ authorization?: string; method?: string; url?: string }> =
-            [];
+        const previewRequests: Array<{
+            authorization?: string;
+            method?: string;
+            portShareAuthorization?: string;
+            url?: string;
+        }> = [];
         const preview = createServer((request, response) => {
             previewRequests.push({
                 authorization: request.headers.authorization,
                 method: request.method,
+                portShareAuthorization: request.headers["x-happy2-port-share-authorization"] as
+                    | string
+                    | undefined,
                 url: request.url,
             });
             response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
@@ -177,8 +184,9 @@ describe("bundled Port Sharing MCP server", () => {
             });
             expect(previewRequests).toEqual([
                 {
-                    authorization: "Bearer access-2",
+                    authorization: undefined,
                     method: "GET",
+                    portShareAuthorization: "Bearer access-2",
                     url: "/health?full=1",
                 },
             ]);

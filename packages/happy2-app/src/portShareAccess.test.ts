@@ -31,7 +31,7 @@ describe("port share access capability", () => {
         await target!.navigate(SHARE_URL, "token-1");
         expect(fetchMock).toHaveBeenCalledWith(SESSION_URL, {
             method: "GET",
-            headers: { authorization: "Bearer token-1" },
+            headers: { "X-Happy2-Port-Share-Authorization": "Bearer token-1" },
             credentials: "include",
             cache: "no-store",
         });
@@ -57,7 +57,7 @@ describe("port share access capability", () => {
         await target.exchange(SHARE_URL, "token-2");
         expect(fetchMock).toHaveBeenCalledWith(SESSION_URL, {
             method: "GET",
-            headers: { authorization: "Bearer token-2" },
+            headers: { "X-Happy2-Port-Share-Authorization": "Bearer token-2" },
             credentials: "include",
             cache: "no-store",
         });

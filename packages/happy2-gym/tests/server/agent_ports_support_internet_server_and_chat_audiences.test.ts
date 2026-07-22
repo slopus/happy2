@@ -23,6 +23,7 @@ describe("agent port sharing audiences", () => {
             authorization?: string;
             cookie?: string;
             path?: string;
+            portShareAuthorization?: string;
             userId?: string;
         }> = [];
         let spoofedHttpHeaders:
@@ -42,6 +43,9 @@ describe("agent port sharing audiences", () => {
                 authorization: request.headers.authorization,
                 cookie: request.headers.cookie,
                 path: request.url,
+                portShareAuthorization: request.headers["x-happy2-port-share-authorization"] as
+                    | string
+                    | undefined,
                 userId: request.headers["x-happy2-user-id"] as string | undefined,
             });
             response.writeHead(200, { "content-type": "text/plain" });
@@ -51,6 +55,7 @@ describe("agent port sharing audiences", () => {
             authorization?: string;
             cookie?: string;
             forwardedProtocol?: string;
+            portShareAuthorization?: string;
             userId?: string;
         }> = [];
         const upstreamPingPayloads: string[] = [];
@@ -99,6 +104,9 @@ describe("agent port sharing audiences", () => {
                 authorization: request.headers.authorization,
                 cookie: request.headers.cookie,
                 forwardedProtocol: request.headers["x-forwarded-proto"] as string | undefined,
+                portShareAuthorization: request.headers["x-happy2-port-share-authorization"] as
+                    | string
+                    | undefined,
                 userId: request.headers["x-happy2-user-id"] as string | undefined,
             });
             socket.on("ping", (payload) => upstreamPingPayloads.push(payload.toString()));
@@ -287,7 +295,7 @@ describe("agent port sharing audiences", () => {
                 host,
                 "/.happy2/auth/session",
                 {
-                    authorization: `Bearer ${formerMemberAccess.token}`,
+                    "x-happy2-port-share-authorization": `Bearer ${formerMemberAccess.token}`,
                     origin: "http://gym.invalid",
                 },
             );
@@ -373,7 +381,7 @@ describe("agent port sharing audiences", () => {
             );
             expectPortShareErrorPage(
                 await publicRequest(serverUrl, host, "/redemption-is-not-access", {
-                    authorization: `Bearer ${redemptionToken}`,
+                    "x-happy2-port-share-authorization": `Bearer ${redemptionToken}`,
                 }),
                 401,
             );
@@ -394,48 +402,81 @@ describe("agent port sharing audiences", () => {
             expect(
                 (
                     await publicRequest(serverUrl, host, "/preview?copied=1", {
-                        cookie: copiedLinkCookie,
+                        cookie: `happy2_port_share=${cookieValue(copiedLinkCookie)}`,
                     })
                 ).body,
             ).toBe("agent preview /preview?copied=1");
             expect(
                 (
                     await publicRequest(serverUrl, host, "/former-member", {
-                        authorization: `Bearer ${formerMemberAccess.token}`,
+                        "x-happy2-port-share-authorization": `Bearer ${formerMemberAccess.token}`,
                     })
                 ).statusCode,
             ).toBe(401);
             expect((await websocketUpgradeResponse(serverUrl, host, "/socket")).statusCode).toBe(
                 401,
             );
+            const sessionPreflight = await publicRequest(
+                serverUrl,
+                host,
+                "/.happy2/auth/session",
+                {
+                    origin: "http://gym.invalid",
+                    "access-control-request-headers": "x-happy2-port-share-authorization",
+                    "access-control-request-method": "GET",
+                },
+                "OPTIONS",
+            );
+            expect(sessionPreflight.statusCode).toBe(204);
+            expect(sessionPreflight.headers["access-control-allow-headers"]).toBe(
+                "x-happy2-port-share-authorization",
+            );
+            expect(
+                (
+                    await publicRequest(serverUrl, host, "/.happy2/auth/session", {
+                        authorization: `Bearer ${access.token}`,
+                        origin: "http://gym.invalid",
+                    })
+                ).statusCode,
+            ).toBe(401);
+            expect(
+                (
+                    await publicRequest(serverUrl, host, "/application-auth-only", {
+                        authorization: "Bearer application-token",
+                    })
+                ).statusCode,
+            ).toBe(302);
             const bearerResponse = await publicRequest(serverUrl, host, "/preview?mode=full", {
-                authorization: `Bearer ${access.token}`,
+                authorization: "Bearer application-token",
+                cookie: "application_session=app-cookie; theme=dark",
+                "x-happy2-port-share-authorization": `Bearer ${access.token}`,
             });
             expect(bearerResponse).toMatchObject({
                 statusCode: 200,
                 body: "agent preview /preview?mode=full",
             });
             expect(upstreamRequests.at(-1)).toEqual({
-                authorization: undefined,
-                cookie: undefined,
+                authorization: "Bearer application-token",
+                cookie: "application_session=app-cookie; theme=dark",
                 path: "/preview?mode=full",
+                portShareAuthorization: undefined,
                 userId: owner.id,
             });
             expect(
                 (
                     await publicRequest(serverUrl, "different.preview.gym.invalid", "/preview", {
-                        authorization: `Bearer ${access.token}`,
+                        "x-happy2-port-share-authorization": `Bearer ${access.token}`,
                     })
                 ).statusCode,
             ).toBe(404);
 
             const revokedExchange = await publicRequest(serverUrl, host, "/.happy2/auth/session", {
-                authorization: `Bearer ${formerMemberAccess.token}`,
+                "x-happy2-port-share-authorization": `Bearer ${formerMemberAccess.token}`,
                 origin: "http://gym.invalid",
             });
             expect(revokedExchange.statusCode).toBe(401);
             const exchanged = await publicRequest(serverUrl, host, "/.happy2/auth/session", {
-                authorization: `Bearer ${access.token}`,
+                "x-happy2-port-share-authorization": `Bearer ${access.token}`,
                 origin: "http://gym.invalid",
             });
             expect(exchanged.statusCode).toBe(200);
@@ -444,26 +485,47 @@ describe("agent port sharing audiences", () => {
             expect(cookie).toContain("happy2_port_share=");
             expect(cookie).toContain("Max-Age=3600");
             expect(cookie).toContain("HttpOnly");
-            expect((await publicRequest(serverUrl, host, "/from-cookie", { cookie })).body).toBe(
-                "agent preview /from-cookie",
-            );
+            const browserCookie = `happy2_port_share=${cookieValue(cookie)}`;
+            expect(
+                (
+                    await publicRequest(serverUrl, host, "/from-cookie", {
+                        authorization: "Bearer cookie-application-token",
+                        cookie: `${browserCookie}; application_session=cookie-session`,
+                    })
+                ).body,
+            ).toBe("agent preview /from-cookie");
+            expect(upstreamRequests.at(-1)).toEqual({
+                authorization: "Bearer cookie-application-token",
+                cookie: "application_session=cookie-session",
+                path: "/from-cookie",
+                portShareAuthorization: undefined,
+                userId: owner.id,
+            });
             expect(
                 await websocketRoundTrip(serverUrl, host, "/socket", "hello", {
-                    cookie,
+                    authorization: "Bearer websocket-application-token",
+                    cookie: `${browserCookie}; application_socket=socket-cookie`,
+                    "x-happy2-port-share-authorization": `Bearer ${access.token}`,
                     "x-forwarded-proto": "http, https",
                 }),
             ).toEqual({ binary: false, text: "agent websocket hello" });
             expect(
-                await websocketClose(serverUrl, host, "/socket", "close-with-code", { cookie }),
+                await websocketClose(serverUrl, host, "/socket", "close-with-code", {
+                    cookie: browserCookie,
+                }),
             ).toEqual({
                 code: 4_001,
                 reason: "preview complete",
             });
             expect(
-                await websocketClose(serverUrl, host, "/socket", "close-without-code", { cookie }),
+                await websocketClose(serverUrl, host, "/socket", "close-without-code", {
+                    cookie: browserCookie,
+                }),
             ).toEqual({ code: 1_005, reason: "" });
             expect(
-                await websocketClose(serverUrl, host, "/socket", "terminate", { cookie }),
+                await websocketClose(serverUrl, host, "/socket", "terminate", {
+                    cookie: browserCookie,
+                }),
             ).toEqual({ code: 1_006, reason: "" });
             await websocketPingUpstream(
                 serverUrl,
@@ -471,12 +533,16 @@ describe("agent port sharing audiences", () => {
                 "/socket",
                 "browser ping",
                 () => upstreamPingPayloads.includes("browser ping"),
-                { cookie },
+                { cookie: browserCookie },
             );
             expect(
-                await websocketReceivePing(serverUrl, host, "/socket", "send-ping", { cookie }),
+                await websocketReceivePing(serverUrl, host, "/socket", "send-ping", {
+                    cookie: browserCookie,
+                }),
             ).toBe("preview ping");
-            const hangingSource = websocketConnect(serverUrl, host, "/hang", { cookie });
+            const hangingSource = websocketConnect(serverUrl, host, "/hang", {
+                cookie: browserCookie,
+            });
             await waitFor(
                 () => hangingUpgradeSockets.size === 1,
                 "preview upstream handshake to remain pending",
@@ -487,11 +553,13 @@ describe("agent port sharing audiences", () => {
                 "preview upstream handshake to abort with its source",
             );
             expect(
-                await websocketUpgradeResponse(serverUrl, host, "/reject", { cookie }),
+                await websocketUpgradeResponse(serverUrl, host, "/reject", {
+                    cookie: browserCookie,
+                }),
             ).toMatchObject({ statusCode: 503 });
             expect(
                 await rawWebSocketUpgradeAndDisconnect(serverUrl, host, "/reject-stream", {
-                    cookie,
+                    cookie: browserCookie,
                 }),
             ).toBe(503);
             await waitFor(
@@ -500,21 +568,24 @@ describe("agent port sharing audiences", () => {
             );
             expect(upstreamWebSocketRequests).toEqual([
                 {
-                    authorization: undefined,
-                    cookie: undefined,
+                    authorization: "Bearer websocket-application-token",
+                    cookie: "application_socket=socket-cookie",
                     forwardedProtocol: "https",
+                    portShareAuthorization: undefined,
                     userId: owner.id,
                 },
                 {
                     authorization: undefined,
                     cookie: undefined,
                     forwardedProtocol: "http",
+                    portShareAuthorization: undefined,
                     userId: owner.id,
                 },
                 ...Array.from({ length: 4 }, () => ({
                     authorization: undefined,
                     cookie: undefined,
                     forwardedProtocol: "http",
+                    portShareAuthorization: undefined,
                     userId: owner.id,
                 })),
             ]);
@@ -534,7 +605,9 @@ describe("agent port sharing audiences", () => {
                 () => activeUpstreamWebSockets.size === 0,
                 "earlier preview WebSockets to finish closing",
             );
-            const restartSocket = await websocketOpen(serverUrl, host, "/socket", { cookie });
+            const restartSocket = await websocketOpen(serverUrl, host, "/socket", {
+                cookie: browserCookie,
+            });
             await waitFor(
                 () => activeUpstreamWebSockets.size === 1,
                 "established preview WebSocket before server restart",
@@ -558,7 +631,7 @@ describe("agent port sharing audiences", () => {
             expect(
                 (
                     await publicRequest(serverUrl, host, "/after-restart", {
-                        authorization: `Bearer ${access.token}`,
+                        "x-happy2-port-share-authorization": `Bearer ${access.token}`,
                     })
                 ).body,
             ).toBe("agent preview /after-restart");
@@ -623,14 +696,14 @@ describe("agent port sharing audiences", () => {
             expect(
                 (
                     await publicRequest(serverUrl, replacementHost, "/replacement", {
-                        authorization: `Bearer ${replacementAccess.token}`,
+                        "x-happy2-port-share-authorization": `Bearer ${replacementAccess.token}`,
                     })
                 ).body,
             ).toBe("agent preview /replacement");
             expect(
                 (
                     await publicRequest(serverUrl, replacementHost, "/server-user", {
-                        authorization: `Bearer ${outsiderAccess.token}`,
+                        "x-happy2-port-share-authorization": `Bearer ${outsiderAccess.token}`,
                     })
                 ).body,
             ).toBe("agent preview /server-user");
@@ -640,7 +713,7 @@ describe("agent port sharing audiences", () => {
             expect(sandbox.portResolutionCount).toBe(3);
             expectPortShareErrorPage(
                 await publicRequest(serverUrl, host, "/replaced", {
-                    authorization: `Bearer ${access.token}`,
+                    "x-happy2-port-share-authorization": `Bearer ${access.token}`,
                 }),
                 404,
             );
@@ -659,7 +732,7 @@ describe("agent port sharing audiences", () => {
             expect(
                 (
                     await publicRequest(serverUrl, host, "/disabled", {
-                        authorization: `Bearer ${access.token}`,
+                        "x-happy2-port-share-authorization": `Bearer ${access.token}`,
                     })
                 ).statusCode,
             ).toBe(404);
@@ -1131,9 +1204,13 @@ async function publicRequest(
         cookie?: string;
         forwarded?: string;
         origin?: string;
+        "access-control-request-headers"?: string;
+        "access-control-request-method"?: string;
         "x-forwarded-port"?: string;
         "x-happy2-user-id"?: string;
+        "x-happy2-port-share-authorization"?: string;
     } = {},
+    method = "GET",
 ): Promise<{ body: string; headers: Record<string, string | undefined>; statusCode: number }> {
     const address = new URL(serverUrl);
     return new Promise((resolve, reject) => {
@@ -1142,7 +1219,7 @@ async function publicRequest(
                 host: address.hostname,
                 port: Number(address.port),
                 path,
-                method: "GET",
+                method,
                 headers: { host, ...headers },
             },
             (response) => {
@@ -1387,6 +1464,7 @@ interface WebSocketCredentials {
     "x-forwarded-port"?: string;
     "x-forwarded-proto"?: string;
     "x-happy2-user-id"?: string;
+    "x-happy2-port-share-authorization"?: string;
 }
 
 function cookieValue(setCookie: string | undefined): string {

@@ -111,6 +111,10 @@ with the link, `server` permits any active authenticated Happy user, and `chat`
 permits current chat members. Access-token creation uses an empty body and
 returns a one-hour RS256 bearer token for the triggering user and subdomain,
 plus `refreshAfter` set 15 minutes after issuance. Treat that token as secret.
+Present it to the preview hostname as
+`X-Happy2-Port-Share-Authorization: Bearer <token>`, never as the standard
+application `Authorization` header. The preview proxy consumes that dedicated
+header while forwarding application authorization and cookies unchanged.
 Happy rechecks its user's current audience access in SQLite on every request.
 When a browser opens a restricted share without a current preview cookie, Happy
 redirects through the main API session and returns a one-minute user-only

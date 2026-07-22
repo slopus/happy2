@@ -13,7 +13,7 @@ export default definePluginConfig({
         ],
         shortName: "port-sharing",
         variables: [],
-        version: "1.0.0",
+        version: "1.1.0",
     },
     pluginIcon: "plugin.png",
     server: "src/server.mjs",

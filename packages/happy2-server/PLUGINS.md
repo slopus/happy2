@@ -586,6 +586,11 @@ Remote endpoints are rechecked.
   chat, agent, or container. Creation requires an `audience` of `internet`,
   `server`, or `chat`; one port from the fixed 3000-3010 range may be shared for
   a chat at a time.
+- Restricted preview hostnames consume scoped access tokens only from
+  `X-Happy2-Port-Share-Authorization: Bearer <token>` or the host-only
+  `happy2_port_share` cookie. The proxy strips that dedicated header and cookie,
+  while preserving application `Authorization` and unrelated cookies for the
+  shared server.
 
 Container processes receive `HAPPY2_PLUGIN_API_URL` and
 `HAPPY2_PLUGIN_API_TOKEN`. The URL is always

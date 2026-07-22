@@ -39,7 +39,7 @@ async function handle(request) {
             result: {
                 protocolVersion: request.params?.protocolVersion ?? "2025-06-18",
                 capabilities: { tools: {} },
-                serverInfo: { name: "happy2-port-sharing", version: "1.0.0" },
+                serverInfo: { name: "happy2-port-sharing", version: "1.1.0" },
             },
         };
     }
@@ -242,7 +242,7 @@ async function probePortShare(params, input) {
         throw new Error("path must stay on the selected port-share origin.");
     const response = await fetch(target, {
         method,
-        headers: { authorization: `Bearer ${access.token}` },
+        headers: { "x-happy2-port-share-authorization": `Bearer ${access.token}` },
         redirect: "manual",
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });

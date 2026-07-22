@@ -18,6 +18,7 @@ import { portShareErrorPageSend } from "./portShareErrorPage.js";
 import { portShareReturnTo } from "./portShareReturnTo.js";
 
 export const portShareAuthenticationCookieName = "happy2_port_share";
+export const portShareAuthorizationHeaderName = "x-happy2-port-share-authorization";
 const PORT_SHARE_CONSTRAINT = "happy2PortShareHost";
 const PORT_SHARE_CONSTRAINT_VALUE = "port-share";
 const SESSION_PATH = "/.happy2/auth/session";
@@ -67,7 +68,7 @@ export async function registerPortShareProxy(
         handler: (request, reply) => {
             sessionCors(reply, request, corsOrigin);
             return reply
-                .header("access-control-allow-headers", "authorization")
+                .header("access-control-allow-headers", portShareAuthorizationHeaderName)
                 .header("access-control-allow-methods", "GET, OPTIONS")
                 .code(204)
                 .send();
@@ -78,9 +79,9 @@ export async function registerPortShareProxy(
         handler: async (request, reply) => {
             sessionCors(reply, request, corsOrigin);
             try {
-                const authorization = bearerToken(request);
-                const result = await portShares.authenticateAccess(request.host, authorization);
-                reply.header("set-cookie", portShareCookie(authorization!, options.secureCookies));
+                const accessToken = portShareBearerToken(request);
+                const result = await portShares.authenticateAccess(request.host, accessToken);
+                reply.header("set-cookie", portShareCookie(accessToken!, options.secureCookies));
                 return {
                     authenticated: true,
                     userId: result.userId,
@@ -113,7 +114,7 @@ export async function registerPortShareProxy(
         constraints: { [PORT_SHARE_CONSTRAINT]: PORT_SHARE_CONSTRAINT_VALUE },
         httpMethods: ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"],
         preHandler: async (request, reply) => {
-            const bearer = bearerToken(request);
+            const bearer = portShareBearerToken(request);
             try {
                 const authorized = await portShares.authorize(
                     request.host,
@@ -225,7 +226,7 @@ function registerPortShareWebSocketProxy(
             try {
                 authorized = await portShares.authorize(
                     request.headers.host,
-                    rawBearerToken(request) ?? rawAuthenticationCookie(request),
+                    rawPortShareBearerToken(request) ?? rawAuthenticationCookie(request),
                 );
             } catch (error) {
                 const portShareError = normalizePortShareError(error);
@@ -346,14 +347,16 @@ function secondsUntil(resetAt: number, now: number): number {
     return Math.max(1, Math.ceil((resetAt - now) / 1_000));
 }
 
-function bearerToken(request: FastifyRequest): string | undefined {
-    const authorization = request.headers.authorization;
+function portShareBearerToken(request: FastifyRequest): string | undefined {
+    const authorization = request.headers[portShareAuthorizationHeaderName];
+    if (Array.isArray(authorization)) return undefined;
     const token = authorization?.match(/^Bearer +([A-Za-z0-9._-]{1,4096})$/i)?.[1];
     return token;
 }
 
-function rawBearerToken(request: IncomingMessage): string | undefined {
-    const authorization = request.headers.authorization;
+function rawPortShareBearerToken(request: IncomingMessage): string | undefined {
+    const authorization = request.headers[portShareAuthorizationHeaderName];
+    if (Array.isArray(authorization)) return undefined;
     return authorization?.match(/^Bearer +([A-Za-z0-9._-]{1,4096})$/i)?.[1];
 }
 
@@ -444,8 +447,10 @@ function upstreamHeaders(
     userId: string | undefined,
 ) {
     const headers = { ...source };
-    delete headers.authorization;
-    delete headers.cookie;
+    delete headers[portShareAuthorizationHeaderName];
+    const cookie = applicationCookieHeader(headers.cookie);
+    if (cookie) headers.cookie = cookie;
+    else delete headers.cookie;
     delete headers.host;
     delete headers.forwarded;
     delete headers["x-forwarded-for"];
@@ -460,6 +465,20 @@ function upstreamHeaders(
         "x-forwarded-host": request.host,
         ...(userId ? { "x-happy2-user-id": userId } : {}),
     };
+}
+
+function applicationCookieHeader(source: string | string[] | undefined): string | undefined {
+    if (!source) return undefined;
+    const retained = (Array.isArray(source) ? source : [source])
+        .flatMap((value) => value.split(";"))
+        .map((pair) => pair.trim())
+        .filter((pair) => {
+            if (!pair) return false;
+            const separator = pair.indexOf("=");
+            const name = (separator < 0 ? pair : pair.slice(0, separator)).trim();
+            return name !== portShareAuthenticationCookieName;
+        });
+    return retained.length ? retained.join("; ") : undefined;
 }
 
 function requiredUpstream(upstreams: WeakMap<object, string>, request: object): string {
