@@ -4,6 +4,9 @@ import { readPackageManifest } from "./release/readPackageManifest.js";
 import { runCommand } from "./release/runCommand.js";
 
 const PACKAGE_DIRECTORY = fileURLToPath(new URL("../", import.meta.url));
+const DESKTOP_PACKAGE_DIRECTORY = fileURLToPath(
+    new URL("../packages/happy2-desktop/", import.meta.url),
+);
 const VERSION_BUMPS = new Set([
     "major",
     "minor",
@@ -132,7 +135,15 @@ async function release(): Promise<void> {
             });
         }
         const versionedManifest = readPackageManifest();
-        runCommand("git", ["add", "package.json", "pnpm-lock.yaml"]);
+        runCommand("npm", ["pkg", "set", `version=${versionedManifest.version}`], {
+            cwd: DESKTOP_PACKAGE_DIRECTORY,
+        });
+        runCommand("git", [
+            "add",
+            "package.json",
+            "packages/happy2-desktop/package.json",
+            "pnpm-lock.yaml",
+        ]);
         const commitArguments = ["commit", "-m", `Release v${versionedManifest.version}`];
         if (releasingInitialVersion) {
             commitArguments.push("--allow-empty");

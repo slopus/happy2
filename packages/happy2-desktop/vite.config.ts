@@ -5,6 +5,7 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+    base: "./",
     plugins: [
         // The Rig terminal protocol (@slopus/ghostty-web) decodes compressed wire
         // frames with node:zlib and node Buffer; these polyfills make them real in

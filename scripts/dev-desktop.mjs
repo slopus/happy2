@@ -1,14 +1,9 @@
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { join, resolve } from "node:path";
 
 const workspace = resolve(import.meta.dirname, "..");
 const portless = join(workspace, "node_modules", ".bin", "portless");
-const serverUrl = execFileSync(portless, ["get", "happy2-api"], {
-    cwd: workspace,
-    encoding: "utf8",
-}).trim();
-
-console.log(`Happy (2) desktop development: server ${serverUrl}`);
+console.log("Happy (2) desktop development: managed local runtime");
 
 const portlessArguments = ["run", "--name", "happy2-desktop"];
 if (process.env.PORT) portlessArguments.push("--app-port", process.env.PORT);
@@ -16,7 +11,7 @@ portlessArguments.push("pnpm", "--filter", "happy2-desktop", "dev");
 
 const child = spawn(portless, portlessArguments, {
     cwd: workspace,
-    env: { ...process.env, VITE_HAPPY2_SERVER_URL: serverUrl },
+    env: process.env,
     stdio: "inherit",
 });
 

@@ -3,13 +3,17 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
     build: {
-        ssr: resolve(import.meta.dirname, "src/main.ts"),
+        ssr: true,
         emptyOutDir: false,
         outDir: "dist",
         rollupOptions: {
-            external: ["electron"],
+            input: {
+                main: resolve(import.meta.dirname, "src/main.ts"),
+                "server-process": resolve(import.meta.dirname, "src/serverProcess.ts"),
+            },
+            external: ["electron", "electron-updater", "happy2-server"],
             output: {
-                entryFileNames: "main.js",
+                entryFileNames: "[name].js",
             },
         },
     },

@@ -1,7 +1,10 @@
 {
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
+        "paths": {
+            "happy2-server": ["../happy2-server/sources/index.ts"]
+        },
         "types": ["node", "vite/client"]
     },
-    "include": ["src", "vite.config.ts", "vite.main.config.ts"]
+    "include": ["src", "vite.config.ts", "vite.main.config.ts", "vite.preload.config.ts"]
 }

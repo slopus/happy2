@@ -1,0 +1,131 @@
+name: Release macOS desktop
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    contents: write
+
+concurrency:
+    group: desktop-release-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    build:
+        name: Build macOS ${{ matrix.arch }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - arch: arm64
+                      runner: macos-14
+                    - arch: x64
+                      runner: macos-15-intel
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 60
+        env:
+            APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+            APPLE_ID: ${{ secrets.APPLE_ID }}
+            APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+            CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+            CSC_LINK: ${{ secrets.CSC_LINK }}
+
+        steps:
+            - name: Check out source
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  fetch-depth: 0
+
+            - name: Set up pnpm
+              uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+              with:
+                  node-version: "24"
+                  cache: pnpm
+
+            - name: Verify release identity
+              env:
+                  RELEASE_TAG: ${{ github.ref_name }}
+              run: |
+                  ROOT_VERSION="$(node -p "require('./package.json').version")"
+                  DESKTOP_VERSION="$(node -p "require('./packages/happy2-desktop/package.json').version")"
+                  test "$RELEASE_TAG" = "v$ROOT_VERSION"
+                  test "$DESKTOP_VERSION" = "$ROOT_VERSION"
+                  test -n "$CSC_LINK"
+                  test -n "$CSC_KEY_PASSWORD"
+                  test -n "$APPLE_ID"
+                  test -n "$APPLE_APP_SPECIFIC_PASSWORD"
+                  test -n "$APPLE_TEAM_ID"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Validate desktop source
+              if: matrix.arch == 'arm64'
+              run: |
+                  pnpm --dir packages/happy2-desktop test
+                  pnpm --dir packages/happy2-desktop typecheck
+                  pnpm --dir packages/happy2-app exec vitest run src/components/AuthGate.test.tsx
+                  pnpm --dir packages/happy2-app exec vitest run src/App.test.tsx \
+                    -t "keeps the local/remote instance boundary visible in every sidebar variant"
+                  pnpm --dir packages/happy2-app typecheck
+
+            - name: Prepare signed application assets
+              run: pnpm desktop:assets
+
+            - name: Build server and desktop
+              run: pnpm --dir packages/happy2-desktop build
+
+            - name: Sign, notarize, and package
+              working-directory: packages/happy2-desktop
+              run: pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
+
+            - name: Upload architecture artifacts
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              with:
+                  name: happy2-macos-${{ matrix.arch }}
+                  path: |
+                      packages/happy2-desktop/release/*.dmg
+                      packages/happy2-desktop/release/*.zip
+                      packages/happy2-desktop/release/*.blockmap
+                  if-no-files-found: error
+
+    release:
+        name: Publish GitHub Release
+        needs: build
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+
+        steps:
+            - name: Check out source
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+            - name: Download signed artifacts
+              uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+              with:
+                  pattern: happy2-macos-*
+                  path: packages/happy2-desktop/release
+                  merge-multiple: true
+
+            - name: Create architecture-aware updater manifest
+              env:
+                  RELEASE_VERSION: ${{ github.ref_name }}
+              run: |
+                  RELEASE_VERSION="${RELEASE_VERSION#v}" node scripts/create-mac-update-manifest.mjs
+
+            - name: Publish release assets
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RELEASE_TAG: ${{ github.ref_name }}
+              run: |
+                  if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+                    gh release upload "$RELEASE_TAG" packages/happy2-desktop/release/* --clobber
+                  else
+                    gh release create "$RELEASE_TAG" packages/happy2-desktop/release/* \
+                      --generate-notes \
+                      --title "Happy 2 $RELEASE_TAG"
+                  fi

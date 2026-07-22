@@ -1,21 +1,33 @@
 {
     "name": "happy2-desktop",
-    "version": "0.0.0",
+    "version": "0.0.18",
     "private": true,
+    "description": "Happy (2) macOS desktop app",
+    "author": "Slopus",
     "type": "module",
     "main": "dist/main.js",
     "scripts": {
-        "dev": "PORT=${PORT:-5174}; concurrently --kill-others-on-fail --names main,renderer,electron \"vite build --config vite.main.config.ts --watch\" \"vite --host 127.0.0.1 --port $PORT --strictPort\" \"wait-on dist/main.js tcp:$PORT && VITE_DEV_SERVER_URL=http://127.0.0.1:$PORT electron ./dist/main.js\"",
-        "build": "vite build && vite build --config vite.main.config.ts",
+        "predev": "pnpm --dir ../.. plugins:build && pnpm --dir ../happy2-server build",
+        "dev": "PORT=${PORT:-5174}; concurrently --kill-others-on-fail --names main,preload,renderer,electron \"vite build --config vite.main.config.ts --watch\" \"vite build --config vite.preload.config.ts --watch\" \"vite --host 127.0.0.1 --port $PORT --strictPort\" \"wait-on dist/main.js dist/preload.cjs tcp:$PORT && VITE_DEV_SERVER_URL=http://127.0.0.1:$PORT electron ./dist/main.js\"",
+        "prebuild": "pnpm --dir ../.. plugins:build && pnpm --dir ../happy2-server build",
+        "build": "vite build && vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts",
+        "predist:mac": "pnpm --dir ../.. desktop:assets",
+        "dist:mac": "pnpm build && electron-builder --mac",
+        "prerelease:mac": "pnpm --dir ../.. desktop:assets",
+        "release:mac": "pnpm build && electron-builder --mac --arm64 --x64",
         "start": "electron ./dist/main.js",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "typecheck": "tsc --project tsconfig.json",
         "format": "oxfmt --write .",
         "format:check": "oxfmt --check .",
         "lint": "oxlint .",
-        "clean": "rm -rf dist"
+        "clean": "rm -rf dist release"
     },
     "dependencies": {
+        "electron-updater": "^6.8.9",
         "happy2-app": "workspace:*",
+        "happy2-server": "workspace:*",
         "react": "19.2.7",
         "react-dom": "19.2.7"
     },
@@ -27,9 +39,68 @@
         "@vitejs/plugin-react": "^6.0.3",
         "concurrently": "^10.0.3",
         "electron": "^43.1.0",
+        "electron-builder": "^26.15.3",
         "tailwindcss": "^4.3.2",
         "typescript": "^7.0.2",
         "vite": "^8.1.4",
+        "vitest": "^4.1.10",
         "wait-on": "^9.0.10"
+    },
+    "packageManager": "pnpm@10.28.1",
+    "build": {
+        "appId": "com.slopus.happy2",
+        "productName": "Happy 2",
+        "asar": true,
+        "asarUnpack": [
+            "node_modules/@libsql/**/*",
+            "node_modules/@img/**/*",
+            "node_modules/@anthropic-ai/claude-agent-sdk-darwin-*/**/*",
+            "node_modules/@lydell/node-pty-darwin-*/**/*",
+            "node_modules/@vscode/ripgrep/**/*",
+            "node_modules/sharp/**/*",
+            "node_modules/**/*.node"
+        ],
+        "directories": {
+            "buildResources": "build",
+            "output": "release"
+        },
+        "files": [
+            "dist/**/*",
+            "package.json"
+        ],
+        "mac": {
+            "category": "public.app-category.developer-tools",
+            "entitlements": "build/entitlements.mac.plist",
+            "entitlementsInherit": "build/entitlements.mac.plist",
+            "hardenedRuntime": true,
+            "icon": "build/icon.icns",
+            "notarize": true,
+            "target": [
+                {
+                    "target": "dmg",
+                    "arch": [
+                        "arm64",
+                        "x64"
+                    ]
+                },
+                {
+                    "target": "zip",
+                    "arch": [
+                        "arm64",
+                        "x64"
+                    ]
+                }
+            ]
+        },
+        "dmg": {
+            "sign": false
+        },
+        "artifactName": "Happy-2-${version}-${arch}.${ext}",
+        "publish": {
+            "provider": "github",
+            "owner": "slopus",
+            "repo": "happy2",
+            "releaseType": "release"
+        }
     }
 }

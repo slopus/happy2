@@ -14,3 +14,5 @@ __screenshots__
 *.db-shm
 *.db-wal
 packages/happy2-server/files
+packages/happy2-desktop/build/icon.icns
+packages/happy2-desktop/release
