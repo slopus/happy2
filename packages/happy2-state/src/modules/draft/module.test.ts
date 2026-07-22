@@ -12,6 +12,41 @@ const draft = (revision: string, text: string, updatedAt: string) => ({
 });
 
 describe("personal draft coordinator", () => {
+    it("persists only the latest text after a quiet debounce window", async () => {
+        vi.useFakeTimers();
+        try {
+            const server = createFakeServer();
+            server.route("POST", "/v0/chats/chat-1/updateDraft", async (request) => {
+                const text = (request.body as { text: string }).text;
+                return jsonResponse(200, {
+                    draft: draft("1", text, "2026-01-01T00:00:01.000Z"),
+                    sync: {},
+                });
+            });
+            const runtime = new StateRuntime({ transport: server.transport });
+            const coordinator = new DraftCoordinator({
+                runtime,
+                composerGet: () => undefined,
+            });
+
+            coordinator.textUpdate("chat-1", "a");
+            await vi.advanceTimersByTimeAsync(300);
+            coordinator.textUpdate("chat-1", "ab");
+            await vi.advanceTimersByTimeAsync(499);
+            expect(server.requests).toHaveLength(0);
+
+            coordinator.textUpdate("chat-1", "abc");
+            await vi.advanceTimersByTimeAsync(500);
+            await runtime.whenIdle();
+
+            expect(server.requests.map(({ body }) => body)).toEqual([{ text: "abc" }]);
+            coordinator[Symbol.dispose]();
+            await runtime[Symbol.asyncDispose]();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it("applies newer authoritative text only to an unfocused composer with no newer interaction", async () => {
         const server = createFakeServer();
         server.respond(
@@ -28,7 +63,7 @@ describe("personal draft coordinator", () => {
         });
         composer.getState().textUpdate("locally touched");
         const runtime = new StateRuntime({ transport: server.transport });
-        const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer });
+        const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer }, 0);
 
         await coordinator.load();
 
@@ -73,7 +108,7 @@ describe("personal draft coordinator", () => {
             if (interaction === "type")
                 composer.getState().composerInput({ type: "textReconciled", text: "local wins" });
             const runtime = new StateRuntime({ transport: server.transport });
-            const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer });
+            const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer }, 0);
 
             await coordinator.load();
             await runtime.whenIdle();
@@ -99,7 +134,7 @@ describe("personal draft coordinator", () => {
         const output = vi.fn();
         const composer = composerStoreCreate("chat-1", { text: "old", output });
         const runtime = new StateRuntime({ transport: server.transport });
-        const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer });
+        const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer }, 0);
 
         await coordinator.load();
 
@@ -125,7 +160,7 @@ describe("personal draft coordinator", () => {
             });
         });
         const runtime = new StateRuntime({ transport: server.transport });
-        const coordinator = new DraftCoordinator({ runtime, composerGet: () => undefined });
+        const coordinator = new DraftCoordinator({ runtime, composerGet: () => undefined }, 0);
 
         coordinator.textUpdate("chat-1", "a");
         await vi.waitFor(() => expect(server.requests).toHaveLength(1));
@@ -153,7 +188,7 @@ describe("personal draft coordinator", () => {
             });
         });
         const runtime = new StateRuntime({ transport: server.transport });
-        const coordinator = new DraftCoordinator({ runtime, composerGet: () => undefined });
+        const coordinator = new DraftCoordinator({ runtime, composerGet: () => undefined }, 0);
 
         coordinator.textUpdate("chat-1", "local in flight");
         await vi.waitFor(() => expect(server.requests).toHaveLength(1));
@@ -197,7 +232,7 @@ describe("personal draft coordinator", () => {
         let now = Date.parse("2026-01-01T00:00:01.000Z");
         const composer = composerStoreCreate("chat-1", { now: () => now });
         const runtime = new StateRuntime({ transport: server.transport });
-        const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer });
+        const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer }, 0);
 
         composer.getState().textUpdate("old local");
         coordinator.textUpdate("chat-1", "old local");
@@ -242,7 +277,7 @@ describe("personal draft coordinator", () => {
             transport: server.transport,
             onBackgroundError: (error) => errors.push(error.message),
         });
-        const coordinator = new DraftCoordinator({ runtime, composerGet: () => undefined });
+        const coordinator = new DraftCoordinator({ runtime, composerGet: () => undefined }, 0);
         await coordinator.load();
 
         coordinator.textUpdate("chat-1", "retry me");
@@ -279,7 +314,7 @@ describe("personal draft coordinator", () => {
         composer.getState().textUpdate("local after remote");
         now = Date.parse("2026-01-01T00:00:04.000Z");
         const runtime = new StateRuntime({ transport: server.transport, now: () => now });
-        const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer });
+        const coordinator = new DraftCoordinator({ runtime, composerGet: () => composer }, 0);
 
         await coordinator.load();
         await runtime.whenIdle();

@@ -721,6 +721,11 @@ export type RealtimeEvent =
           readonly areas: readonly string[];
       }
     | {
+          /** Current durable server cursor carried by SSE ready and heartbeat frames. */
+          readonly type: "sync.checkpoint";
+          readonly state: SyncState;
+      }
+    | {
           readonly type: "typing";
           readonly chatId: string;
           readonly userId: string;

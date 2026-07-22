@@ -1075,6 +1075,7 @@ export class HappyState implements AsyncDisposable, Disposable {
         this.pluginApps.dispose();
         this.chatContributions.dispose();
         this.settingsCoordinator?.[Symbol.dispose]();
+        this.drafts[Symbol.dispose]();
         this.identities.clear();
         this.sidebarChats.clear();
     }

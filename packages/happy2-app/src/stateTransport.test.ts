@@ -12,7 +12,10 @@ function deferred<T>() {
 }
 
 describe("authenticated happy2-state transport", () => {
-    afterEach(() => vi.unstubAllGlobals());
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    });
 
     it("sends authenticated JSON requests without exposing auth to the state model", async () => {
         const fetchMock = vi.fn().mockResolvedValue(
@@ -53,15 +56,86 @@ describe("authenticated happy2-state transport", () => {
             }),
         );
         vi.stubGlobal("fetch", fetchMock);
+        let cancel = (): void => undefined;
         const event = new Promise<string>((resolve) => {
-            createAuthenticatedTransport("http://server", "secret").subscribe({
+            cancel = createAuthenticatedTransport("http://server", "secret").subscribe({
                 onEvent: (value) => resolve(value.type),
             });
         });
 
         await expect(event).resolves.toBe("sync");
+        cancel();
         expect(fetchMock.mock.calls[0]?.[0]).toBe("http://server/v0/sync/events");
         expect(fetchMock.mock.calls[0]?.[1].headers.authorization).toBe("Bearer secret");
+    });
+
+    it("turns ready and heartbeat cursors into typed recovery checkpoints", async () => {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(
+                    encoder.encode(
+                        'event: ready\ndata: {"state":{"protocolVersion":1,"generation":"g","sequence":"3"}}\n\n' +
+                            'event: heartbeat\ndata: {"state":{"protocolVersion":1,"generation":"g","sequence":"4"}}\n\n',
+                    ),
+                );
+            },
+        });
+        const fetchMock = vi.fn().mockResolvedValue(
+            new Response(stream, {
+                status: 200,
+                headers: { "content-type": "text/event-stream" },
+            }),
+        );
+        vi.stubGlobal("fetch", fetchMock);
+        const checkpoints: string[] = [];
+        const cancel = createAuthenticatedTransport("http://server").subscribe({
+            onEvent: (event) => {
+                if (event.type === "sync.checkpoint") checkpoints.push(event.state.sequence);
+            },
+        });
+
+        await vi.waitFor(() => expect(checkpoints).toEqual(["3", "4"]));
+        cancel();
+    });
+
+    it("reconnects a realtime stream after a proxy or network disconnect", async () => {
+        vi.useFakeTimers();
+        const first = new ReadableStream({
+            start(controller) {
+                controller.close();
+            },
+        });
+        const second = new ReadableStream();
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(first, {
+                    status: 200,
+                    headers: { "content-type": "text/event-stream" },
+                }),
+            )
+            .mockResolvedValueOnce(
+                new Response(second, {
+                    status: 200,
+                    headers: { "content-type": "text/event-stream" },
+                }),
+            );
+        vi.stubGlobal("fetch", fetchMock);
+        const errors: unknown[] = [];
+        const cancel = createAuthenticatedTransport("http://server").subscribe({
+            onEvent: () => undefined,
+            onError: (error) => errors.push(error),
+        });
+
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+        await vi.advanceTimersByTimeAsync(250);
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+        expect(errors).toHaveLength(1);
+
+        const reconnectSignal = fetchMock.mock.calls[1]?.[1].signal as AbortSignal;
+        cancel();
+        expect(reconnectSignal.aborted).toBe(true);
     });
 
     it("streams multipart request SSE across split CRLF frames without overriding the boundary", async () => {

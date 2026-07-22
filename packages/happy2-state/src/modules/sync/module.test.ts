@@ -165,6 +165,12 @@ describe("sync module", () => {
 
         server.events.sync({ sequence: "1" });
         await state.whenIdle();
+        server.events.sync({ sequence: "1" });
+        server.events.emit({
+            type: "sync.checkpoint",
+            state: { protocolVersion: 1, generation: "g", sequence: "1" },
+        });
+        await state.whenIdle();
 
         expect(state.sidebar().getState().projects).toEqual([first, second]);
         expect(
@@ -172,5 +178,49 @@ describe("sync module", () => {
                 (request) => request.method === "GET" && request.path === "/v0/projects",
             ),
         ).toHaveLength(2);
+        expect(
+            server.requests.filter(
+                (request) => request.method === "POST" && request.path === "/v0/sync/getDifference",
+            ),
+        ).toHaveLength(1);
+    });
+
+    it("uses a newer SSE checkpoint to recover a missed durable hint", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "GET",
+            "/v0/sync/state",
+            jsonResponse(200, {
+                state: { protocolVersion: 1, generation: "g", sequence: "0" },
+                serverTime: "now",
+            }),
+        );
+        server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
+        server.respond(
+            "POST",
+            "/v0/sync/getDifference",
+            jsonResponse(200, {
+                kind: "difference",
+                changedChats: [],
+                removedChatIds: [],
+                areas: [],
+                state: { protocolVersion: 1, generation: "g", sequence: "2" },
+                targetState: { protocolVersion: 1, generation: "g", sequence: "2" },
+            }),
+        );
+        using state = happyStateCreate({ transport: server.transport });
+        await state.syncStart();
+
+        server.events.emit({
+            type: "sync.checkpoint",
+            state: { protocolVersion: 1, generation: "g", sequence: "2" },
+        });
+        await state.whenIdle();
+
+        expect(state.sidebar().getState().sync?.sequence).toBe("2");
+        expect(
+            server.requests.filter(({ path }) => path === "/v0/sync/getDifference"),
+        ).toHaveLength(1);
     });
 });

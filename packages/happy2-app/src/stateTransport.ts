@@ -12,6 +12,8 @@ import {
 
 const TERMINAL_PROTOCOL = "happy2-terminal.v1";
 const TERMINAL_AUTH_PROTOCOL_PREFIX = "happy2-auth.";
+const REALTIME_RECONNECT_MIN_MS = 250;
+const REALTIME_RECONNECT_MAX_MS = 10_000;
 
 export function createAuthenticatedTransport(baseUrl: string, token?: string): ClientTransport {
     const base = baseUrl.replace(/\/$/, "");
@@ -62,17 +64,7 @@ export function createAuthenticatedTransport(baseUrl: string, token?: string): C
         },
         subscribe(observer: RealtimeObserver): () => void {
             const controller = new AbortController();
-            void streamEvents(`${base}/v0/sync/events`, token, controller.signal, observer).then(
-                () => {
-                    if (!controller.signal.aborted)
-                        observer.onError?.(
-                            new TransportError("Realtime disconnected from the Happy (2) server."),
-                        );
-                },
-                (error: unknown) => {
-                    if (!controller.signal.aborted) observer.onError?.(error);
-                },
-            );
+            void subscribeRealtime(`${base}/v0/sync/events`, token, controller.signal, observer);
             return () => controller.abort();
         },
         connectTerminal(target: TerminalConnectTarget): TerminalConnection {
@@ -205,11 +197,43 @@ class BrowserTerminalConnection implements TerminalConnection {
     }
 }
 
+async function subscribeRealtime(
+    url: string,
+    token: string | undefined,
+    signal: AbortSignal,
+    observer: RealtimeObserver,
+): Promise<void> {
+    let consecutiveFailures = 0;
+    while (!signal.aborted) {
+        let opened = false;
+        let failure: unknown;
+        try {
+            await streamEvents(url, token, signal, observer, () => {
+                opened = true;
+            });
+            if (signal.aborted) return;
+            failure = new TransportError("Realtime disconnected from the Happy (2) server.");
+        } catch (error) {
+            if (signal.aborted) return;
+            failure = error;
+        }
+        observer.onError?.(failure);
+        if (failure instanceof TransportError && !failure.retryable) return;
+        consecutiveFailures = opened ? 0 : consecutiveFailures + 1;
+        const delay = Math.min(
+            REALTIME_RECONNECT_MIN_MS * 2 ** Math.max(0, consecutiveFailures - 1),
+            REALTIME_RECONNECT_MAX_MS,
+        );
+        await abortableDelay(delay, signal);
+    }
+}
+
 async function streamEvents(
     url: string,
     token: string | undefined,
     signal: AbortSignal,
     observer: RealtimeObserver,
+    onOpen: () => void,
 ): Promise<void> {
     let response: Response;
     try {
@@ -226,12 +250,15 @@ async function streamEvents(
             cause: error,
         });
     }
-    if (!response.ok || !response.body)
-        throw new TransportError(`Realtime returned HTTP ${response.status}.`);
-
+    if (!response.ok || !response.body) {
+        const retryable =
+            response.status === 408 || response.status === 429 || response.status >= 500;
+        throw new TransportError(`Realtime returned HTTP ${response.status}.`, retryable);
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let receivedFrame = false;
     while (!signal.aborted) {
         const result = await reader.read();
         buffer += decoder.decode(result.value, { stream: !result.done });
@@ -239,14 +266,62 @@ async function streamEvents(
             const next = sseFrameTake(buffer);
             if (!next) break;
             buffer = next.rest;
-            const data = sseFrameFields(next.frame).data;
+            if (!receivedFrame) {
+                receivedFrame = true;
+                onOpen();
+            }
+            const { event: eventName, data } = sseFrameFields(next.frame);
             if (data) {
-                const event = JSON.parse(data) as RealtimeEvent | { state?: unknown };
-                if ("type" in event) observer.onEvent(event);
+                const event = JSON.parse(data) as unknown;
+                if (eventName === "ready" || eventName === "heartbeat") {
+                    const state = syncStateFromFrame(event);
+                    if (state) observer.onEvent({ type: "sync.checkpoint", state });
+                } else if (isRealtimeEvent(event)) observer.onEvent(event);
             }
         }
         if (result.done) return;
     }
+}
+
+function syncStateFromFrame(
+    value: unknown,
+): Extract<RealtimeEvent, { readonly type: "sync.checkpoint" }>["state"] | undefined {
+    if (!value || typeof value !== "object" || !("state" in value)) return undefined;
+    const state = value.state;
+    if (!state || typeof state !== "object") return undefined;
+    if (
+        !("protocolVersion" in state) ||
+        state.protocolVersion !== 1 ||
+        !("generation" in state) ||
+        typeof state.generation !== "string" ||
+        !("sequence" in state) ||
+        typeof state.sequence !== "string"
+    )
+        return undefined;
+    return {
+        protocolVersion: 1,
+        generation: state.generation,
+        sequence: state.sequence,
+    };
+}
+
+function isRealtimeEvent(value: unknown): value is RealtimeEvent {
+    return Boolean(value && typeof value === "object" && "type" in value);
+}
+
+function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return Promise.resolve();
+    return new Promise((resolve) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const finish = (): void => {
+            if (timer) clearTimeout(timer);
+            signal.removeEventListener("abort", finish);
+            resolve();
+        };
+        signal.addEventListener("abort", finish, { once: true });
+        if (signal.aborted) finish();
+        else timer = setTimeout(finish, milliseconds);
+    });
 }
 
 async function streamRequest(

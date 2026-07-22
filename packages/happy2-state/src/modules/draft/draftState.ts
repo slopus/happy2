@@ -2,6 +2,8 @@ import { type DraftSummary } from "../../resources.js";
 import { type ComposerStore } from "../composer/composerState.js";
 import { type StateRuntime } from "../runtime/runtimeState.js";
 
+const DRAFT_SAVE_DEBOUNCE_MS = 500;
+
 export interface DraftCoordinatorContext {
     readonly runtime: StateRuntime;
     composerGet(scopeId: string): ComposerStore | undefined;
@@ -15,11 +17,15 @@ export class DraftCoordinator {
     private readonly drafts = new Map<string, DraftSummary>();
     private readonly queuedText = new Map<string, string>();
     private readonly saving = new Map<string, Promise<void>>();
+    private readonly saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
     private readonly inFlight = new Map<string, { readonly text: string; supersededBy?: string }>();
     private loaded = false;
     private serverClockOffsetMs = 0;
 
-    constructor(private readonly context: DraftCoordinatorContext) {}
+    constructor(
+        private readonly context: DraftCoordinatorContext,
+        private readonly saveDebounceMs = DRAFT_SAVE_DEBOUNCE_MS,
+    ) {}
 
     /** Loads the complete personal projection and reconciles only composers safe to replace. */
     async load(): Promise<void> {
@@ -42,16 +48,42 @@ export class DraftCoordinator {
         return this.drafts.get(scopeId)?.text;
     }
 
-    /** Queues a local keystroke (including empty text) for durable last-write-wins persistence. */
+    /** Debounces a local keystroke (including empty text) for durable last-write-wins persistence. */
     textUpdate(scopeId: string, text: string): void {
         this.queuedText.set(scopeId, text);
         const inFlight = this.inFlight.get(scopeId);
         if (inFlight && inFlight.text !== text) inFlight.supersededBy = text;
-        if (this.saving.has(scopeId) || !this.context.runtime.connected) return;
+        const timer = this.saveTimers.get(scopeId);
+        if (timer) clearTimeout(timer);
+        if (!this.context.runtime.connected) return;
+        if (this.saveDebounceMs <= 0) {
+            this.saveTimers.delete(scopeId);
+            this.flush(scopeId);
+            return;
+        }
+        this.saveTimers.set(
+            scopeId,
+            setTimeout(() => {
+                this.saveTimers.delete(scopeId);
+                this.flush(scopeId);
+            }, this.saveDebounceMs),
+        );
+    }
+
+    /** Cancels pending debounce timers when the owning HappyState lifetime ends. */
+    [Symbol.dispose](): void {
+        for (const timer of this.saveTimers.values()) clearTimeout(timer);
+        this.saveTimers.clear();
+    }
+
+    private flush(scopeId: string): void {
+        if (this.saving.has(scopeId) || !this.context.runtime.active) return;
         const saving = this.save(scopeId).finally(() => {
-            this.saving.delete(scopeId);
-            const queued = this.queuedText.get(scopeId);
-            if (queued !== undefined) this.textUpdate(scopeId, queued);
+            if (this.saving.get(scopeId) === saving) this.saving.delete(scopeId);
+            // If the debounce elapsed while the previous write was still in flight,
+            // flush the already-quiet trailing value now. A still-armed timer owns
+            // newer typing and must not be pulled forward by the response.
+            if (this.queuedText.has(scopeId) && !this.saveTimers.has(scopeId)) this.flush(scopeId);
         });
         this.saving.set(scopeId, saving);
         this.context.runtime.background(saving);
@@ -97,23 +129,22 @@ export class DraftCoordinator {
     }
 
     private async save(scopeId: string): Promise<void> {
-        while (this.queuedText.has(scopeId) && this.context.runtime.active) {
-            const text = this.queuedText.get(scopeId)!;
-            this.queuedText.delete(scopeId);
-            const write = { text };
-            this.inFlight.set(scopeId, write);
-            const result = await this.context.runtime
-                .operation("updateDraft", {
-                    chatId: scopeId,
-                    text,
-                })
-                .finally(() => {
-                    if (this.inFlight.get(scopeId) === write) this.inFlight.delete(scopeId);
-                });
-            const known = this.drafts.get(scopeId);
-            if (!known || revisionCompare(known.revision, result.draft.revision) < 0)
-                this.drafts.set(scopeId, result.draft);
-        }
+        if (!this.queuedText.has(scopeId) || !this.context.runtime.active) return;
+        const text = this.queuedText.get(scopeId)!;
+        this.queuedText.delete(scopeId);
+        const write = { text };
+        this.inFlight.set(scopeId, write);
+        const result = await this.context.runtime
+            .operation("updateDraft", {
+                chatId: scopeId,
+                text,
+            })
+            .finally(() => {
+                if (this.inFlight.get(scopeId) === write) this.inFlight.delete(scopeId);
+            });
+        const known = this.drafts.get(scopeId);
+        if (!known || revisionCompare(known.revision, result.draft.revision) < 0)
+            this.drafts.set(scopeId, result.draft);
     }
 }
 

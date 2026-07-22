@@ -193,10 +193,25 @@ export class SyncCoordinator {
     private onEvent(event: RealtimeEvent): void {
         if (!this.context.runtime.active || !this.running) return;
         switch (event.type) {
-            case "sync":
+            case "sync": {
+                const cursor = this.context.sidebar.getState().sync;
+                if (cursor && sequenceCompare(event.sequence, cursor.sequence) <= 0) return;
                 this.syncAgain = true;
-                if (this.context.sidebar.getState().sync) this.queueSync(this.generation);
+                if (cursor) this.queueSync(this.generation);
                 return;
+            }
+            case "sync.checkpoint": {
+                const cursor = this.context.sidebar.getState().sync;
+                if (
+                    cursor &&
+                    cursor.generation === event.state.generation &&
+                    sequenceCompare(event.state.sequence, cursor.sequence) <= 0
+                )
+                    return;
+                this.syncAgain = true;
+                if (cursor) this.queueSync(this.generation);
+                return;
+            }
             case "typing":
                 this.typingApply(event);
                 return;
@@ -463,6 +478,16 @@ export class SyncCoordinator {
 
     private current(generation: number): boolean {
         return this.running && this.generation === generation;
+    }
+}
+
+function sequenceCompare(left: string, right: string): number {
+    try {
+        const leftValue = BigInt(left);
+        const rightValue = BigInt(right);
+        return leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
+    } catch {
+        return left.localeCompare(right);
     }
 }
 
