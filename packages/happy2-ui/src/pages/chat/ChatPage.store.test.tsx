@@ -84,6 +84,7 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         adminOpen: () => undefined,
         chatSelect: () => undefined,
         infoOpen: () => undefined,
+        channelInfoOpen: () => undefined,
         profileOpen: () => undefined,
         panelClose: () => undefined,
         traceOpen: () => undefined,

@@ -1,5 +1,5 @@
 import "./styles.css";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { Sidebar, type SidebarSection } from "./Sidebar";
 import { createRenderer, type RenderedElement } from "./testing";
 
@@ -95,6 +95,87 @@ const sections: SidebarSection[] = [
         label: "Direct",
     },
 ];
+
+it("opens a row action menu on right click and reports the row with the selected action", async () => {
+    const select = vi.fn();
+    const view = createRenderer().render(
+        () => (
+            <Sidebar
+                activeItemId="launch-week"
+                itemMenuItems={(item) =>
+                    item.kind === "channel"
+                        ? [
+                              {
+                                  icon: "settings",
+                                  id: "edit",
+                                  kind: "item",
+                                  label: "Edit settings",
+                              },
+                              { kind: "separator" },
+                              {
+                                  danger: true,
+                                  icon: "close",
+                                  id: "leave",
+                                  kind: "item",
+                                  label: "Leave channel",
+                              },
+                          ]
+                        : []
+                }
+                onItemMenuSelect={select}
+                onItemSelect={() => {}}
+                sections={sections}
+            />
+        ),
+        { width: 400, height: 500 },
+    );
+    await view.ready();
+
+    const channel = view.container.querySelector<HTMLButtonElement>(
+        '[data-item-id="launch-week"]',
+    )!;
+    const opened = channel.dispatchEvent(
+        new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            clientX: 120,
+            clientY: 90,
+        }),
+    );
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(opened, "the browser context menu is suppressed").toBe(false);
+    const menu = view.$('[data-happy2-ui="sidebar-item-menu"]');
+    expect(menu.bounds().width).toBe(216);
+    expect(menu.computedStyles(["left", "position", "top"])).toEqual({
+        left: "120px",
+        position: "fixed",
+        top: "90px",
+    });
+    expect(
+        [...menu.element.querySelectorAll('[data-happy2-ui="menu-item-label"]')].map(
+            (item) => item.textContent,
+        ),
+    ).toEqual(["Edit settings", "Leave channel"]);
+
+    menu.element.querySelector<HTMLButtonElement>('[data-item-id="leave"]')!.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(select).toHaveBeenCalledWith(expect.objectContaining({ id: "launch-week" }), "leave");
+    expect(view.container.querySelector('[data-happy2-ui="sidebar-item-menu"]')).toBeNull();
+
+    const person = view.container.querySelector<HTMLButtonElement>('[data-item-id="maya"]')!;
+    expect(
+        person.dispatchEvent(
+            new MouseEvent("contextmenu", {
+                bubbles: true,
+                cancelable: true,
+                clientX: 80,
+                clientY: 80,
+            }),
+        ),
+        "rows without actions retain the browser context menu",
+    ).toBe(true);
+    expect(view.container.querySelector('[data-happy2-ui="sidebar-item-menu"]')).toBeNull();
+});
 
 it("renders the Happy logo to the left of the product title", async () => {
     const view = createRenderer().render(

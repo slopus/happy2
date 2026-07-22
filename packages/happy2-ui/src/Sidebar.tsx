@@ -1,11 +1,20 @@
 import { partitionComponentProps } from "./componentProps";
-import { type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
+import {
+    useLayoutEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type HTMLAttributes,
+    type MouseEvent,
+    type ReactNode,
+} from "react";
 import { Avatar, type ToneName } from "./Avatar";
 import { CountBadge } from "./Badge";
 import { Button } from "./Button";
 import { happyLogoUrl } from "./assets";
 import { Icon, type IconName } from "./Icon";
 import { PluginAssetGlyph } from "./PluginAssetGlyph";
+import { Menu, type MenuItem } from "./Menu";
 export type SidebarItem = {
     /** Marks a row as archived; the row keeps its position but paints muted. */
     archived?: boolean;
@@ -64,6 +73,9 @@ export type SidebarProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
      */
     onBack?: () => void;
     onCompose?: () => void;
+    /** Returns the context-menu actions available for one row. Empty means no menu. */
+    itemMenuItems?: (item: SidebarItem) => MenuItem[];
+    onItemMenuSelect?: (item: SidebarItem, actionId: string) => void;
     onItemSelect: (id: string) => void;
     onSectionAction?: (sectionId: string) => void;
     sections: SidebarSection[];
@@ -80,6 +92,7 @@ function SidebarRow(props: {
     active: boolean;
     className?: string;
     item: SidebarItem;
+    onContextMenu?: (item: SidebarItem, event: MouseEvent<HTMLButtonElement>) => void;
     onSelect: (id: string) => void;
 }) {
     const item = () => props.item;
@@ -102,6 +115,7 @@ function SidebarRow(props: {
             data-happy2-ui="sidebar-item"
             data-unread={unread() ? "" : undefined}
             onClick={() => props.onSelect(item().id)}
+            onContextMenu={(event) => props.onContextMenu?.(item(), event)}
             style={
                 depth() > 0
                     ? { paddingLeft: SIDEBAR_ROW_PADDING_X + depth() * SIDEBAR_ROW_INDENT }
@@ -180,15 +194,54 @@ export function Sidebar(props: SidebarProps) {
         "className",
         "composeLabel",
         "footer",
+        "itemMenuItems",
         "onBack",
         "onCompose",
         "onItemSelect",
+        "onItemMenuSelect",
         "onSectionAction",
         "sections",
         "style",
         "subtitle",
         "title",
     ]);
+    const menuRoot = useRef<HTMLDivElement>(null);
+    const [itemMenu, setItemMenu] = useState<{
+        item: SidebarItem;
+        items: MenuItem[];
+        x: number;
+        y: number;
+    }>();
+    useLayoutEffect(() => {
+        if (!itemMenu) return;
+        const close = (event: Event) => {
+            if (!menuRoot.current?.contains(event.target as Node)) setItemMenu(undefined);
+        };
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape") setItemMenu(undefined);
+        };
+        const dismiss = () => setItemMenu(undefined);
+        document.addEventListener("pointerdown", close);
+        document.addEventListener("keydown", closeOnEscape);
+        window.addEventListener("resize", dismiss);
+        return () => {
+            document.removeEventListener("pointerdown", close);
+            document.removeEventListener("keydown", closeOnEscape);
+            window.removeEventListener("resize", dismiss);
+        };
+    }, [itemMenu]);
+    const openItemMenu = (item: SidebarItem, event: MouseEvent<HTMLButtonElement>) => {
+        const items = local.itemMenuItems?.(item) ?? [];
+        if (!items.some((entry) => entry.kind === "item")) return;
+        event.preventDefault();
+        const width = 216;
+        setItemMenu({
+            item,
+            items,
+            x: Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8)),
+            y: Math.max(8, Math.min(event.clientY, window.innerHeight - 48)),
+        });
+    };
     return (
         <nav
             {...rest}
@@ -322,6 +375,7 @@ export function Sidebar(props: SidebarProps) {
                                           active={item.id === local.activeItemId}
                                           key={item.id}
                                           item={item}
+                                          onContextMenu={openItemMenu}
                                           onSelect={local.onItemSelect}
                                       />
                                   ))
@@ -358,6 +412,24 @@ export function Sidebar(props: SidebarProps) {
                 <footer className="happy2-sidebar__footer" data-happy2-ui="sidebar-footer">
                     {local.footer}
                 </footer>
+            ) : null}
+            {itemMenu ? (
+                <div
+                    className="happy2-sidebar__item-menu"
+                    data-happy2-ui="sidebar-item-menu"
+                    ref={menuRoot}
+                    style={{ left: itemMenu.x, top: itemMenu.y }}
+                >
+                    <Menu
+                        items={itemMenu.items}
+                        onSelect={(actionId) => {
+                            const item = itemMenu.item;
+                            setItemMenu(undefined);
+                            local.onItemMenuSelect?.(item, actionId);
+                        }}
+                        width={216}
+                    />
+                </div>
             ) : null}
         </nav>
     );

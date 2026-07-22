@@ -47,6 +47,7 @@ const passiveActions: ChatPageActions = {
     adminOpen: () => undefined,
     chatSelect: () => undefined,
     infoOpen: () => undefined,
+    channelInfoOpen: () => undefined,
     profileOpen: () => undefined,
     panelClose: () => undefined,
     traceOpen: () => undefined,

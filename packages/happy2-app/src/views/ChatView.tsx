@@ -292,6 +292,18 @@ export function ChatView(props: ChatViewProps) {
             );
         },
         infoOpen: () => panelOpen({ kind: "info" }),
+        channelInfoOpen(chatId) {
+            props.navigation.navigate({
+                ...props.route,
+                primary: {
+                    kind: "conversation",
+                    conversationKind: "channel",
+                    chatId,
+                },
+                panel: { kind: "info" },
+                overlay: undefined,
+            });
+        },
         profileOpen: (userId) => panelOpen({ kind: "profile", userId }),
         panelClose: () => props.navigation.close("panel"),
         traceOpen: (messageId) => panelOpen({ kind: "trace", messageId }),
