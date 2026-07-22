@@ -97,6 +97,20 @@ describe("moderation action effects", () => {
             attachmentFileIds: [file.id],
         });
         expect(attachmentMessage.statusCode).toBe(201);
+        const document = await asRestricted.post(`/v0/chats/${chatId}/createDocument`, {
+            title: "Moderated evidence",
+        });
+        const documentId = document.json().document.id as string;
+        expect(
+            (
+                await asRestricted.post(`/v0/documents/${documentId}/attachFile`, {
+                    fileId: file.id,
+                })
+            ).statusCode,
+        ).toBe(201);
+        expect(
+            (await asReporter.get(`/v0/documents/${documentId}`)).json().document.fileAttachments,
+        ).toHaveLength(1);
         expect((await asReporter.get(`/v0/files/${file.id}`)).statusCode).toBe(200);
         const fileReportId = await createReport(asReporter, {
             chatId,
@@ -110,13 +124,19 @@ describe("moderation action effects", () => {
         expect(removedFile.statusCode).toBe(200);
         expect(removedFile.json()).toMatchObject({
             action: { action: "remove_file", fileId: file.id },
-            sync: { chats: [{ chatId, pts: expect.any(String) }], areas: ["files"] },
+            sync: {
+                chats: [{ chatId, pts: expect.any(String) }],
+                areas: ["files", "documents"],
+            },
         });
         expect((await asReporter.get(`/v0/files/${file.id}`)).statusCode).toBe(404);
         expect((await asRestricted.get(`/v0/files/${file.id}`)).statusCode).toBe(404);
         expect(
             (await asReporter.get("/v0/files")).json().files.map((item: { id: string }) => item.id),
         ).not.toContain(file.id);
+        expect(
+            (await asReporter.get(`/v0/documents/${documentId}`)).json().document.fileAttachments,
+        ).toEqual([]);
 
         const restrictionReportId = await createReport(asReporter, {
             targetUserId: restricted.id,
@@ -207,6 +227,7 @@ describe("moderation action effects", () => {
         expect(difference.json().changedChats.map((chat: { id: string }) => chat.id)).toEqual(
             expect.arrayContaining([chatId, ownedChatId]),
         );
+        expect(difference.json().areas).toContain("documents");
 
         const audit = await asAdmin.get("/v0/admin/auditLogs?limit=200");
         expect(audit.statusCode).toBe(200);

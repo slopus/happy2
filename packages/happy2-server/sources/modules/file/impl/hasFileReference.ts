@@ -5,6 +5,7 @@ import {
     chats,
     customEmojis,
     dataExportJobs,
+    documentFileAttachments,
     fileAccessGrants,
     fileDerivatives,
     files,
@@ -38,6 +39,13 @@ export async function hasFileReference(
             })
             .from(scheduledMessageAttachments)
             .where(eq(scheduledMessageAttachments.fileId, fileId))
+            .limit(1),
+        executor
+            .select({
+                id: documentFileAttachments.fileId,
+            })
+            .from(documentFileAttachments)
+            .where(eq(documentFileAttachments.fileId, fileId))
             .limit(1),
         executor
             .select({

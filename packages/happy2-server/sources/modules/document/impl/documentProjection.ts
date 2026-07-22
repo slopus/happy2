@@ -1,5 +1,6 @@
 import {
     type DocumentChannelAttachment,
+    type DocumentFileAttachment,
     type DocumentFormat,
     type DocumentSummary,
 } from "../types.js";
@@ -9,6 +10,7 @@ import { type DocumentRow } from "./documentRowGet.js";
 export function documentProjection(
     row: DocumentRow,
     channelAttachments: readonly DocumentChannelAttachment[],
+    fileAttachments: readonly DocumentFileAttachment[],
 ): DocumentSummary {
     return {
         id: row.id,
@@ -16,6 +18,7 @@ export function documentProjection(
         title: row.title,
         format: row.format as DocumentFormat,
         channelAttachments,
+        fileAttachments,
         latestSequence: String(row.lastSequence),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,

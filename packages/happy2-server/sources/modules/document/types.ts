@@ -5,6 +5,8 @@
  * binding to construct.
  */
 
+import type { FileSummary } from "../chat/types.js";
+
 export const DOCUMENT_FORMATS = ["blocknote"] as const;
 export type DocumentFormat = (typeof DOCUMENT_FORMATS)[number];
 
@@ -14,6 +16,13 @@ export interface DocumentChannelAttachment {
     readonly attachedAt: string;
 }
 
+export interface DocumentFileAttachment {
+    readonly file: FileSummary;
+    readonly position: number;
+    readonly attachedByUserId: string;
+    readonly createdAt: string;
+}
+
 export interface DocumentSummary {
     readonly id: string;
     readonly ownerUserId: string;
@@ -21,6 +30,8 @@ export interface DocumentSummary {
     readonly format: DocumentFormat;
     /** Attachments visible to the caller; owners see every attachment. */
     readonly channelAttachments: readonly DocumentChannelAttachment[];
+    /** Durable files attached directly to this document in display order. */
+    readonly fileAttachments: readonly DocumentFileAttachment[];
     /** Sequence of the newest accepted update, as an unsigned decimal string. */
     readonly latestSequence: string;
     readonly createdAt: string;

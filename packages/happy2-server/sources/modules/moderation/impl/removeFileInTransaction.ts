@@ -2,7 +2,14 @@ import { type DrizzleTransaction } from "../../drizzle.js";
 import { OperationsError, type OperationsSyncHint } from "../../operations/types.js";
 
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { chats, fileAccessGrants, files, messageAttachments, messages } from "../../schema.js";
+import {
+    chats,
+    documentFileAttachments,
+    fileAccessGrants,
+    files,
+    messageAttachments,
+    messages,
+} from "../../schema.js";
 
 import { advanceChatMutation } from "./advanceChatMutation.js";
 import { syncEventInsert } from "../../sync/syncEventInsert.js";
@@ -41,6 +48,10 @@ export async function removeFileInTransaction(
             ),
         )
         .orderBy(messages.chatId);
+    const affectedDocuments = await tx
+        .selectDistinct({ documentId: documentFileAttachments.documentId })
+        .from(documentFileAttachments)
+        .where(eq(documentFileAttachments.fileId, fileId));
     const sequence = await syncSequenceNextWithTimestamp(tx);
     const chatPoints: Array<{
         chatId: string;
@@ -78,9 +89,16 @@ export async function removeFileInTransaction(
         entityId: fileId,
         actorUserId,
     });
+    if (affectedDocuments.length > 0)
+        await syncEventInsert(tx, {
+            sequence,
+            kind: "document.file_removed",
+            entityId: fileId,
+            actorUserId,
+        });
     return {
         sequence: String(sequence),
         chats: chatPoints,
-        areas: ["files"],
+        areas: affectedDocuments.length > 0 ? ["files", "documents"] : ["files"],
     };
 }

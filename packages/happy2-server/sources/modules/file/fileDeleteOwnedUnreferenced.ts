@@ -5,7 +5,7 @@ import { files } from "../schema.js";
 import { hasFileReference } from "./impl/hasFileReference.js";
 
 /**
- * Soft-deletes a files row only when the actor owns it and no message, profile, emoji, export, or other durable reference still uses it.
+ * Soft-deletes a files row only when the actor owns it and no message, document, profile, emoji, export, or other durable reference still uses it.
  * Performing the reference checks beside the guarded update prevents cleanup from invalidating content that became linked concurrently.
  */
 export async function fileDeleteOwnedUnreferenced(

@@ -351,6 +351,13 @@
             "when": 1786060800000,
             "tag": "0049_account_free_local_users",
             "breakpoints": true
+        },
+        {
+            "idx": 50,
+            "version": "6",
+            "when": 1786147200000,
+            "tag": "0050_document_file_attachments",
+            "breakpoints": true
         }
     ]
 }

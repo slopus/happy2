@@ -844,6 +844,29 @@ export const files = sqliteTable("files", {
     deleteReason: text("delete_reason"),
 });
 
+export const documentFileAttachments = sqliteTable(
+    "document_file_attachments",
+    {
+        documentId: text("document_id")
+            .notNull()
+            .references(() => documents.id, { onDelete: "cascade" }),
+        fileId: text("file_id")
+            .notNull()
+            .references(() => files.id, { onDelete: "restrict" }),
+        position: integer("position").notNull().default(0),
+        attachedByUserId: text("attached_by_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "restrict" }),
+        createdAt: text("created_at").notNull().default(sql.raw("CURRENT_TIMESTAMP")),
+    },
+    (table) => [
+        primaryKey({ columns: [table.documentId, table.fileId] }),
+        uniqueIndex("document_file_attachments_position_idx").on(table.documentId, table.position),
+        index("document_file_attachments_file_id_idx").on(table.fileId),
+        index("document_file_attachments_attached_by_user_id_idx").on(table.attachedByUserId),
+    ],
+);
+
 export const idempotencyKeys = sqliteTable("idempotency_keys", {
     id: text("id").primaryKey().notNull(),
     principalType: text("principal_type").notNull(),
@@ -2004,6 +2027,7 @@ export const schema = {
     customEmojiRevisions,
     customEmojis,
     dataExportJobs,
+    documentFileAttachments,
     documentUpdates,
     documents,
     drafts,

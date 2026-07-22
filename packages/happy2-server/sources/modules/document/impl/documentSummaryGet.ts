@@ -1,7 +1,12 @@
 import { chatGetAccess } from "../../chat/chatGetAccess.js";
 import { type DrizzleExecutor } from "../../drizzle.js";
-import { type DocumentChannelAttachment, type DocumentSummary } from "../types.js";
+import {
+    type DocumentChannelAttachment,
+    type DocumentFileAttachment,
+    type DocumentSummary,
+} from "../types.js";
 import { documentAttachmentRowsListForDocuments } from "./documentAttachmentRowsList.js";
+import { documentFileAttachmentRowsListForDocuments } from "./documentFileAttachmentRowsList.js";
 import { documentProjection } from "./documentProjection.js";
 import { type DocumentRow } from "./documentRowGet.js";
 
@@ -27,10 +32,11 @@ export async function documentSummariesGet(
     rows: readonly DocumentRow[],
 ): Promise<DocumentSummary[]> {
     if (rows.length === 0) return [];
-    const attachmentRows = await documentAttachmentRowsListForDocuments(
-        executor,
-        rows.map((row) => row.id),
-    );
+    const documentIds = rows.map((row) => row.id);
+    const [attachmentRows, fileAttachmentRows] = await Promise.all([
+        documentAttachmentRowsListForDocuments(executor, documentIds),
+        documentFileAttachmentRowsListForDocuments(executor, documentIds),
+    ]);
     const nonOwnerDocumentIds = new Set(
         rows.filter((row) => row.ownerUserId !== actorUserId).map((row) => row.id),
     );
@@ -68,5 +74,17 @@ export async function documentSummariesGet(
         });
         attachmentsByDocument.set(attachment.documentId, projected);
     }
-    return rows.map((row) => documentProjection(row, attachmentsByDocument.get(row.id) ?? []));
+    const fileAttachmentsByDocument = new Map<string, DocumentFileAttachment[]>();
+    for (const { documentId, ...attachment } of fileAttachmentRows) {
+        const projected = fileAttachmentsByDocument.get(documentId) ?? [];
+        projected.push(attachment);
+        fileAttachmentsByDocument.set(documentId, projected);
+    }
+    return rows.map((row) =>
+        documentProjection(
+            row,
+            attachmentsByDocument.get(row.id) ?? [],
+            fileAttachmentsByDocument.get(row.id) ?? [],
+        ),
+    );
 }

@@ -6,6 +6,8 @@ import { documentAttach } from "../modules/document/documentAttach.js";
 import { documentCreate } from "../modules/document/documentCreate.js";
 import { documentDelete } from "../modules/document/documentDelete.js";
 import { documentDetach } from "../modules/document/documentDetach.js";
+import { documentFileAttach } from "../modules/document/documentFileAttach.js";
+import { documentFileDetach } from "../modules/document/documentFileDetach.js";
 import { documentGet } from "../modules/document/documentGet.js";
 import { documentGetDifference } from "../modules/document/documentGetDifference.js";
 import { documentList } from "../modules/document/documentList.js";
@@ -242,6 +244,50 @@ export function registerDocumentRoutes(
             return {
                 documentId: result.documentId,
                 chatId: result.chatId,
+                sync: result.hint,
+            };
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/documents/:documentId/attachFile", async (request, reply) => {
+        const userId = await actor(auth, request, reply);
+        if (!userId) return;
+        try {
+            const body = object(request.body);
+            only(body, ["fileId"]);
+            const result = await documentFileAttach(executor, {
+                actorUserId: userId,
+                documentId: routeId(request, "documentId"),
+                fileId: id(body.fileId, "fileId"),
+            });
+            if (result.hint) await publish(pubsub, result.hint);
+            return reply.code(result.created ? 201 : 200).send({
+                attachment: result.attachment,
+                document: result.document,
+                sync: result.hint,
+            });
+        } catch (error) {
+            return handled(reply, error) ?? Promise.reject(error);
+        }
+    });
+
+    app.post("/v0/documents/:documentId/detachFile", async (request, reply) => {
+        const userId = await actor(auth, request, reply);
+        if (!userId) return;
+        try {
+            const body = object(request.body);
+            only(body, ["fileId"]);
+            const result = await documentFileDetach(executor, {
+                actorUserId: userId,
+                documentId: routeId(request, "documentId"),
+                fileId: id(body.fileId, "fileId"),
+            });
+            await publish(pubsub, result.hint);
+            return {
+                document: result.document,
+                fileId: result.fileId,
                 sync: result.hint,
             };
         } catch (error) {
