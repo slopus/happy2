@@ -72,7 +72,11 @@ async function start(input: ServerProcessStart): Promise<void> {
             logger: false,
             webRoot: input.webRoot,
         });
-        send({ type: "ready", url: running.url });
+        // The bundled renderer is a separate file/Vite origin and must send a
+        // CORS preflight for its Authorization header. Speak directly to the
+        // private backend, whose CORS plugin owns OPTIONS; keep the web gateway
+        // alive for absolute file URLs and the standalone lifecycle.
+        send({ type: "ready", url: running.backendUrl });
     } catch (error) {
         delete process.env[DESKTOP_LOCAL_ACCESS_TOKEN_ENV];
         await rigEndpointRootRemove();

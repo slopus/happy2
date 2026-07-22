@@ -39,8 +39,12 @@ describe("desktop-owned server configuration", () => {
 
     it("places the capability only in local server child environments", () => {
         vi.stubEnv(DESKTOP_LOCAL_ACCESS_TOKEN_ENV, "ambient-value-must-not-leak");
+        vi.stubEnv("RIG_COMMAND", "/usr/local/bin/global-rig");
+        vi.stubEnv("RIG_HOME", "/Users/ada/.rig");
 
         expect(serverChildEnvironment()[DESKTOP_LOCAL_ACCESS_TOKEN_ENV]).toBeUndefined();
+        expect(serverChildEnvironment().RIG_COMMAND).toBeUndefined();
+        expect(serverChildEnvironment().RIG_HOME).toBeUndefined();
         expect(
             serverChildEnvironment("generated-local-capability")[DESKTOP_LOCAL_ACCESS_TOKEN_ENV],
         ).toBe("generated-local-capability");

@@ -94,6 +94,8 @@ import { DocumentsPanelPage } from "./pages/DocumentsPanelPage";
 import { DocumentsPagePage } from "./pages/DocumentsPagePage";
 import { DocumentDeleteDialogPage } from "./pages/DocumentDeleteDialogPage";
 import { DocumentWritePermissionCardPage } from "./pages/DocumentWritePermissionCardPage";
+import { DesktopStartupScreenPage } from "./pages/DesktopStartupScreenPage";
+import { DesktopInstanceSwitcherPage } from "./pages/DesktopInstanceSwitcherPage";
 type BlueprintPage = {
     id: string;
     label: string;
@@ -150,6 +152,18 @@ const components: BlueprintPage[] = [
         label: "Project create dialog",
         number: "C-142",
         page: ChatProjectCreateDialogPage,
+    },
+    {
+        id: "desktop-startup-screen",
+        label: "Desktop startup screen",
+        number: "C-145",
+        page: DesktopStartupScreenPage,
+    },
+    {
+        id: "desktop-instance-switcher",
+        label: "Desktop instance switcher",
+        number: "C-146",
+        page: DesktopInstanceSwitcherPage,
     },
     { id: "app-shell", label: "App shell", number: "C-010", page: AppShellPage },
     { id: "channel-header", label: "Channel header", number: "C-011", page: ChannelHeaderPage },

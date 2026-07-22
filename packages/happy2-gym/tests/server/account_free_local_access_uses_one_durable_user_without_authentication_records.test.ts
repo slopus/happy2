@@ -32,6 +32,18 @@ describe("account-free local server access", () => {
                 logger: false,
                 webRoot,
             });
+            expect(running.backendUrl).not.toBe(running.url);
+            const preflight = await fetch(`${running.backendUrl}/v0/me`, {
+                method: "OPTIONS",
+                headers: {
+                    origin: "file://",
+                    "access-control-request-method": "GET",
+                    "access-control-request-headers": "authorization",
+                },
+            });
+            expect(preflight.status).toBe(204);
+            expect(preflight.headers.get("access-control-allow-origin")).toBe("file://");
+            expect(preflight.headers.get("access-control-allow-headers")).toBe("authorization");
             const form = new FormData();
             form.append("file", new Blob(["local attachment"]), "local.txt");
             const upload = await fetch(`${running.url}/v0/files/upload`, {

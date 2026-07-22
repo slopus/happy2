@@ -42,6 +42,11 @@ export type AuthSession = {
      */
     setAvatar: (photoFileId: string) => Promise<void>;
 };
+/** Async bearer persistence supplied by native hosts such as macOS Keychain. */
+export interface AuthCredentialStore {
+    get(): Promise<string | undefined>;
+    set(value?: string): Promise<void>;
+}
 type AuthGateProps = {
     serverUrl: string;
     children: (session: AuthSession) => ReactNode;
@@ -57,6 +62,7 @@ type AuthGateProps = {
      * (native) leave it unset and behave exactly as before.
      */
     cookieAuth?: boolean;
+    credentialStore?: AuthCredentialStore;
 };
 type Mode = "loading" | "sign-in" | "onboarding" | "ready" | "unavailable";
 type AuthModel = {
@@ -73,6 +79,7 @@ type AuthModel = {
     username: string;
     error?: string;
     pending: boolean;
+    hasBearer: boolean;
     loadingMessage: string;
 };
 const initialAuthModel: AuthModel = {
@@ -83,6 +90,7 @@ const initialAuthModel: AuthModel = {
     firstName: "",
     username: "",
     pending: false,
+    hasBearer: false,
     loadingMessage: "Checking the server and your saved session.",
 };
 const tokenKey = "happy2.session-token";
@@ -116,6 +124,7 @@ export function AuthGate(props: AuthGateProps) {
         username,
         error,
         pending,
+        hasBearer,
         loadingMessage,
     } = model;
     const stateRef = useRef<HappyState | undefined>(undefined);
@@ -126,14 +135,23 @@ export function AuthGate(props: AuthGateProps) {
        one `/v0/me`/`createProfile` request that makes the gateway set the cookie,
        and is never written to `localStorage`. Header mode persists it as before. */
     const bearerRef = useRef<string | undefined>(undefined);
-    const token = () =>
-        cookieAuth ? bearerRef.current : (localStorage.getItem(tokenKey) ?? undefined);
-    const persistToken = (value?: string) => {
+    const token = () => bearerRef.current;
+    const loadToken = async () => {
+        if (cookieAuth) return bearerRef.current;
+        const value = props.credentialStore
+            ? await props.credentialStore.get()
+            : (localStorage.getItem(tokenKey) ?? undefined);
+        bearerRef.current = value;
+        return value;
+    };
+    const persistToken = async (value?: string) => {
+        bearerRef.current = value;
+        update({ hasBearer: value !== undefined });
         if (cookieAuth) {
-            bearerRef.current = value;
             return;
         }
-        if (value) localStorage.setItem(tokenKey, value);
+        if (props.credentialStore) await props.credentialStore.set(value);
+        else if (value) localStorage.setItem(tokenKey, value);
         else localStorage.removeItem(tokenKey);
     };
     async function resolveSession(
@@ -144,7 +162,7 @@ export function AuthGate(props: AuthGateProps) {
         } = {},
     ) {
         const { profileRequired = false, allowRefresh = true } = options;
-        persistToken(value);
+        await persistToken(value);
         /* A freshly issued token can already tell us the account has no active
          * profile. Enter onboarding on the saved bearer without probing the
          * protected /v0/me route, which intentionally answers 401 until a
@@ -184,6 +202,10 @@ export function AuthGate(props: AuthGateProps) {
         } catch (reason) {
             nextState?.[Symbol.dispose]();
             if (!(reason instanceof ServerError) || reason.status !== 401) throw reason;
+            // A local capability is desktop-owned, cannot be refreshed, and has no
+            // account sign-in fallback. Let the probe surface an unavailable server
+            // if the native host and server ever disagree about the capability.
+            if (methodsRef.current?.method === "local") throw reason;
             if (value && allowRefresh) {
                 try {
                     const refreshed = await client.refresh(value);
@@ -194,7 +216,7 @@ export function AuthGate(props: AuthGateProps) {
                 } catch (refreshReason) {
                     if (!(refreshReason instanceof ServerError) || refreshReason.status !== 401)
                         throw refreshReason;
-                    persistToken(undefined);
+                    await persistToken(undefined);
                     if (methodsRef.current?.method === "cloudflare_access")
                         return resolveSession(undefined, { allowRefresh: false });
                     update({ mode: "sign-in" });
@@ -298,8 +320,12 @@ export function AuthGate(props: AuthGateProps) {
                     "bootstrap-account"
             )
                 update({ isRegistering: true });
-            const saved = token();
-            if (saved) await resolveSession(saved);
+            const saved = await loadToken();
+            if (supported.method === "local") {
+                if (!props.credentialStore || !saved)
+                    throw new Error("The desktop local capability is unavailable.");
+                await resolveSession(saved, { allowRefresh: false });
+            } else if (saved) await resolveSession(saved);
             else if (supported.method === "cloudflare_access") {
                 update({ loadingMessage: "Checking your Cloudflare Access session." });
                 await resolveSession(undefined, { allowRefresh: false });
@@ -522,7 +548,7 @@ export function AuthGate(props: AuthGateProps) {
     const sessionReady = () =>
         mode === "ready" &&
         !!user &&
-        (cookieAuth || !!token() || methods?.method === "cloudflare_access") &&
+        (cookieAuth || hasBearer || methods?.method === "cloudflare_access") &&
         !!state;
     // Fade is reserved for the pre-app gate → app dissolve. Probe resolution
     // and every form-mode transition retain the same card DOM node.

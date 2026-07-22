@@ -3,7 +3,10 @@ import type { ServerConfig } from "./modules/config/type.js";
 import { startBackendHappy2 } from "./backend.js";
 import { startWebHappy2 } from "./web.js";
 
-export type StandaloneHappy2 = RunningHappy2;
+export interface StandaloneHappy2 extends RunningHappy2 {
+    /** Private API origin for an embedding desktop renderer; the public SPA remains at `url`. */
+    backendUrl: string;
+}
 
 export interface StandaloneOptions {
     errorLogPath?: string;
@@ -62,6 +65,7 @@ export async function startStandaloneHappy2(
             }
         };
         return {
+            backendUrl: backend.url,
             url: web.url,
             close,
             async [Symbol.asyncDispose]() {

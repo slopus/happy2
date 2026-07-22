@@ -23,6 +23,7 @@ export interface SidebarAppsSectionProps {
     menu?: ReactNode;
     /** Opens the Plugins & Apps settings for hide/unhide/order management. */
     onManage?(): void;
+    headerAccessory?: ReactNode;
     manageLabel?: string;
     className?: string;
     "data-testid"?: string;
@@ -76,6 +77,7 @@ export function SidebarAppsSection(props: SidebarAppsSectionProps) {
             className={props.className}
             data-testid={props["data-testid"]}
             footer={props.menu || props.onManage ? footer : undefined}
+            headerAccessory={props.headerAccessory}
             onBack={props.onBack}
             onItemSelect={props.onAppSelect}
             onSectionAction={props.onManage ? () => props.onManage?.() : undefined}

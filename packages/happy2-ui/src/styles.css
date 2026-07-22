@@ -96,3 +96,5 @@
 @import "./styles/plugin-contribution.css";
 @import "./styles/plugin-settings.css";
 @import "./styles/sidebar-apps.css";
+@import "./styles/desktop-startup.css";
+@import "./styles/desktop-instance-switcher.css";

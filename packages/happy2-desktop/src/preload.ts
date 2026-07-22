@@ -12,10 +12,9 @@ const bridge: HappyDesktopBridge = {
     runtimeRetry: () => ipcRenderer.invoke(desktopIpc.runtimeRetry),
     runtimeStart: (request: DesktopStartRequest) =>
         ipcRenderer.invoke(desktopIpc.runtimeStart, request),
-    sessionCredentialGet: (targetId) =>
-        ipcRenderer.invoke(desktopIpc.sessionCredentialGet, targetId),
-    sessionCredentialSet: (targetId, value) =>
-        ipcRenderer.invoke(desktopIpc.sessionCredentialSet, targetId, value),
+    localCapabilityGet: (targetId) => ipcRenderer.invoke(desktopIpc.localCapabilityGet, targetId),
+    localCapabilityConfirm: (targetId, value) =>
+        ipcRenderer.invoke(desktopIpc.localCapabilityConfirm, targetId, value),
     topologySelect: (topologyId) => ipcRenderer.invoke(desktopIpc.topologySelect, topologyId),
     updateInstall: () => ipcRenderer.invoke(desktopIpc.updateInstall),
     subscribe(listener: (snapshot: DesktopRuntimeSnapshot) => void) {

@@ -1,0 +1,142 @@
+.happy2-instance-switcher,
+.happy2-instance-switcher * {
+    box-sizing: border-box;
+}
+
+.happy2-instance-switcher {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 8px 8px;
+    border-bottom: 1px solid var(--divider);
+    color: var(--text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-instance-switcher__targets {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    padding: 3px;
+    border-radius: var(--happy2-radius-md);
+    background: var(--surface-ripple);
+}
+
+.happy2-instance-switcher__target {
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    height: 40px;
+    margin: 0;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    appearance: none;
+}
+
+.happy2-instance-switcher__target:hover {
+    background: var(--surface);
+}
+
+.happy2-instance-switcher__target:focus-visible {
+    outline: 2px solid var(--text-link);
+    outline-offset: -2px;
+}
+
+.happy2-instance-switcher__target[data-active] {
+    border-color: var(--divider);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 2px var(--shadow-color);
+}
+
+.happy2-instance-switcher__target-icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--surface-selected);
+    color: var(--text-link);
+}
+
+.happy2-instance-switcher__target[data-kind="cloud"] .happy2-instance-switcher__target-icon {
+    background: var(--input-background);
+    color: var(--radio-active);
+}
+
+.happy2-instance-switcher__target-copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.happy2-instance-switcher__target-label {
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-instance-switcher__target-kind {
+    color: var(--text-secondary);
+    font-family: var(--happy2-font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 11px;
+}
+
+.happy2-instance-switcher__meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    height: 28px;
+}
+
+.happy2-instance-switcher__status {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-instance-switcher__status-dot {
+    display: block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--success);
+}
+
+.happy2-instance-switcher__status[data-tone="warning"] .happy2-instance-switcher__status-dot {
+    background: var(--box-warning-border);
+}
+
+.happy2-instance-switcher__status[data-tone="neutral"] .happy2-instance-switcher__status-dot {
+    background: var(--text-secondary);
+}

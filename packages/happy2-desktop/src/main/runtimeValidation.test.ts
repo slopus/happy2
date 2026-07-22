@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-    desktopCredentialValueValidate,
+    desktopLocalCapabilityValueValidate,
     desktopActiveTarget,
     desktopStartRequestValidate,
-    desktopTargetCredentialKey,
     desktopTopologyIdValidate,
     desktopTopologyTarget,
 } from "./runtimeValidation";
@@ -66,12 +65,10 @@ describe("desktop topology targets", () => {
             kind: "remote",
             serverUrl: cloud.serverUrl,
         });
-        expect(desktopTargetCredentialKey(cloud.id)).toBe(`target:${cloud.id}`);
         expect(desktopTopologyIdValidate(cloud.id)).toBe(cloud.id);
-        expect(desktopCredentialValueValidate("session-token")).toBe("session-token");
-        expect(desktopCredentialValueValidate(undefined)).toBeUndefined();
+        expect(desktopLocalCapabilityValueValidate("session-token")).toBe("session-token");
+        expect(desktopLocalCapabilityValueValidate(undefined)).toBeUndefined();
         expect(() => desktopTopologyIdValidate({ id: cloud.id })).toThrow();
-        expect(() => desktopCredentialValueValidate(42)).toThrow();
-        expect(() => desktopTargetCredentialKey("tunnel:named")).toThrow();
+        expect(() => desktopLocalCapabilityValueValidate(42)).toThrow();
     });
 });

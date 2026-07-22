@@ -20,7 +20,6 @@ import {
 import {
     desktopActiveTarget,
     desktopStartRequestValidate,
-    desktopTargetCredentialKey,
     desktopTopologyFromRequest,
     desktopTopologyRequest,
     desktopTopologyTarget,
@@ -85,7 +84,7 @@ export class DesktopRuntime {
         vault: CredentialVault,
     ): Promise<DesktopRuntime> {
         const settings = await desktopSettingsRead(join(paths.root, "desktop-settings.json"));
-        await vault.legacyTunnelCredentialsRemove();
+        await vault.obsoleteCredentialsRemove();
         const runtime = new DesktopRuntime(paths, vault, settings);
         if (runtime.activeTopology)
             void runtime
@@ -147,24 +146,20 @@ export class DesktopRuntime {
         });
     }
 
-    async sessionCredentialGet(targetId: string): Promise<string | undefined> {
+    async localCapabilityGet(targetId: string): Promise<string> {
         const topology = this.activeTarget(targetId);
-        if (topology.mode === "local") {
-            if (!this.localAccessToken)
-                throw new Error("The local Happy capability is unavailable.");
-            return this.localAccessToken;
-        }
-        return this.vault.get(desktopTargetCredentialKey(targetId));
+        if (topology.mode !== "local")
+            throw new Error("Cloud targets do not expose desktop credentials.");
+        if (!this.localAccessToken) throw new Error("The local Happy capability is unavailable.");
+        return this.localAccessToken;
     }
 
-    async sessionCredentialSet(targetId: string, value?: string): Promise<void> {
+    async localCapabilityConfirm(targetId: string, value?: string): Promise<void> {
         const topology = this.activeTarget(targetId);
-        if (topology.mode === "local") {
-            if (value !== undefined && value !== this.localAccessToken)
-                throw new Error("The desktop-owned local capability cannot be replaced.");
-            return;
-        }
-        await this.vault.set(desktopTargetCredentialKey(targetId), value);
+        if (topology.mode !== "local")
+            throw new Error("Cloud targets do not expose desktop credentials.");
+        if (value !== undefined && value !== this.localAccessToken)
+            throw new Error("The desktop-owned local capability cannot be replaced.");
     }
 
     updateSet(update: DesktopUpdateSnapshot): void {

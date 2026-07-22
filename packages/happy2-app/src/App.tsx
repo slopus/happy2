@@ -1,12 +1,28 @@
 import { RouterProvider } from "@tanstack/react-router";
 import { useLayoutEffect, useReducer, type ReactNode } from "react";
 import { happyStateCreate } from "happy2-state";
-import { AuthGate, type AuthSession } from "./components/AuthGate";
+import { AuthGate, type AuthCredentialStore, type AuthSession } from "./components/AuthGate";
 import { DesktopApp } from "./components/DesktopApp";
 import { DevTokenGate } from "./components/DevTokenGate";
 import { OnboardingBoundary } from "./components/OnboardingBoundary";
 import { desktopNavigationCreate } from "./navigation/desktopNavigationCreate";
 import type { DesktopNavigation } from "./navigation/desktopRouteTypes";
+import type {
+    DesktopInstanceStatus,
+    DesktopInstanceTarget,
+    DesktopInstanceUpdate,
+} from "happy2-ui";
+
+export interface AppDesktopRuntime {
+    activeTargetId: string;
+    notice?: string;
+    onChangeMode(): void;
+    onInstallUpdate?(): void;
+    onTargetSelect(id: string): void;
+    status?: DesktopInstanceStatus;
+    targets: readonly DesktopInstanceTarget[];
+    update?: DesktopInstanceUpdate;
+}
 export interface AppProps {
     navigation?: DesktopNavigation;
     platform?: "desktop" | "web";
@@ -27,6 +43,10 @@ export interface AppProps {
      * the header sign-in flow.
      */
     requireDevelopmentToken?: boolean;
+    /** Optional native credential boundary; browser header auth keeps localStorage. */
+    credentialStore?: AuthCredentialStore;
+    /** Native runtime identity rendered consistently in every sidebar variant. */
+    desktopRuntime?: AppDesktopRuntime;
 }
 /** Owns host authentication plus the process-local state and navigation boundaries. */
 export function App(props: AppProps) {
@@ -59,6 +79,7 @@ export function App(props: AppProps) {
             platform={props.platform}
             session={session}
             state={session.state}
+            desktopRuntime={props.desktopRuntime}
         />
     );
     let content: ReactNode;
@@ -75,6 +96,7 @@ export function App(props: AppProps) {
         content = (
             <AuthGate
                 cookieAuth={props.cookieAuth}
+                credentialStore={props.credentialStore}
                 navigation={navigation}
                 serverUrl={props.serverUrl}
                 showWindowDragRegion={desktop}

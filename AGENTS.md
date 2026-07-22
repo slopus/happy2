@@ -11,8 +11,8 @@ layouts for mobile viewports.
 Treat each feature as one atomic, independently mergeable change, not as the
 lifetime of a Conductor workspace. A worktree may contain only one unmerged
 feature at a time. Do not begin the next feature until the current feature has
-been pushed or merged to `main`; obtain review when its scope or risk warrants
-it under the review workflow below.
+been pushed or merged to `main`. Reviews are optional and are never a
+prerequisite for pushing or merging.
 
 After that merge, reuse the same workspace/worktree when convenient. It does
 not need to be recreated, checked out directly on `main`, or have a branch tip
@@ -25,10 +25,11 @@ is still unmerged.
 Build each feature in isolation, with an explicit boundary between its server
 and UI work. Do not mix unrelated features into the same implementation.
 
-## Review workflow
+## Optional review workflow
 
-Review is not required for every edit. Reserve Claude Opus review for sizable
-or critical changes: security or authorization behavior, durable data or
+Review is optional for every edit and must never block pushing or merging. When
+an independent review would be useful, reserve Claude Opus for sizable or
+critical changes: security or authorization behavior, durable data or
 migrations, server API contracts, complex concurrency or synchronization,
 substantial UI flows, or broad/high-risk diffs. Opus is deliberately slow, so
 do not invoke it early, before the implementation and relevant tests are
@@ -39,7 +40,7 @@ option for focused, low-to-medium-risk diffs when a fast second look is useful.
 Routine mechanical, small, and low-risk changes may rely on the implementer's
 own verification and relevant automated checks without a separate review.
 
-When an Opus review is warranted:
+When choosing to run an Opus review:
 
 1. Finish the isolated implementation and its required tests, then review the
    complete task diff with Claude Opus at medium effort and streaming/verbose
@@ -49,9 +50,9 @@ When an Opus review is warranted:
 3. Repeat until both Codex and Opus explicitly agree that no task-blocking issue
    remains. Never interrupt, terminate, cancel, or replace a running Claude
    reviewer merely because it is slow or has not produced intermediate output.
-4. Run repository-wide `pnpm format`, then the final required checks and sync
-   the task to `main` using the workflow below. Only after that merge may the
-   same worktree begin the next feature.
+4. Run repository-wide `pnpm format`, then the final required checks. If the
+   task has not already been synced, sync it to `main` using the workflow below.
+   Review completion is not a condition of pushing or merging.
 
 For Claude-owned UI tasks that warrant review, Codex performs the reciprocal
 review and Opus resumes the same session to address actionable findings. For

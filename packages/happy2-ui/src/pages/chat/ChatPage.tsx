@@ -118,6 +118,8 @@ export type ChatPageProps = {
     onNavSelect?(id: string): void;
     /** Profile + appearance control pinned to the bottom of the sidebar. */
     sidebarFooter?: ReactNode;
+    /** Stable product context shown above the sidebar scrollport. */
+    sidebarHeaderAccessory?: ReactNode;
     /**
      * Renders another primary view (admin, files, …) in the main workspace while
      * the chat sidebar stays visible, so the channel list is always present.
@@ -988,6 +990,7 @@ export function ChatPage(props: ChatPageProps) {
                         <Sidebar
                             activeItemId={activeConversationId() || props.navActiveId || ""}
                             brand
+                            headerAccessory={props.sidebarHeaderAccessory}
                             footer={
                                 props.sidebarFooter ??
                                 (props.canOpenAdmin ? (

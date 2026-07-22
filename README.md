@@ -239,20 +239,20 @@ public key because it does not generate a signing pair.
 
 Supported server and runner environment settings are:
 
-| Variable | Purpose |
-| --- | --- |
-| `HAPPY2_CONFIG` | Selects a TOML file when `--config` is absent. |
-| `HAPPY2_JWT_PRIVATE_KEY`, `HAPPY2_JWT_PUBLIC_KEY` | PEM keys; literal `\n` sequences are accepted. |
-| `HAPPY2_JWT_PRIVATE_KEY_B64`, `HAPPY2_JWT_PUBLIC_KEY_B64` | Base64-encoded PEM keys used by generated local configuration. |
-| `HAPPY2_PASSWORD_PEPPER` | Server-wide password pepper. |
-| `HAPPY2_INTEGRATION_SECRET` | Default integration encryption secret; the variable name is configurable. |
-| `RIG_HOME` | Absolute path for Happy's private Rig runtime. |
-| `RIG_SERVER_SOCKET_PATH`, `RIG_SERVER_TOKEN_PATH`, `RIG_COMMAND` | Override omitted agent socket, token, and command fields. |
-| `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD` | Required SMTP credentials for magic-link auth. |
-| `EMAIL_FROM` | Overrides `auth.magic_link.from`. |
-| `HAPPY2_BACKEND_URL` | Backend origin for the separate `happy2 web` command. |
-| `HAPPY2_WEB_HOST`, `HAPPY2_WEB_PORT`, `HAPPY2_WEB_TRUSTED_PROXY_HOPS` | Listener settings for `happy2 web`. |
-| `HAPPY2_PORT_SHARING_DOMAIN` | Wildcard port-sharing domain forwarded by a separately deployed `happy2 web` gateway. |
+| Variable                                                                       | Purpose                                                                               |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `HAPPY2_CONFIG`                                                                | Selects a TOML file when `--config` is absent.                                        |
+| `HAPPY2_JWT_PRIVATE_KEY`, `HAPPY2_JWT_PUBLIC_KEY`                              | PEM keys; literal `\n` sequences are accepted.                                        |
+| `HAPPY2_JWT_PRIVATE_KEY_B64`, `HAPPY2_JWT_PUBLIC_KEY_B64`                      | Base64-encoded PEM keys used by generated local configuration.                        |
+| `HAPPY2_PASSWORD_PEPPER`                                                       | Server-wide password pepper.                                                          |
+| `HAPPY2_INTEGRATION_SECRET`                                                    | Default integration encryption secret; the variable name is configurable.             |
+| `RIG_HOME`                                                                     | Absolute path for Happy's private Rig runtime.                                        |
+| `RIG_SERVER_SOCKET_PATH`, `RIG_SERVER_TOKEN_PATH`, `RIG_COMMAND`               | Override omitted agent socket, token, and command fields.                             |
+| `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD` | Required SMTP credentials for magic-link auth.                                        |
+| `EMAIL_FROM`                                                                   | Overrides `auth.magic_link.from`.                                                     |
+| `HAPPY2_BACKEND_URL`                                                           | Backend origin for the separate `happy2 web` command.                                 |
+| `HAPPY2_WEB_HOST`, `HAPPY2_WEB_PORT`, `HAPPY2_WEB_TRUSTED_PROXY_HOPS`          | Listener settings for `happy2 web`.                                                   |
+| `HAPPY2_PORT_SHARING_DOMAIN`                                                   | Wildcard port-sharing domain forwarded by a separately deployed `happy2 web` gateway. |
 
 `database.auth_token_env`, `security.integration_secret_env`, and each OIDC
 provider's `client_secret_env` may name additional environment variables.
@@ -301,8 +301,11 @@ password pepper.
   and realtime reconciliation.
 - **[Happy Web](packages/happy2-web)** — Browser entry point and production web
   build.
-- **[Happy Desktop](packages/happy2-desktop)** — Electron renderer and desktop
-  main process.
+- **[Happy Desktop](packages/happy2-desktop)** — macOS Electron app with two
+  startup modes: a private Rig-managed Happy server running on this machine, or a
+  thin HTTPS client to an existing cloud Happy instance. Supervises its child
+  processes, keeps credentials in the encrypted Keychain, and ships signed GitHub
+  Releases updates.
 - **[Happy Server](packages/happy2-server)** — Fastify server, authentication
   service, persistence, and agent runtime.
 - **[Happy Gym](packages/happy2-gym)** — Isolated black-box server, state, and

@@ -4,7 +4,7 @@ import { happyStateCreate, type ChatSummary, type NotificationProjection } from 
 import { createFakeServer as createBareFakeServer, jsonResponse } from "happy2-state/testing";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { App } from "./App";
-import { DesktopApp } from "./components/DesktopApp";
+import { DesktopApp, type DesktopAppProps } from "./components/DesktopApp";
 import type { AuthSession } from "./components/AuthGate";
 import { desktopNavigationCreate } from "./navigation/desktopNavigationCreate";
 const project = {
@@ -35,6 +35,7 @@ function openSearchPalette() {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
 }
 function DesktopSessionFixture(props: {
+    desktopRuntime?: DesktopAppProps["desktopRuntime"];
     navigation: ReturnType<typeof desktopNavigationCreate>;
     state: ReturnType<typeof happyStateCreate>;
     sessionReady(session: AuthSession): void;
@@ -59,7 +60,14 @@ function DesktopSessionFixture(props: {
         },
     };
     props.sessionReady(session);
-    return <DesktopApp navigation={props.navigation} session={session} state={props.state} />;
+    return (
+        <DesktopApp
+            desktopRuntime={props.desktopRuntime}
+            navigation={props.navigation}
+            session={session}
+            state={props.state}
+        />
+    );
 }
 // Vitest globals are not enabled for this package, so testing-library's auto
 // cleanup never registers. Unmount every rendered tree between tests explicitly:
@@ -132,6 +140,110 @@ describe("persistent desktop routing", () => {
         expect(screen.queryByRole("tab", { name: "Roles" })).toBeNull();
         // The persistent footer cog remains reachable inside the drill-down too.
         expect(screen.getByRole("button", { name: "Administration" })).toBeTruthy();
+    });
+
+    const desktopRuntimeFixture = (
+        status: string,
+        onTargetSelect: () => void = () => undefined,
+    ): NonNullable<DesktopAppProps["desktopRuntime"]> => ({
+        activeTargetId: "local",
+        onChangeMode: vi.fn(),
+        onTargetSelect,
+        status: { label: status, tone: "success" },
+        targets: [
+            { id: "local", kind: "local", label: "This Mac", detail: "Private loopback" },
+            {
+                id: "cloud:happy",
+                kind: "cloud",
+                label: "happy.example.com",
+                detail: "Cloud workspace",
+            },
+        ],
+    });
+
+    it("keeps the local/cloud instance boundary visible in every sidebar variant", async () => {
+        const state = happyStateCreate({
+            initialPermissions: { allowed: ["managePlugins"], owner: false },
+        });
+        const navigation = desktopNavigationCreate();
+        const targetSelect = vi.fn();
+        onTestFinished(() => {
+            navigation[Symbol.dispose]();
+            state[Symbol.dispose]();
+        });
+        const screen = render(
+            <DesktopSessionFixture
+                desktopRuntime={desktopRuntimeFixture("Running locally on this Mac", targetSelect)}
+                navigation={navigation}
+                sessionReady={() => undefined}
+                state={state}
+            />,
+        );
+        const assertSingleSwitcher = () => {
+            expect(
+                screen.container.querySelectorAll('[data-happy2-ui="instance-switcher"]'),
+            ).toHaveLength(1);
+            expect(
+                screen.getByRole("button", { name: "This Mac, local to this machine" }),
+            ).toBeTruthy();
+            expect(
+                screen.getByRole("button", { name: "happy.example.com, cloud over HTTPS" }),
+            ).toBeTruthy();
+        };
+
+        assertSingleSwitcher();
+        fireEvent.click(
+            screen.getByRole("button", { name: "happy.example.com, cloud over HTTPS" }),
+        );
+        expect(targetSelect).toHaveBeenCalledWith("cloud:happy");
+
+        fireEvent.click(screen.getByRole("button", { name: "Administration" }));
+        await waitFor(() => expect(location.pathname).toBe("/admin/plugins"));
+        assertSingleSwitcher();
+
+        fireEvent.click(screen.getByRole("button", { name: "Back" }));
+        await waitFor(() => expect(location.pathname).toBe("/chats"));
+        fireEvent.click(screen.getByRole("button", { name: "Apps" }));
+        await waitFor(() => expect(location.pathname).toBe("/apps"));
+        assertSingleSwitcher();
+    });
+
+    it("preserves switcher target identity and focus across an ordinary runtime notification", async () => {
+        const state = happyStateCreate();
+        const navigation = desktopNavigationCreate();
+        onTestFinished(() => {
+            navigation[Symbol.dispose]();
+            state[Symbol.dispose]();
+        });
+        const screen = render(
+            <DesktopSessionFixture
+                desktopRuntime={desktopRuntimeFixture("Running locally on this Mac")}
+                navigation={navigation}
+                sessionReady={() => undefined}
+                state={state}
+            />,
+        );
+        const cloud = screen.getByRole("button", {
+            name: "happy.example.com, cloud over HTTPS",
+        });
+        cloud.focus();
+        expect(document.activeElement).toBe(cloud);
+        // Only the status label changed — an ordinary runtime notification. The
+        // keyed target rows must reconcile in place: the same DOM node survives and
+        // keeps focus while the status copy updates.
+        screen.rerender(
+            <DesktopSessionFixture
+                desktopRuntime={desktopRuntimeFixture("Connected to happy.example.com over HTTPS")}
+                navigation={navigation}
+                sessionReady={() => undefined}
+                state={state}
+            />,
+        );
+        expect(screen.getByRole("button", { name: "happy.example.com, cloud over HTTPS" })).toBe(
+            cloud,
+        );
+        expect(document.activeElement).toBe(cloud);
+        expect(screen.container.textContent).toContain("Connected to happy.example.com over HTTPS");
     });
 
     it("denies a direct administration route when no effective permission grants a section", async () => {

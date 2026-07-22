@@ -8,17 +8,11 @@ import type { ServerChildHandle } from "./serverChild";
 const serverChildStart = vi.hoisted(() => vi.fn());
 vi.mock("./serverChild", () => ({ serverChildStart }));
 
-import { CredentialVault, type CredentialCipher } from "./credentialVault";
+import { CredentialVault } from "./credentialVault";
 import { DesktopRuntime, type DesktopRuntimePaths } from "./desktopRuntime";
 
 const directories: string[] = [];
 const runtimes: DesktopRuntime[] = [];
-const cipher: CredentialCipher = {
-    available: () => true,
-    decrypt: (value) => Buffer.from(value.toString("utf8"), "base64").toString("utf8"),
-    encrypt: (value) => Buffer.from(Buffer.from(value).toString("base64")),
-};
-
 afterEach(async () => {
     await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()));
     await Promise.all(
@@ -59,8 +53,8 @@ describe("desktop topology lifetime", () => {
         });
         expect(firstStart.localAccessToken).toMatch(/^[A-Za-z0-9_-]{64}$/u);
         await expect(stat(firstStart.start.rigEndpointRoot)).resolves.toBeDefined();
-        expect(await first.sessionCredentialGet(topologyId)).toBe(firstStart.localAccessToken);
-        await expect(first.sessionCredentialSet(topologyId, "replacement")).rejects.toThrow(
+        expect(await first.localCapabilityGet(topologyId)).toBe(firstStart.localAccessToken);
+        await expect(first.localCapabilityConfirm(topologyId, "replacement")).rejects.toThrow(
             "cannot be replaced",
         );
         await expect(readFile(join(paths.root, "credentials.json"), "utf8")).rejects.toMatchObject({
@@ -141,12 +135,15 @@ describe("desktop topology lifetime", () => {
         });
         expect(serverChildStart).not.toHaveBeenCalled();
 
-        await runtime.sessionCredentialSet(ready.activeTargetId, "cloud-account-session");
-        expect(await runtime.sessionCredentialGet(ready.activeTargetId)).toBe(
-            "cloud-account-session",
+        await expect(runtime.localCapabilityGet(ready.activeTargetId)).rejects.toThrow(
+            "Cloud targets do not expose desktop credentials",
         );
-        const vaultSource = await readFile(join(paths.root, "credentials.json"), "utf8");
-        expect(vaultSource).not.toContain("cloud-account-session");
+        await expect(
+            runtime.localCapabilityConfirm(ready.activeTargetId, "cloud-account-session"),
+        ).rejects.toThrow("Cloud targets do not expose desktop credentials");
+        await expect(readFile(join(paths.root, "credentials.json"), "utf8")).rejects.toMatchObject({
+            code: "ENOENT",
+        });
     });
 
     it("preserves multiple topologies and switches between isolated local and cloud lifetimes", async () => {
@@ -260,7 +257,7 @@ async function runtimePaths(): Promise<DesktopRuntimePaths> {
 async function runtimeCreate(paths: DesktopRuntimePaths): Promise<DesktopRuntime> {
     const runtime = await DesktopRuntime.create(
         paths,
-        new CredentialVault(join(paths.root, "credentials.json"), cipher),
+        new CredentialVault(join(paths.root, "credentials.json")),
     );
     runtimes.push(runtime);
     return runtime;

@@ -1,11 +1,20 @@
 import "./styles.css";
 import type { CSSProperties } from "react";
 import { expect, it } from "vitest";
+import { server, userEvent } from "vitest/browser";
 import { AppShell } from "./AppShell";
+import { Button } from "./Button";
+import { ChannelHeader } from "./ChannelHeader";
+import { Sidebar } from "./Sidebar";
 import { createRenderer } from "./testing";
 
 function slot(id: string, style: CSSProperties) {
     return <div data-testid={id} style={{ height: "100%", width: "100%", ...style }} />;
+}
+
+function appRegion(element: Element): string {
+    const style = getComputedStyle(element);
+    return style.getPropertyValue("app-region") || style.getPropertyValue("-webkit-app-region");
 }
 
 it("composes Happy's flat desktop shell with clamped navigation and inspector surfaces", async () => {
@@ -112,4 +121,95 @@ it("keeps a workspace-only shell flat and free of legacy card insets", async () 
         "border-radius": "0px",
         "padding-bottom": "0px",
     });
+});
+
+it("reserves macOS chrome and keeps real desktop header controls clickable", async () => {
+    let memberClicks = 0;
+    let searchClicks = 0;
+    const view = createRenderer().render(
+        () => (
+            <AppShell
+                sidebar={
+                    <Sidebar
+                        activeItemId="general"
+                        brand
+                        onItemSelect={() => undefined}
+                        sections={[
+                            {
+                                id: "chats",
+                                items: [
+                                    {
+                                        id: "general",
+                                        kind: "channel",
+                                        label: "General",
+                                    },
+                                ],
+                            },
+                        ]}
+                    />
+                }
+                windowControls
+            >
+                <ChannelHeader
+                    actions={
+                        <Button
+                            aria-label="Search"
+                            icon="search"
+                            iconOnly
+                            onClick={() => searchClicks++}
+                            size="small"
+                            variant="ghost"
+                        />
+                    }
+                    memberCount={3}
+                    onMembersClick={() => memberClicks++}
+                    title="Checks"
+                />
+            </AppShell>
+        ),
+        { height: 600, width: 900 },
+    );
+
+    await view.ready();
+
+    expect(view.container.querySelector('[data-happy2-ui="window-drag-region"]')).toBeNull();
+    const sidebarHeader = view.$('[data-happy2-ui="sidebar-header"]');
+    const logo = view.$('[data-happy2-ui="sidebar-brand-logo"]');
+    const channelHeader = view.$('[data-happy2-ui="channel-header"]');
+    const members = view.$('[data-happy2-ui="channel-header-members"]');
+    const search = view.$('button[aria-label="Search"]');
+    expect(sidebarHeader.computedStyle("padding-left")).toBe("90px");
+    expect(logo.bounds().x).toBeGreaterThanOrEqual(90);
+    if (server.browser === "chromium") {
+        expect(appRegion(sidebarHeader.element)).toBe("drag");
+        expect(appRegion(channelHeader.element)).toBe("drag");
+        expect(appRegion(members.element)).toBe("no-drag");
+        expect(appRegion(search.element)).toBe("no-drag");
+    }
+
+    await userEvent.click(members.element);
+    await userEvent.click(search.element);
+    expect(memberClicks).toBe(1);
+    expect(searchClicks).toBe(1);
+});
+
+it("reserves a non-overlapping drag row for a standalone desktop surface", async () => {
+    const view = createRenderer().render(
+        () => (
+            <AppShell windowControls>
+                <button data-testid="standalone-control" type="button">
+                    Settings control
+                </button>
+            </AppShell>
+        ),
+        { height: 600, width: 900 },
+    );
+
+    await view.ready();
+
+    const titleBar = view.$('[data-happy2-ui="app-shell-standalone-title-bar"]');
+    const control = view.$('[data-testid="standalone-control"]');
+    expect(titleBar.bounds()).toEqual({ height: 56, width: 900, x: 0, y: 0 });
+    expect(control.bounds().y).toBeGreaterThanOrEqual(56);
+    if (server.browser === "chromium") expect(appRegion(titleBar.element)).toBe("drag");
 });

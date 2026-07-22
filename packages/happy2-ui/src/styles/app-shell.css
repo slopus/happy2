@@ -24,19 +24,60 @@
 
 .happy2-app-shell__window-controls {
     position: absolute;
-    z-index: 2;
+    z-index: 3;
     top: 0;
     left: 0;
+    width: 78px;
+    height: 56px;
     pointer-events: none;
 }
 
-.happy2-app-shell__window-controls .happy2-title-bar__controls {
+.happy2-app-shell__traffic-light-reservation {
     display: block;
     width: 78px;
     height: 56px;
-    pointer-events: auto;
+}
+
+/* A focused surface without a sidebar or supplied TitleBar still needs a real
+   desktop drag lane. It participates in flex layout instead of covering the
+   first 56px of settings/content controls. */
+.happy2-app-shell__standalone-title-bar {
+    display: block;
+    flex: none;
+    width: 100%;
+    height: 56px;
     -webkit-app-region: drag;
     app-region: drag;
+}
+
+/* Chat chrome uses its actual visible headers as the drag surface. The prior
+   transparent full-width overlay sat above these controls and swallowed pointer
+   input. Interactive descendants opt out of native dragging explicitly. */
+.happy2-app-shell[data-window-controls] .happy2-sidebar__header,
+.happy2-app-shell[data-window-controls] .happy2-channel-header,
+.happy2-app-shell__reveal[data-window-controls] {
+    -webkit-app-region: drag;
+    app-region: drag;
+}
+
+.happy2-app-shell[data-window-controls] button,
+.happy2-app-shell[data-window-controls] a,
+.happy2-app-shell[data-window-controls] input,
+.happy2-app-shell[data-window-controls] select,
+.happy2-app-shell[data-window-controls] textarea,
+.happy2-app-shell[data-window-controls] [contenteditable="true"] {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+
+/* The native controls occupy x=14…78. Start the sidebar heading after that
+   fixed chrome lane plus a 12px content gap so the Happy mark never intersects
+   the green traffic light. */
+.happy2-app-shell[data-window-controls]
+    .happy2-app-shell__sidebar
+    > .happy2-sidebar
+    > .happy2-sidebar__header {
+    padding-left: 90px;
 }
 
 .happy2-app-shell__title-bar {

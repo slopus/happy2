@@ -73,8 +73,8 @@ export interface HappyDesktopBridge {
     runtimeReset(): Promise<void>;
     runtimeRetry(): Promise<void>;
     runtimeStart(request: DesktopStartRequest): Promise<void>;
-    sessionCredentialGet(targetId: string): Promise<string | undefined>;
-    sessionCredentialSet(targetId: string, value?: string): Promise<void>;
+    localCapabilityGet(targetId: string): Promise<string>;
+    localCapabilityConfirm(targetId: string, value?: string): Promise<void>;
     topologySelect(topologyId: string): Promise<void>;
     updateInstall(): Promise<void>;
     subscribe(listener: (snapshot: DesktopRuntimeSnapshot) => void): () => void;
@@ -86,8 +86,8 @@ export const desktopIpc = {
     runtimeReset: "happy2:runtime:reset",
     runtimeRetry: "happy2:runtime:retry",
     runtimeStart: "happy2:runtime:start",
-    sessionCredentialGet: "happy2:session-credential:get",
-    sessionCredentialSet: "happy2:session-credential:set",
+    localCapabilityGet: "happy2:local-capability:get",
+    localCapabilityConfirm: "happy2:local-capability:confirm",
     topologySelect: "happy2:topology:select",
     updateInstall: "happy2:update:install",
 } as const;

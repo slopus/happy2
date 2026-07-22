@@ -30,6 +30,7 @@ export interface DesktopPrimarySurfaceProps {
     navActiveId: string;
     onNavSelect: (id: string) => void;
     sidebarFooter: ReactNode;
+    sidebarHeaderAccessory?: ReactNode;
     /** Admin drill-down sidebar, present only while the admin route is active. */
     adminSidebar?: ReactNode;
     /** Apps drill-down sidebar, present only while the apps route is active. */
@@ -76,6 +77,7 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
             route={props.route}
             session={props.session}
             sidebarFooter={props.sidebarFooter}
+            sidebarHeaderAccessory={props.sidebarHeaderAccessory}
             sidebarOverride={sidebarOverride}
             state={props.state}
             windowControls={props.windowControls}

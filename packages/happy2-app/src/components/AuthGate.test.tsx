@@ -84,6 +84,7 @@ const workspaceRoutes: Record<string, Handler> = {
     "GET /v0/sync/state": () =>
         json({ state: { generation: "1", sequence: "0" }, serverTime: expiresAt }),
     "GET /v0/chats": () => json({ chats: [] }),
+    "GET /v0/projects": () => json({ projects: [] }),
     "GET /v0/drafts": () => json({ drafts: [], serverTime: new Date().toISOString() }),
     "GET /v0/sync/events": () => hangingStream(),
     "GET /v0/setup": completeSetup,
@@ -277,6 +278,129 @@ describe("AuthGate password onboarding", () => {
         // closes the pre-realtime race with one authoritative refetch.
         expect(meCalls).toHaveLength(2);
         expect(authHeader(meCalls[0]![1] ?? {})).toBe("Bearer active-token");
+    });
+
+    it("uses an async native credential store without touching browser localStorage", async () => {
+        const fetchMock = routedFetch({
+            ...workspaceRoutes,
+            "GET /v0/auth/methods": passwordMethods,
+            "GET /v0/me": () =>
+                json({
+                    user: {
+                        id: "u_native",
+                        firstName: "Native",
+                        username: "native",
+                        kind: "human",
+                    },
+                    permissions: { allowed: [], owner: false },
+                }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        const browserStore = stubLocalStorage({ [tokenKey]: "wrong-browser-token" });
+        const credentialStore = {
+            get: vi.fn(async () => "native-keychain-token"),
+            set: vi.fn(async () => undefined),
+        };
+
+        const screen = render(
+            <App credentialStore={credentialStore} serverUrl="http://native-server" />,
+        );
+
+        expect(await screen.findByLabelText("Native — online")).toBeTruthy();
+        expect(credentialStore.get).toHaveBeenCalledOnce();
+        expect(credentialStore.set).toHaveBeenCalledWith("native-keychain-token");
+        expect(browserStore.get(tokenKey)).toBe("wrong-browser-token");
+        const meCalls = callsTo(fetchMock, "GET", "/v0/me");
+        expect(meCalls.length).toBeGreaterThan(0);
+        expect(authHeader(meCalls[0]![1] ?? {})).toBe("Bearer native-keychain-token");
+        for (const path of ["/v0/sync/state", "/v0/chats", "/v0/projects", "/v0/drafts"]) {
+            const calls = callsTo(fetchMock, "GET", path);
+            expect(calls).toHaveLength(1);
+            expect(authHeader(calls[0]![1] ?? {})).toBe("Bearer native-keychain-token");
+        }
+    });
+
+    it("opens an account-free local workspace with the desktop capability", async () => {
+        const localCapability = "desktop-owned-local-capability";
+        const fetchMock = routedFetch({
+            ...workspaceRoutes,
+            "GET /v0/auth/methods": () =>
+                json({
+                    role: "all",
+                    method: "local",
+                    signupEnabled: false,
+                    devTokensEnabled: false,
+                }),
+            "GET /v0/setup/status": () =>
+                json({ schemaVersion: 1, phase: "complete", registration: "closed" }),
+            "GET /v0/me": () =>
+                json({
+                    user: {
+                        id: "u_local",
+                        firstName: "Local User",
+                        username: "happy2_local_user",
+                        kind: "human",
+                    },
+                    permissions: { allowed: [], owner: true },
+                }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        const browserStore = stubLocalStorage({ [tokenKey]: "must-not-be-used" });
+        const credentialStore = {
+            get: vi.fn(async () => localCapability),
+            set: vi.fn(async () => undefined),
+        };
+
+        const screen = render(
+            <App credentialStore={credentialStore} serverUrl="http://local-server" />,
+        );
+
+        expect(await screen.findByLabelText("Local User — online")).toBeTruthy();
+        expect(credentialStore.get).toHaveBeenCalledOnce();
+        expect(credentialStore.set).toHaveBeenCalledWith(localCapability);
+        expect(browserStore.get(tokenKey)).toBe("must-not-be-used");
+        expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Create account" })).toBeNull();
+        expect(callsTo(fetchMock, "POST", "/v0/auth/password/login")).toHaveLength(0);
+        expect(callsTo(fetchMock, "POST", "/v0/auth/password/register")).toHaveLength(0);
+        expect(callsTo(fetchMock, "POST", "/v0/me/createProfile")).toHaveLength(0);
+        expect(callsTo(fetchMock, "POST", "/v0/auth/refresh")).toHaveLength(0);
+        for (const [, init] of callsTo(fetchMock, "GET", "/v0/me"))
+            expect(authHeader(init ?? {})).toBe(`Bearer ${localCapability}`);
+        for (const path of ["/v0/sync/state", "/v0/chats", "/v0/projects", "/v0/drafts"]) {
+            const calls = callsTo(fetchMock, "GET", path);
+            expect(calls).toHaveLength(1);
+            expect(authHeader(calls[0]![1] ?? {})).toBe(`Bearer ${localCapability}`);
+        }
+    });
+
+    it("never falls back to account sign-in when a local capability is rejected", async () => {
+        const fetchMock = routedFetch({
+            "GET /v0/auth/methods": () =>
+                json({ role: "all", method: "local", devTokensEnabled: false }),
+            "GET /v0/setup/status": () =>
+                json({
+                    schemaVersion: 1,
+                    phase: "configuration_required",
+                    registration: "closed",
+                }),
+            "GET /v0/me": () => json({ error: "unauthorized" }, 401),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        stubLocalStorage();
+        const credentialStore = {
+            get: vi.fn(async () => "stale-local-capability"),
+            set: vi.fn(async () => undefined),
+        };
+
+        const screen = render(
+            <App credentialStore={credentialStore} serverUrl="http://local-server" />,
+        );
+
+        expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Create account" })).toBeNull();
+        expect(callsTo(fetchMock, "POST", "/v0/auth/refresh")).toHaveLength(0);
     });
 
     it("opens first-account creation automatically for a fresh bootstrap server", async () => {

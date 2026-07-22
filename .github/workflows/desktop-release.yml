@@ -53,6 +53,7 @@ jobs:
               run: |
                   ROOT_VERSION="$(node -p "require('./package.json').version")"
                   DESKTOP_VERSION="$(node -p "require('./packages/happy2-desktop/package.json').version")"
+                  printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
                   test "$RELEASE_TAG" = "v$ROOT_VERSION"
                   test "$DESKTOP_VERSION" = "$ROOT_VERSION"
                   test -n "$CSC_LINK"
@@ -71,7 +72,7 @@ jobs:
                   pnpm --dir packages/happy2-desktop typecheck
                   pnpm --dir packages/happy2-app exec vitest run src/components/AuthGate.test.tsx
                   pnpm --dir packages/happy2-app exec vitest run src/App.test.tsx \
-                    -t "keeps the local/remote instance boundary visible in every sidebar variant"
+                    -t "keeps the local/cloud instance boundary visible in every sidebar variant"
                   pnpm --dir packages/happy2-app typecheck
 
             - name: Prepare signed application assets

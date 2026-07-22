@@ -189,6 +189,21 @@ export { Rail, type RailItem, type RailProps } from "./Rail";
 export { ThemeScope, type ThemeMode, type ThemeScopeProps } from "./ThemeScope";
 export { Sidebar, type SidebarItem, type SidebarProps, type SidebarSection } from "./Sidebar";
 export {
+    DesktopStartupScreen,
+    type DesktopStartupMode,
+    type DesktopStartupPhase,
+    type DesktopStartupScreenProps,
+    type DesktopStartupUpdate,
+    type DesktopStartupValues,
+} from "./DesktopStartupScreen";
+export {
+    DesktopInstanceSwitcher,
+    type DesktopInstanceStatus,
+    type DesktopInstanceSwitcherProps,
+    type DesktopInstanceTarget,
+    type DesktopInstanceUpdate,
+} from "./DesktopInstanceSwitcher";
+export {
     SearchField,
     type SearchFieldEditableProps,
     type SearchFieldOpenerProps,

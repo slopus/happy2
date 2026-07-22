@@ -51,6 +51,7 @@ export type ChatViewProps = {
     navActiveId?: string;
     onNavSelect?: (id: string) => void;
     sidebarFooter?: ReactNode;
+    sidebarHeaderAccessory?: ReactNode;
     /** Non-conversation primary view rendered in the workspace while the sidebar stays. */
     workspaceOverride?: ReactNode;
     /** Replaces the chat sidebar with a pushed detail level (admin sub-nav). */
@@ -431,6 +432,7 @@ export function ChatView(props: ChatViewProps) {
             renderMcpApp={(input) => <MessageApp input={input} state={state} />}
             sidebar={state.sidebar()}
             sidebarFooter={props.sidebarFooter}
+            sidebarHeaderAccessory={props.sidebarHeaderAccessory}
             sidebarOverride={props.sidebarOverride}
             workspaceOverride={props.workspaceOverride}
             trace={resources.trace}

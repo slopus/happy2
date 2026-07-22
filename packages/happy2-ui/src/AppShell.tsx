@@ -1,7 +1,6 @@
 import { partitionComponentProps } from "./componentProps";
 import { useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 import { Icon } from "./Icon";
-import { WindowDragRegion } from "./TitleBar";
 export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     children: ReactNode;
     panel?: ReactNode;
@@ -11,7 +10,7 @@ export type AppShellProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     sidebar?: ReactNode;
     style?: CSSProperties;
     titleBar?: ReactNode;
-    /** Overlays native macOS traffic-light drag chrome without reserving a title row. */
+    /** Enables native macOS traffic-light spacing and draggable desktop header chrome. */
     windowControls?: boolean;
     /**
      * Enables the left sidebar show/hide toggle and pointer/keyboard resize. When
@@ -290,19 +289,23 @@ export function AppShell(props: AppShellProps) {
             style={local.style}
         >
             {local.windowControls ? (
-                <>
-                    <WindowDragRegion />
-                    <div
-                        aria-hidden="true"
-                        className="happy2-app-shell__window-controls"
-                        data-happy2-ui="app-shell-window-controls"
-                    >
-                        <span
-                            className="happy2-title-bar__controls"
-                            data-happy2-ui="title-bar-controls"
-                        />
-                    </div>
-                </>
+                <div
+                    aria-hidden="true"
+                    className="happy2-app-shell__window-controls"
+                    data-happy2-ui="app-shell-window-controls"
+                >
+                    <span
+                        className="happy2-app-shell__traffic-light-reservation"
+                        data-happy2-ui="title-bar-controls"
+                    />
+                </div>
+            ) : null}
+            {local.windowControls && !local.sidebar && !local.titleBar ? (
+                <div
+                    aria-hidden="true"
+                    className="happy2-app-shell__standalone-title-bar"
+                    data-happy2-ui="app-shell-standalone-title-bar"
+                />
             ) : null}
             {local.titleBar ? (
                 <div className="happy2-app-shell__title-bar" data-happy2-ui="app-shell-title-bar">

@@ -7,23 +7,17 @@ const PACKAGE_DIRECTORY = fileURLToPath(new URL("../", import.meta.url));
 const DESKTOP_PACKAGE_DIRECTORY = fileURLToPath(
     new URL("../packages/happy2-desktop/", import.meta.url),
 );
-const VERSION_BUMPS = new Set([
-    "major",
-    "minor",
-    "patch",
-    "premajor",
-    "preminor",
-    "prepatch",
-    "prerelease",
-]);
-const SEMANTIC_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const VERSION_BUMPS = new Set(["major", "minor", "patch"]);
+const SEMANTIC_VERSION = /^\d+\.\d+\.\d+$/;
 const NOT_PUBLISHED = /E404|404 Not Found|is not in this registry/i;
 const USAGE = `Usage: pnpm release <version>
 
 Examples:
   pnpm release 0.1.0
   pnpm release patch
-  pnpm release minor`;
+  pnpm release minor
+
+Desktop releases accept stable semantic versions only.`;
 
 function packageVersionIsPublished(name: string, version: string): boolean {
     const result = runCommand("pnpm", ["view", `${name}@${version}`, "version", "--json"], {

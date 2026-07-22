@@ -1,6 +1,6 @@
 import type { EffectivePermissions } from "happy2-state";
 
-export type AuthMethod = "password" | "magic_link" | "oidc" | "cloudflare_access" | null;
+export type AuthMethod = "local" | "password" | "magic_link" | "oidc" | "cloudflare_access" | null;
 export type User = {
     id: string;
     firstName: string;

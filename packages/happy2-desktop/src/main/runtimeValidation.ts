@@ -66,17 +66,12 @@ export function desktopActiveTarget(
     return { ...target, authentication: "account", serverUrl: topology.serverUrl };
 }
 
-export function desktopTargetCredentialKey(targetId: string): string {
-    if (desktopTopologyIdValid(targetId)) return `target:${targetId}`;
-    throw new Error("The Happy target credential identity is invalid.");
-}
-
 export function desktopTopologyIdValidate(value: unknown): string {
     if (desktopTopologyIdValid(value)) return value;
     throw new Error("The desktop topology identity is invalid.");
 }
 
-export function desktopCredentialValueValidate(value: unknown): string | undefined {
+export function desktopLocalCapabilityValueValidate(value: unknown): string | undefined {
     if (value === undefined) return undefined;
     if (typeof value !== "string" || value.length === 0 || value.length > 65_536)
         throw new Error("The desktop credential value is invalid.");

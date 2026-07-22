@@ -97,6 +97,13 @@
     transform: translateY(var(--happy2-sidebar-header-optical-y, 0px));
 }
 
+.happy2-sidebar__header-accessory {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    min-width: 0;
+}
+
 /* ---- Back / drill-down header ----------------------------------------- */
 
 .happy2-sidebar[data-back] .happy2-sidebar__heading {

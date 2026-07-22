@@ -3,6 +3,7 @@ import {
     Avatar,
     Box,
     Button,
+    DesktopInstanceSwitcher,
     Sidebar,
     SidebarAppsSection,
     StoreSurface,
@@ -13,6 +14,7 @@ import {
     type SidebarItem,
     type SidebarSection,
     type ThemeMode,
+    type DesktopInstanceSwitcherProps,
 } from "happy2-ui";
 import { permissionAllowed, type HappyState, type PermissionsSnapshot } from "happy2-state";
 import type { AuthSession } from "./AuthGate";
@@ -31,6 +33,7 @@ import type {
     DesktopRoute,
 } from "../navigation/desktopRouteTypes";
 export interface DesktopAppProps {
+    desktopRuntime?: DesktopInstanceSwitcherProps;
     navigation: DesktopNavigation;
     platform?: "desktop" | "web";
     session?: AuthSession;
@@ -198,6 +201,8 @@ export function DesktopApp(props: DesktopAppProps) {
         </Box>
     );
     const windowControls = () => props.platform === "desktop";
+    const instanceSwitcher = () =>
+        props.desktopRuntime ? <DesktopInstanceSwitcher {...props.desktopRuntime} /> : undefined;
     return (
         <StoreSurface store={props.state.permissions()}>
             {(permissions) => {
@@ -228,6 +233,7 @@ export function DesktopApp(props: DesktopAppProps) {
                         <Sidebar
                             activeItemId={adminRoute.section}
                             footer={sidebarFooter}
+                            headerAccessory={instanceSwitcher()}
                             onBack={chatOpen}
                             onItemSelect={(id) =>
                                 primaryOpen({ kind: "admin", section: id as AdminPageSection })
@@ -261,6 +267,7 @@ export function DesktopApp(props: DesktopAppProps) {
                                     available: app.available,
                                 }))}
                                 menu={sidebarMenuContributions(nav, masks)}
+                                headerAccessory={instanceSwitcher()}
                                 onAppSelect={(id) => primaryOpen({ kind: "apps", appId: id })}
                                 onBack={chatOpen}
                                 onManage={() => primaryOpen({ kind: "apps" })}
@@ -288,6 +295,7 @@ export function DesktopApp(props: DesktopAppProps) {
                             route={route}
                             session={props.session}
                             sidebarFooter={sidebarFooter}
+                            sidebarHeaderAccessory={instanceSwitcher()}
                             state={props.state}
                             windowControls={windowControls()}
                         />

@@ -42,7 +42,7 @@ export async function serverChildStart(input: {
                 ),
             );
     });
-    const url = await waitForReady(child, input.start, log);
+    const url = await serverChildWaitForReady(child, input.start, log);
     ready = true;
     if (child.exitCode !== null || child.signalCode !== null)
         throw new Error("The local Happy server exited immediately after startup.");
@@ -60,35 +60,43 @@ export async function serverChildStart(input: {
 
 export function serverChildEnvironment(localAccessToken?: string): NodeJS.ProcessEnv {
     const environment: NodeJS.ProcessEnv = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
+    for (const name of Object.keys(environment))
+        if (name.startsWith("RIG_")) delete environment[name];
     delete environment[DESKTOP_LOCAL_ACCESS_TOKEN_ENV];
     if (localAccessToken) environment[DESKTOP_LOCAL_ACCESS_TOKEN_ENV] = localAccessToken;
     return environment;
 }
 
-async function waitForReady(
+type ChildLog = Pick<WriteStream, "closed" | "end">;
+
+export async function serverChildWaitForReady(
     child: ChildProcess,
     start: ServerProcessStart,
-    log: WriteStream,
+    log: ChildLog,
+    timeoutMs = 30_000,
+    shutdownTimeoutMs = 5_000,
 ): Promise<string> {
     return await new Promise<string>((resolve, reject) => {
-        const timeout = setTimeout(
-            () => finish(new Error("The local Happy server timed out.")),
-            30_000,
-        );
-        const onError = (error: Error) => finish(error);
+        let finished = false;
+        const timeout = setTimeout(() => {
+            void finish(new Error("The local Happy server timed out."));
+        }, timeoutMs);
+        const onError = (error: Error) => void finish(error);
         const onExit = (code: number | null) =>
-            finish(new Error(`The local Happy server exited during startup (${code ?? 1}).`));
+            void finish(new Error(`The local Happy server exited during startup (${code ?? 1}).`));
         const onMessage = (message: ServerProcessOutput) => {
-            if (message.type === "ready") finish(undefined, message.url);
-            else if (message.type === "fatal") finish(new Error(message.message));
+            if (message.type === "ready") void finish(undefined, message.url);
+            else if (message.type === "fatal") void finish(new Error(message.message));
         };
-        const finish = (error?: Error, url?: string) => {
+        const finish = async (error?: Error, url?: string) => {
+            if (finished) return;
+            finished = true;
             clearTimeout(timeout);
             child.off("error", onError);
             child.off("exit", onExit);
             child.off("message", onMessage);
             if (error) {
-                child.kill("SIGTERM");
+                await childStop(child, shutdownTimeoutMs);
                 closeLog(log);
                 reject(error);
             } else resolve(url!);
@@ -96,24 +104,32 @@ async function waitForReady(
         child.once("error", onError);
         child.once("exit", onExit);
         child.on("message", onMessage);
-        child.send({ type: "start", input: start } satisfies ServerProcessInput);
+        try {
+            child.send({ type: "start", input: start } satisfies ServerProcessInput);
+        } catch (error) {
+            void finish(error instanceof Error ? error : new Error(String(error)));
+        }
     });
 }
 
-async function childStop(child: ChildProcess): Promise<void> {
+async function childStop(child: ChildProcess, forceAfterMs = 5_000): Promise<void> {
     if (child.exitCode !== null || child.signalCode !== null) return;
     await new Promise<void>((resolve) => {
-        const force = setTimeout(() => child.kill("SIGKILL"), 5_000);
+        const force = setTimeout(() => child.kill("SIGKILL"), forceAfterMs);
         child.once("exit", () => {
             clearTimeout(force);
             resolve();
         });
-        child.send({ type: "shutdown" } satisfies ServerProcessInput, (error) => {
-            if (error) child.kill("SIGTERM");
-        });
+        try {
+            child.send({ type: "shutdown" } satisfies ServerProcessInput, (error) => {
+                if (error) child.kill("SIGTERM");
+            });
+        } catch {
+            child.kill("SIGTERM");
+        }
     });
 }
 
-function closeLog(log: WriteStream): void {
+function closeLog(log: ChildLog): void {
     if (!log.closed) log.end();
 }

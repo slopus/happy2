@@ -57,6 +57,8 @@ export type SidebarProps = Omit<HTMLAttributes<HTMLElement>, "style"> & {
     brand?: boolean;
     composeLabel?: string;
     footer?: ReactNode;
+    /** Stable product context rendered between the 56px heading and scrollport. */
+    headerAccessory?: ReactNode;
     /**
      * Drill-down mode: replaces the brand/title heading with a back button to
      * the left of `title`, and animates the body in. Use for a pushed detail
@@ -180,6 +182,7 @@ export function Sidebar(props: SidebarProps) {
         "className",
         "composeLabel",
         "footer",
+        "headerAccessory",
         "onBack",
         "onCompose",
         "onItemSelect",
@@ -266,6 +269,14 @@ export function Sidebar(props: SidebarProps) {
                     </div>
                 )}
             </header>
+            {local.headerAccessory ? (
+                <div
+                    className="happy2-sidebar__header-accessory"
+                    data-happy2-ui="sidebar-header-accessory"
+                >
+                    {local.headerAccessory}
+                </div>
+            ) : null}
             <div className="happy2-sidebar__body" data-happy2-ui="sidebar-body">
                 <div className="happy2-sidebar__body-content" data-happy2-ui="sidebar-body-content">
                     {local.onCompose ? (
