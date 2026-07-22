@@ -1,12 +1,12 @@
 import { type DrizzleExecutor } from "../drizzle.js";
 import { agentTurnWork } from "./impl/agentTurnWork.js";
 import { agentTurnWorkSelection } from "./impl/agentTurnWorkSelection.js";
-import { agentTurns, messages } from "../schema.js";
-import { and, eq } from "drizzle-orm";
+import { agentTurns, messages, users } from "../schema.js";
+import { and, eq, isNull } from "drizzle-orm";
 
 /**
- * Returns the running turn for a Rig session when its stored run identifier is absent or matches the callback and the actor projection is complete.
- * Rejecting callbacks for a different attached run prevents event ingestion from resuming work owned by another Rig execution.
+ * Returns an active agent's running turn when its stored run identifier is absent or matches the Rig callback and the actor projection is complete.
+ * Rejecting inactive identities and callbacks for a different attached run prevents event ingestion from resuming unauthorized or unrelated execution.
  */
 export async function agentTurnGetRunning(
     executor: DrizzleExecutor,
@@ -17,7 +17,16 @@ export async function agentTurnGetRunning(
         .select(agentTurnWorkSelection)
         .from(agentTurns)
         .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
-        .where(and(eq(agentTurns.sessionId, sessionId), eq(agentTurns.status, "running")))
+        .innerJoin(users, eq(users.id, agentTurns.agentUserId))
+        .where(
+            and(
+                eq(agentTurns.sessionId, sessionId),
+                eq(agentTurns.status, "running"),
+                eq(users.kind, "agent"),
+                eq(users.active, 1),
+                isNull(users.deletedAt),
+            ),
+        )
         .limit(1);
     if (turn?.runId && turn.runId !== runId) return undefined;
     return turn?.actorUserId ? agentTurnWork(turn) : undefined;

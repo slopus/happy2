@@ -12,7 +12,12 @@ export async function agentDefaultRequire(executor: DrizzleExecutor): Promise<st
         .select({ id: users.id })
         .from(users)
         .where(
-            and(eq(users.agentRole, "default"), eq(users.kind, "agent"), isNull(users.deletedAt)),
+            and(
+                eq(users.agentRole, "default"),
+                eq(users.kind, "agent"),
+                eq(users.active, 1),
+                isNull(users.deletedAt),
+            ),
         )
         .limit(1);
     if (!defaultAgent) throw new CollaborationError("conflict", "The default agent is unavailable");

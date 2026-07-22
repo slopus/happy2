@@ -1,12 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
-
-interface RigRuntimePaths {
-    directory: string;
-    socketPath: string;
-    tokenPath: string;
-}
+import { join } from "node:path";
 
 const INTERNAL_CONFIGURATION = `[settings]
 durable_global_event_queue = true
@@ -14,11 +8,6 @@ happy_integration = false
 `;
 
 const INTERNAL_CONFIGURATION_HASH = sha256(INTERNAL_CONFIGURATION);
-
-/** Reports whether Happy (2) owns the configured Rig runtime and its daemon endpoints. */
-export function internalConfigurationOwns(paths: RigRuntimePaths): boolean {
-    return [paths.socketPath, paths.tokenPath].every((path) => isWithin(paths.directory, path));
-}
 
 /** Reports whether an owned, healthy daemon must be replaced before Happy (2) uses it. */
 export function internalConfigurationRequiresReplacement(input: {
@@ -71,9 +60,4 @@ function sha256(value: string): string {
 
 function isMissingFile(error: unknown): error is NodeJS.ErrnoException {
     return error instanceof Error && "code" in error && error.code === "ENOENT";
-}
-
-function isWithin(directory: string, path: string): boolean {
-    const descendant = relative(resolve(directory), resolve(path));
-    return descendant === "" || (!descendant.startsWith("..") && !isAbsolute(descendant));
 }

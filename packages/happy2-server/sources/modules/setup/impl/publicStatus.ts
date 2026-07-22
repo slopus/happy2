@@ -13,7 +13,7 @@ export function publicStatus(snapshot: {
         ? snapshot.registrationEnabled === 1
             ? "open"
             : "closed"
-        : snapshot.bootstrapAccountId
+        : snapshot.bootstrapAccountId || bootstrapComplete
           ? "closed"
           : "bootstrap";
     return {

@@ -80,6 +80,15 @@ hashes its exact internal Rig runtime template and checks the daemon version; a
 configuration or version mismatch stops the old daemon, rewrites the template,
 and starts the bundled daemon cleanly.
 
+`agents.daemon_mode` defaults to `managed`, which gives Happy ownership of that
+private daemon and stops it during shutdown. A separately supervised server
+deployment may explicitly use `attached`; attached daemons are not rewritten or
+stopped by Happy. The desktop-generated configuration always uses `managed`.
+
+Every Rig process Happy (2) starts also receives `RIG_DISABLE_HAPPY_SYNC=1`.
+The desktop runtime always uses this managed, package-private Rig home and never
+attaches to or changes the user's global Rig daemon.
+
 `happy2 service start` keeps the all-in-one app running across restarts. On
 macOS it installs `~/Library/LaunchAgents/com.slopus.happy2.plist` without
 `sudo`, starts at login, and writes logs under `~/Library/Logs/Happy2`. On Linux
@@ -112,10 +121,38 @@ a service that runs `npx --yes happy2`, avoiding a dependency on the disposable
 
 Clients can discover the selected authentication method at `GET /v0/auth/methods`.
 The response includes the server role, the durable `registration` availability
-(`bootstrap`, `open`, or `closed`), and one `method` value: `password`,
+(`bootstrap`, `open`, or `closed`), and one `method` value: `local`, `password`,
 `magic_link`, `oidc`, `cloudflare_access`, or `null` in validation-only API mode.
 Password responses also report the derived `signupEnabled`; OIDC responses report
 `oidcProvider`.
+
+Account-free desktop operation selects `[auth.local]` instead of an account
+authentication method. It is deliberately restricted to an all-in-one server
+whose bind address and public URL are loopback, with no trusted proxy or
+development tokens. `token_env` names an environment variable containing the
+desktop-generated 32-4096 character Bearer capability:
+
+```toml
+[server]
+role = "all"
+host = "127.0.0.1"
+public_url = "http://127.0.0.1:3000"
+trusted_proxy_hops = 0
+
+[auth.local]
+enabled = true
+token_env = "HAPPY2_LOCAL_ACCESS_TOKEN"
+
+[auth.password]
+enabled = false
+```
+
+This mode creates exactly one durable product `users` identity with no linked
+`accounts` row. The capability is supplied through the process environment and
+is not persisted as an account, JWT, development token, or `auth_sessions` row.
+The server refuses to initialize local access against a database that already
+contains accounts or claimed account-based setup state. Never expose this mode
+through a tunnel or non-loopback listener.
 
 The built-in plugin package, installation, container lifecycle, health, and MCP
 HTTP contracts are documented in [`PLUGINS.md`](./PLUGINS.md).
@@ -569,11 +606,13 @@ responses provide a private, revalidated `ETag`, allowing an unchanged
 reconciliation to return no body over a slow connection. All indexes and
 monitors close with the server.
 
-If the configured socket is unavailable, Happy (2) runs `rig daemon start` without
-a shell and passes the configured socket and token paths through Rig's standard
-environment variables. User turns are ordinary chat messages. The message and
-its durable `agent_turns` outbox row commit in one SQLite transaction; leased
-workers then serialize turns per agent and chat and resume them after restart.
+An unavailable configured socket makes Happy (2) run `rig daemon start` without
+a shell and pass the configured socket and token paths through Rig's standard
+environment variables. A healthy daemon is accepted only when its version and
+private runtime template match the bundled Rig; otherwise Happy stops and
+replaces it before accepting work. User turns are ordinary chat messages. The
+message and its durable `agent_turns` outbox row commit in one SQLite transaction;
+leased workers then serialize turns per agent and chat and resume them after restart.
 At startup the server enables Rig's durable global event queue when necessary.
 It consumes the queue through one resumable global SSE connection and a numeric
 cursor persisted in SQLite; it never polls the queue or opens per-session event

@@ -1,4 +1,5 @@
 import { userCreateProfile } from "../user/userCreateProfile.js";
+import { userFindActive } from "../user/userFindActive.js";
 import { fileCreate } from "../file/fileCreate.js";
 import { accountCreatePassword } from "../auth/accountCreatePassword.js";
 import { userDelete } from "../user/userDelete.js";
@@ -44,7 +45,14 @@ import { agentImageList } from "../agent/agentImageList.js";
 import { agentImageEnsureDefinitions } from "../agent/agentImageEnsureDefinitions.js";
 import { agentImageCompleteBuild } from "../agent/agentImageCompleteBuild.js";
 import { agentCreate } from "../agent/agentCreate.js";
-import { agentImages, agentImageSettings, serverSetupSteps } from "../schema.js";
+import {
+    agentImages,
+    agentImageSettings,
+    chatMembers,
+    chats,
+    serverSetupSteps,
+    users,
+} from "../schema.js";
 import { setupCreateDefaultAgent } from "../setup/setupCreateDefaultAgent.js";
 import { setupRecordOperationalStep } from "../setup/setupRecordOperationalStep.js";
 import { createDatabase, type DrizzleExecutor } from "../drizzle.js";
@@ -57,7 +65,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { StoredFile } from "../file/types.js";
 import type { User } from "../user/types.js";
 import { CollaborationError } from "./types.js";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 describe("functional product actions", () => {
     let directory: string;
     let client: Client;
@@ -727,6 +735,7 @@ describe("functional product actions", () => {
             chatId: channel.chat.id,
             userId: linus.id,
         });
+        expect(await userFindActive(executor, linus.id)).toMatchObject({ id: linus.id });
         await userDelete(executor, {
             actorUserId: ada.id,
             userId: grace.id,
@@ -739,6 +748,116 @@ describe("functional product actions", () => {
             "Recovered by admin",
         );
         expect(updated.chat.topic).toBe("Recovered by admin");
+    });
+    it("skips inactive co-owners when deleting the current channel owner", async () => {
+        const channel = await channelCreate(executor, {
+            actorUserId: grace.id,
+            kind: "private_channel",
+            name: "Eligible Successor",
+            slug: "eligible-successor",
+        });
+        await channelMemberAdd(executor, {
+            actorUserId: grace.id,
+            chatId: channel.chat.id,
+            userId: linus.id,
+            role: "owner",
+        });
+        await channelMemberAdd(executor, {
+            actorUserId: grace.id,
+            chatId: channel.chat.id,
+            userId: ada.id,
+        });
+        await executor
+            .update(chats)
+            .set({ ownerUserId: grace.id })
+            .where(eq(chats.id, channel.chat.id));
+        await executor
+            .update(chatMembers)
+            .set({ role: "owner" })
+            .where(and(eq(chatMembers.chatId, channel.chat.id), eq(chatMembers.userId, grace.id)));
+        await executor.update(users).set({ active: 0 }).where(eq(users.id, linus.id));
+
+        await userDelete(executor, {
+            actorUserId: ada.id,
+            userId: grace.id,
+        });
+
+        expect((await chatGet(executor, ada.id, channel.chat.id)).membershipRole).toBe("owner");
+    });
+    it("skips inactive human co-owners when a server admin removes the current owner", async () => {
+        const channel = await channelCreate(executor, {
+            actorUserId: grace.id,
+            kind: "private_channel",
+            name: "Removed owner successor",
+            slug: "removed-owner-successor",
+        });
+        await channelMemberAdd(executor, {
+            actorUserId: grace.id,
+            chatId: channel.chat.id,
+            userId: linus.id,
+            role: "owner",
+        });
+        await channelMemberAdd(executor, {
+            actorUserId: linus.id,
+            chatId: channel.chat.id,
+            userId: ada.id,
+        });
+        await executor
+            .update(chatMembers)
+            .set({ role: "owner" })
+            .where(and(eq(chatMembers.chatId, channel.chat.id), eq(chatMembers.userId, grace.id)));
+        await executor.update(users).set({ active: 0 }).where(eq(users.id, grace.id));
+
+        await channelMemberRemove(executor, {
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            userId: linus.id,
+        });
+
+        expect((await chatGet(executor, ada.id, channel.chat.id)).membershipRole).toBe("owner");
+    });
+    it("clears legacy public ownership instead of transferring it during removal", async () => {
+        const channel = await channelCreate(executor, {
+            actorUserId: ada.id,
+            kind: "public_channel",
+            name: "Legacy public owner",
+            slug: "legacy-public-owner",
+        });
+        await channelMemberAdd(executor, {
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            userId: grace.id,
+        });
+        await executor
+            .update(chats)
+            .set({ ownerUserId: ada.id })
+            .where(eq(chats.id, channel.chat.id));
+        await executor
+            .update(chatMembers)
+            .set({ role: "owner" })
+            .where(
+                and(
+                    eq(chatMembers.chatId, channel.chat.id),
+                    inArray(chatMembers.userId, [ada.id, grace.id]),
+                ),
+            );
+
+        await channelMemberRemove(executor, {
+            actorUserId: ada.id,
+            chatId: channel.chat.id,
+            userId: ada.id,
+        });
+
+        const [state] = await executor
+            .select({ ownerUserId: chats.ownerUserId })
+            .from(chats)
+            .where(eq(chats.id, channel.chat.id));
+        const [graceMembership] = await executor
+            .select({ role: chatMembers.role })
+            .from(chatMembers)
+            .where(and(eq(chatMembers.chatId, channel.chat.id), eq(chatMembers.userId, grace.id)));
+        expect(state?.ownerUserId).toBeNull();
+        expect(graceMembership?.role).toBe("admin");
     });
     it("compacts acknowledged sync history and makes stale cursors reset explicitly", async () => {
         const baseline = await syncGetState(executor);

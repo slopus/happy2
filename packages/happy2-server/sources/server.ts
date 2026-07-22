@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { AuthService } from "./modules/auth/service.js";
+import { userEnsureLocal } from "./modules/user/userEnsureLocal.js";
 import { AgentService, RigDaemonClient } from "./modules/agents/index.js";
 import { TokenService } from "./modules/auth/tokens.js";
 import { automationRunDue } from "./modules/automation/automationRunDue.js";
@@ -123,6 +124,7 @@ interface Services {
     pluginPackageLinkDownloader?: PluginPackageLinkDownloader;
     errorLogPath?: string;
     logger?: boolean;
+    localAccessToken?: string;
 }
 
 export async function buildServer(
@@ -178,7 +180,7 @@ async function buildServerWithLogging(
               onSubscriberError: (error) => app.log.error(error),
           }))
         : undefined;
-    const auth = new AuthService(config, executor, services.tokens);
+    const auth = new AuthService(config, executor, services.tokens, services.localAccessToken);
     const rateLimiter =
         services.rateLimiter ??
         new HttpRateLimiter(new LocalRateLimitStore(), {
@@ -278,6 +280,7 @@ async function buildServerWithLogging(
             },
         };
         await syncInitialize(executor);
+        if (config.auth.local.enabled) await userEnsureLocal(executor);
         const sandboxProviderCatalog = new SandboxProviderCatalog(
             services.sandboxProviders ?? localSandboxProviders(),
         );

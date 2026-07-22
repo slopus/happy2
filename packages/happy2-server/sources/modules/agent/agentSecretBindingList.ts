@@ -6,6 +6,7 @@ import {
     agentSecretAgentAssignments,
     agentSecretChannelAssignments,
     chatMembers,
+    users,
 } from "../schema.js";
 
 /**
@@ -31,6 +32,7 @@ export async function agentSecretBindingList(
             activeMemberUserId: chatMembers.userId,
         })
         .from(agentRigBindings)
+        .innerJoin(users, eq(users.id, agentRigBindings.userId))
         .leftJoin(
             chatMembers,
             and(
@@ -39,7 +41,14 @@ export async function agentSecretBindingList(
                 isNull(chatMembers.leftAt),
             ),
         )
-        .where(conditions.length ? and(...conditions) : undefined)
+        .where(
+            and(
+                eq(users.kind, "agent"),
+                eq(users.active, 1),
+                isNull(users.deletedAt),
+                ...conditions,
+            ),
+        )
         .orderBy(agentRigBindings.userId, agentRigBindings.chatId);
     if (!bindings.length) return [];
     const agentUserIds = [...new Set(bindings.map((binding) => binding.agentUserId))];

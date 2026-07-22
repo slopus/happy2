@@ -1,5 +1,5 @@
 import { type DrizzleTransaction } from "../drizzle.js";
-import { accounts, messageMentions, users } from "../schema.js";
+import { messageMentions, users } from "../schema.js";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -47,20 +47,11 @@ export async function messageReplaceMentions(
                 id: users.id,
             })
             .from(users)
-            .leftJoin(accounts, eq(accounts.id, users.accountId))
             .where(
                 and(
                     sql`lower(${users.username}) = lower(${candidate})`,
                     isNull(users.deletedAt),
-                    or(
-                        eq(users.kind, "agent"),
-                        and(
-                            eq(users.kind, "human"),
-                            eq(accounts.active, 1),
-                            isNull(accounts.bannedAt),
-                            isNull(accounts.deletedAt),
-                        ),
-                    ),
+                    eq(users.active, 1),
                 ),
             )
             .limit(1);

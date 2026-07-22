@@ -12,10 +12,11 @@ import { chatAppendAudit } from "../chat/chatAppendAudit.js";
 import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { moderationRepairChannelOwnershipForUserDeactivation } from "../moderation/moderationRepairChannelOwnershipForUserDeactivation.js";
 
 /**
- * Applies or clears a server-administrator ban across accountBans, accounts, authSessions, and the product users projection.
- * The transaction makes credential authority, visible user state, synchronization, and audit history agree on the same ban decision.
+ * Applies or clears a server-administrator ban across channel ownership, accountBans, accounts, authSessions, and the product users projection.
+ * The transaction makes channel authority, credential authority, visible user state, synchronization, and audit history agree on the same ban decision; unbanning never reclaims ownership.
  */
 export async function userSetBanned(
     executor: DrizzleExecutor,
@@ -87,9 +88,18 @@ export async function userSetBanned(
                 })
                 .where(and(eq(accountBans.accountId, accountId), isNull(accountBans.revokedAt)));
         }
+        const ownership = input.banned
+            ? await moderationRepairChannelOwnershipForUserDeactivation(tx, {
+                  actorUserId: input.actorUserId,
+                  orphanPolicy: "clear",
+                  sequence,
+                  userId: input.userId,
+              })
+            : [];
         await tx
             .update(users)
             .set({
+                active: input.banned ? 0 : 1,
                 syncSequence: sequence,
             })
             .where(eq(users.id, input.userId));
@@ -106,7 +116,10 @@ export async function userSetBanned(
             targetId: input.userId,
         });
         return {
-            hint: areaHint(sequence, "users"),
+            hint: {
+                ...areaHint(sequence, "users"),
+                chats: ownership.map(({ chatId, pts }) => ({ chatId, pts: String(pts) })),
+            },
         };
     });
 }

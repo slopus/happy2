@@ -1,6 +1,9 @@
 import { and, eq, isNull, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { DrizzleExecutor } from "../drizzle.js";
 import { agentTurns, messageMentions, messages, users } from "../schema.js";
+
+const executingAgent = alias(users, "executing_agent");
 
 export interface AgentPluginReferencedUser {
     id: string;
@@ -12,8 +15,8 @@ export interface AgentPluginReferencedUser {
 }
 
 /**
- * Resolves the exact running agent turn, its triggering sender, and every concrete user mention recorded on that message.
- * This read-only boundary keeps plugin capabilities tied to durable turn provenance instead of inferring authority from a reusable Rig session.
+ * Resolves the exact active agent's running turn, its triggering sender, and every concrete user mention recorded on that message.
+ * This read-only boundary keeps plugin capabilities tied to current users.active authority and durable turn provenance instead of inferring authority from a reusable Rig session.
  */
 export async function agentTurnGetPluginContext(
     executor: DrizzleExecutor,
@@ -41,11 +44,15 @@ export async function agentTurnGetPluginContext(
         .from(agentTurns)
         .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
         .innerJoin(users, eq(users.id, messages.senderUserId))
+        .innerJoin(executingAgent, eq(executingAgent.id, agentTurns.agentUserId))
         .where(
             and(
                 eq(agentTurns.sessionId, input.sessionId),
                 eq(agentTurns.status, "running"),
                 or(isNull(agentTurns.runId), eq(agentTurns.runId, input.runId)),
+                eq(executingAgent.kind, "agent"),
+                eq(executingAgent.active, 1),
+                isNull(executingAgent.deletedAt),
             ),
         )
         .limit(2);

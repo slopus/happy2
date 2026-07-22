@@ -1,7 +1,7 @@
 import { type ClaimedDataExport } from "./impl/claimedDataExport.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { accounts, auditLogEntries, chats, files, messages, users } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { asAudit } from "../operations/asAudit.js";
 
 import { auditSelection } from "../operations/auditSelection.js";
@@ -38,13 +38,13 @@ export async function dataExportBuildArtifact(
                 firstName: users.firstName,
                 lastName: users.lastName,
                 title: users.title,
-                email: accounts.email,
+                email: sql<string | null>`coalesce(${accounts.email}, ${users.email})`,
                 phone: users.phone,
                 photoFileId: users.photoFileId,
                 createdAt: users.createdAt,
             })
             .from(users)
-            .innerJoin(accounts, eq(accounts.id, users.accountId))
+            .leftJoin(accounts, eq(accounts.id, users.accountId))
             .where(eq(users.id, targetId));
         if (!profile) throw new Error("Data export target no longer exists");
         const options = objectValue(claim.options);

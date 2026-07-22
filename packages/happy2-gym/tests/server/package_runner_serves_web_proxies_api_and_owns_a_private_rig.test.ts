@@ -5,6 +5,7 @@ import { createServer, request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import {
     defaultConfig,
@@ -437,12 +438,17 @@ describe.sequential("the package runner", () => {
                 await expect(
                     stat(join(fixture.rigDirectory, "sessions.sqlite")),
                 ).resolves.toBeDefined();
-                expect(
-                    await readFile(join(fixture.rigDirectory, "runtime.toml"), "utf8"),
-                ).toContain("durable_global_event_queue = true");
+                expect(await readFile(join(fixture.rigDirectory, "runtime.toml"), "utf8")).toBe(
+                    `[settings]\ndurable_global_event_queue = true\nhappy_integration = false\n`,
+                );
                 expect((await readFile(fixture.config.agents.tokenPath, "utf8")).trim()).not.toBe(
                     "",
                 );
+                await running.close();
+                running = undefined;
+                await expect(stat(fixture.config.agents.socketPath)).rejects.toMatchObject({
+                    code: "ENOENT",
+                });
             } finally {
                 await running?.close();
                 await stopRig(fixture.config, fixture.rigDirectory);
@@ -450,6 +456,108 @@ describe.sequential("the package runner", () => {
             }
         });
     });
+
+    it("owns a private Rig whose daemon uses short desktop endpoints", async () => {
+        await withSigningEnvironment(async () => {
+            const fixture = await createFixture(true);
+            // Unix-domain socket paths are limited to roughly 100 bytes on macOS.
+            const desktopRigEndpoints = await mkdtemp(join(tmpdir(), "h2r-"));
+            const invocationsPath = join(fixture.directory, "rig-invocations.jsonl");
+            const wrapperPath = join(fixture.directory, "rig-wrapper.mjs");
+            const bundledRigMain = fixture.config.agents.command.replace(
+                /\/main\.js$/,
+                "/app/main.js",
+            );
+            await writeFile(
+                wrapperPath,
+                `#!/usr/bin/env node
+import { appendFile } from "node:fs/promises";
+import { main } from ${JSON.stringify(pathToFileURL(bundledRigMain).href)};
+await appendFile(${JSON.stringify(invocationsPath)}, JSON.stringify({
+    arguments: process.argv.slice(2),
+    disableHappySync: process.env.RIG_DISABLE_HAPPY_SYNC,
+    rigHome: process.env.RIG_HOME,
+    socketPath: process.env.RIG_SERVER_SOCKET_PATH,
+}) + "\\n");
+await main(process.argv.slice(2));
+`,
+                { mode: 0o700 },
+            );
+            fixture.config.agents.socketPath = join(desktopRigEndpoints, "server.sock");
+            fixture.config.agents.tokenPath = join(desktopRigEndpoints, "token");
+            fixture.config.agents.command = wrapperPath;
+            let running: StandaloneHappy2 | undefined;
+            try {
+                running = await startStandaloneHappy2(fixture.config, {
+                    logger: false,
+                    webRoot: fixture.webRoot,
+                });
+
+                expect(await readFile(join(fixture.rigDirectory, "runtime.toml"), "utf8")).toBe(
+                    `[settings]\ndurable_global_event_queue = true\nhappy_integration = false\n`,
+                );
+                await expect(
+                    stat(join(fixture.rigDirectory, "sessions.sqlite")),
+                ).resolves.toBeDefined();
+                await expect(stat(fixture.config.agents.socketPath)).resolves.toBeDefined();
+                const invocations = (await readFile(invocationsPath, "utf8"))
+                    .trim()
+                    .split("\n")
+                    .map(
+                        (line) =>
+                            JSON.parse(line) as {
+                                arguments: string[];
+                                disableHappySync?: string;
+                                rigHome?: string;
+                                socketPath?: string;
+                            },
+                    );
+                expect(invocations).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            arguments: ["daemon", "start"],
+                            disableHappySync: "1",
+                            rigHome: fixture.rigDirectory,
+                            socketPath: fixture.config.agents.socketPath,
+                        }),
+                        expect.objectContaining({
+                            arguments: ["--server"],
+                            disableHappySync: "1",
+                            rigHome: fixture.rigDirectory,
+                            socketPath: fixture.config.agents.socketPath,
+                        }),
+                    ]),
+                );
+                await running.close();
+                running = undefined;
+                const shutdownInvocations = (await readFile(invocationsPath, "utf8"))
+                    .trim()
+                    .split("\n")
+                    .map(
+                        (line) =>
+                            JSON.parse(line) as {
+                                arguments: string[];
+                                disableHappySync?: string;
+                                rigHome?: string;
+                                socketPath?: string;
+                            },
+                    );
+                expect(shutdownInvocations).toContainEqual(
+                    expect.objectContaining({
+                        arguments: ["daemon", "stop"],
+                        disableHappySync: "1",
+                        rigHome: fixture.rigDirectory,
+                        socketPath: fixture.config.agents.socketPath,
+                    }),
+                );
+            } finally {
+                await running?.close();
+                await stopRig(fixture.config, fixture.rigDirectory);
+                await rm(desktopRigEndpoints, { force: true, recursive: true });
+                await rm(fixture.directory, { force: true, recursive: true });
+            }
+        });
+    }, 15_000);
 });
 
 async function createFixture(agentsEnabled: boolean): Promise<{

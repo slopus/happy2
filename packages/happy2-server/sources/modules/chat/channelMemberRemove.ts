@@ -72,24 +72,23 @@ export async function channelMemberRemove(
             throw new CollaborationError("forbidden", "Only a server admin can remove an owner");
         const sequence = await syncSequenceNext(tx);
         if (member.role === "owner") {
-            const [otherOwner] = await tx
-                .select({
-                    userId: chatMembers.userId,
-                })
-                .from(chatMembers)
-                .where(
-                    and(
-                        eq(chatMembers.chatId, input.chatId),
-                        ne(chatMembers.userId, input.userId),
-                        isNull(chatMembers.leftAt),
-                        eq(chatMembers.role, "owner"),
-                    ),
-                )
-                .orderBy(chatMembers.joinedAt, chatMembers.userId)
-                .limit(1);
-            let replacementOwnerId = otherOwner?.userId;
-            if (!replacementOwnerId) {
-                const [successor] = await tx
+            if (access.kind === "public_channel") {
+                await tx
+                    .update(chats)
+                    .set({ ownerUserId: null, updatedAt: sql`CURRENT_TIMESTAMP` })
+                    .where(eq(chats.id, input.chatId));
+                await tx
+                    .update(chatMembers)
+                    .set({
+                        role: "admin",
+                        syncSequence: sequence,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(
+                        and(eq(chatMembers.chatId, input.chatId), eq(chatMembers.role, "owner")),
+                    );
+            } else {
+                const [otherOwner] = await tx
                     .select({
                         userId: chatMembers.userId,
                     })
@@ -100,42 +99,65 @@ export async function channelMemberRemove(
                             eq(chatMembers.chatId, input.chatId),
                             ne(chatMembers.userId, input.userId),
                             isNull(chatMembers.leftAt),
-                            isNull(users.agentRole),
+                            eq(chatMembers.role, "owner"),
+                            eq(users.kind, "human"),
+                            eq(users.active, 1),
                             isNull(users.deletedAt),
                         ),
                     )
-                    .orderBy(
-                        sql`case ${chatMembers.role} when 'admin' then 0 else 1 end`,
-                        chatMembers.joinedAt,
-                        chatMembers.userId,
-                    )
+                    .orderBy(chatMembers.joinedAt, chatMembers.userId)
                     .limit(1);
-                if (!successor)
-                    throw new CollaborationError(
-                        "conflict",
-                        "The last channel owner cannot be removed",
-                    );
+                let replacementOwnerId = otherOwner?.userId;
+                if (!replacementOwnerId) {
+                    const [successor] = await tx
+                        .select({
+                            userId: chatMembers.userId,
+                        })
+                        .from(chatMembers)
+                        .innerJoin(users, eq(users.id, chatMembers.userId))
+                        .where(
+                            and(
+                                eq(chatMembers.chatId, input.chatId),
+                                ne(chatMembers.userId, input.userId),
+                                isNull(chatMembers.leftAt),
+                                eq(users.kind, "human"),
+                                eq(users.active, 1),
+                                isNull(users.deletedAt),
+                            ),
+                        )
+                        .orderBy(
+                            sql`case ${chatMembers.role} when 'admin' then 0 else 1 end`,
+                            chatMembers.joinedAt,
+                            chatMembers.userId,
+                        )
+                        .limit(1);
+                    if (!successor)
+                        throw new CollaborationError(
+                            "conflict",
+                            "The last channel owner cannot be removed",
+                        );
+                    await tx
+                        .update(chatMembers)
+                        .set({
+                            role: "owner",
+                            syncSequence: sequence,
+                            updatedAt: sql`CURRENT_TIMESTAMP`,
+                        })
+                        .where(
+                            and(
+                                eq(chatMembers.chatId, input.chatId),
+                                eq(chatMembers.userId, successor.userId),
+                            ),
+                        );
+                    replacementOwnerId = successor.userId;
+                }
                 await tx
-                    .update(chatMembers)
+                    .update(chats)
                     .set({
-                        role: "owner",
-                        syncSequence: sequence,
-                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                        ownerUserId: replacementOwnerId,
                     })
-                    .where(
-                        and(
-                            eq(chatMembers.chatId, input.chatId),
-                            eq(chatMembers.userId, successor.userId),
-                        ),
-                    );
-                replacementOwnerId = successor.userId;
+                    .where(and(eq(chats.id, input.chatId), eq(chats.ownerUserId, input.userId)));
             }
-            await tx
-                .update(chats)
-                .set({
-                    ownerUserId: replacementOwnerId,
-                })
-                .where(and(eq(chats.id, input.chatId), eq(chats.ownerUserId, input.userId)));
         }
         await chatAdvanceWithSequence(
             tx,

@@ -42,8 +42,8 @@ import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
 import { storeClientMutationDb } from "./impl/storeClientMutationDb.js";
 import { agentTurnPromptBuild } from "../agent/agentTurnPromptBuild.js";
 /**
- * Publishes messages with authorized messageAttachments, search and mention projections, delivery records, and any requested agentTurns work.
- * The caller's transaction makes the channel point the boundary for every consequence of sending, including files, notifications, audit evidence, and agent execution.
+ * Publishes messages with authorized messageAttachments, search and mention projections, delivery records, and active-agent-authorized agentTurns work.
+ * The caller's transaction makes users.active and the channel point the boundary for every consequence of sending, including files, notifications, audit evidence, queued execution, and agent-authored output.
  */
 export async function messageSendInTransaction(
     tx: DrizzleTransaction,
@@ -135,6 +135,7 @@ export async function messageSendInTransaction(
                         eq(agentRigBindings.userId, requestedTurn.agentUserId),
                         eq(agentRigBindings.sessionId, requestedTurn.sessionId),
                         isNull(chatMembers.leftAt),
+                        eq(users.active, 1),
                         isNull(users.deletedAt),
                         eq(users.kind, "agent"),
                     ),
@@ -150,10 +151,14 @@ export async function messageSendInTransaction(
                     userId: agentRigBindings.userId,
                 })
                 .from(agentRigBindings)
+                .innerJoin(users, eq(users.id, agentRigBindings.userId))
                 .where(
                     and(
                         eq(agentRigBindings.chatId, input.chatId),
                         eq(agentRigBindings.sessionId, input.agentSessionId),
+                        eq(users.kind, "agent"),
+                        eq(users.active, 1),
+                        isNull(users.deletedAt),
                     ),
                 )
                 .limit(1);

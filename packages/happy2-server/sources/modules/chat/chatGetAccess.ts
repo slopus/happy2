@@ -1,6 +1,6 @@
 import { type ChatAccess } from "./chatAccess.js";
 import { type DrizzleExecutor } from "../drizzle.js";
-import { accounts, chatMembers, chats, userChatPreferences, users } from "../schema.js";
+import { chatMembers, chats, userChatPreferences, users } from "../schema.js";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { asChat } from "./impl/asChat.js";
 
@@ -9,7 +9,7 @@ import { userIsServerAdminDb } from "./impl/userIsServerAdminDb.js";
 import { type ChatRole } from "./types.js";
 
 /**
- * Builds a chat projection for an active account-backed member, public-channel reader, server administrator, or voluntarily departed member.
+ * Builds a chat projection for an active users identity acting as a member, public-channel reader, server administrator, or voluntarily departed member.
  * Recursively requiring access through parent-channel ancestry prevents a deleted or explicitly revoked ancestor from leaving a child channel reachable.
  */
 export async function chatGetAccess(
@@ -50,15 +50,13 @@ export async function chatGetAccess(
             and(eq(userChatPreferences.chatId, chats.id), eq(userChatPreferences.userId, userId)),
         )
         .innerJoin(users, eq(users.id, userId))
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
         .where(
             and(
                 eq(chats.id, chatId),
                 isNull(chats.deletedAt),
                 isNull(users.deletedAt),
-                eq(accounts.active, 1),
-                isNull(accounts.bannedAt),
-                isNull(accounts.deletedAt),
+                eq(users.kind, "human"),
+                eq(users.active, 1),
                 requireMembership
                     ? sql`${chatMembers.userId} IS NOT NULL`
                     : or(

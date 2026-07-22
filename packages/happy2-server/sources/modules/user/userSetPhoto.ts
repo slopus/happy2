@@ -1,6 +1,6 @@
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
-import { accounts, files, syncEvents, users } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { files, syncEvents, users } from "../schema.js";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 
@@ -19,14 +19,12 @@ export async function userSetPhoto(
                 id: users.id,
             })
             .from(users)
-            .innerJoin(accounts, eq(accounts.id, users.accountId))
             .where(
                 and(
                     eq(users.id, userId),
+                    eq(users.kind, "human"),
                     isNull(users.deletedAt),
-                    eq(accounts.active, 1),
-                    isNull(accounts.bannedAt),
-                    isNull(accounts.deletedAt),
+                    eq(users.active, 1),
                 ),
             );
         const [file] = await tx

@@ -2,7 +2,7 @@ import { CollaborationError, type MutationHint } from "../chat/types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
 import { accounts, authSessions, chatMembers, chats, users } from "../schema.js";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { chatAdvanceWithSequence } from "../chat/chatAdvanceWithSequence.js";
 import { chatAppendAudit } from "../chat/chatAppendAudit.js";
@@ -10,6 +10,7 @@ import { syncEventInsert } from "../sync/syncEventInsert.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { userRequireActive } from "../chat/userRequireActive.js";
 import { userRequireServerAdmin } from "../chat/userRequireServerAdmin.js";
+import { moderationRepairChannelOwnershipForUserDeactivation } from "../moderation/moderationRepairChannelOwnershipForUserDeactivation.js";
 
 /**
  * Removes the target from chatMembers, repairs owned chats, disables accounts and authSessions, and tombstones the users profile after administrator checks.
@@ -45,95 +46,34 @@ export async function userDelete(
                     isNull(chats.deletedAt),
                 ),
             );
-        const chatPoints: Array<{
-            chatId: string;
-            pts: string;
-        }> = [];
+        const ownership = await moderationRepairChannelOwnershipForUserDeactivation(tx, {
+            actorUserId: input.actorUserId,
+            orphanPolicy: "delete",
+            sequence,
+            userId: input.userId,
+        });
+        const repairedChatIds = new Set(ownership.map(({ chatId }) => chatId));
+        const chatPoints = ownership.map(({ chatId, pts }) => ({
+            chatId,
+            pts: String(pts),
+        }));
         for (const membership of memberships) {
             const chatId = membership.chatId;
-            let eventKind = "member.deleted";
-            if (membership.kind !== "dm" && membership.role === "owner") {
-                const [remainingOwner] = await tx
-                    .select({
-                        userId: chatMembers.userId,
-                    })
-                    .from(chatMembers)
-                    .where(
-                        and(
-                            eq(chatMembers.chatId, chatId),
-                            ne(chatMembers.userId, input.userId),
-                            isNull(chatMembers.leftAt),
-                            eq(chatMembers.role, "owner"),
-                        ),
-                    )
-                    .limit(1);
-                let replacementOwnerId = remainingOwner?.userId;
-                if (!replacementOwnerId) {
-                    const [successor] = await tx
-                        .select({
-                            userId: chatMembers.userId,
-                        })
-                        .from(chatMembers)
-                        .innerJoin(users, eq(users.id, chatMembers.userId))
-                        .innerJoin(accounts, eq(accounts.id, users.accountId))
-                        .where(
-                            and(
-                                eq(chatMembers.chatId, chatId),
-                                ne(chatMembers.userId, input.userId),
-                                isNull(chatMembers.leftAt),
-                                isNull(users.deletedAt),
-                                eq(accounts.active, 1),
-                                isNull(accounts.bannedAt),
-                                isNull(accounts.deletedAt),
-                            ),
-                        )
-                        .orderBy(
-                            sql`case ${chatMembers.role} when 'admin' then 0 else 1 end`,
-                            chatMembers.joinedAt,
-                            chatMembers.userId,
-                        )
-                        .limit(1);
-                    if (successor) {
-                        replacementOwnerId = successor.userId;
-                        await tx
-                            .update(chatMembers)
-                            .set({
-                                role: "owner",
-                                syncSequence: sequence,
-                                updatedAt: sql`CURRENT_TIMESTAMP`,
-                            })
-                            .where(
-                                and(
-                                    eq(chatMembers.chatId, chatId),
-                                    eq(chatMembers.userId, successor.userId),
-                                ),
-                            );
-                        eventKind = "member.deletedAndOwnershipTransferred";
-                    } else {
-                        eventKind = "chat.deletedWithLastMember";
-                    }
-                }
-                if (replacementOwnerId)
-                    await tx
-                        .update(chats)
-                        .set({
-                            ownerUserId: replacementOwnerId,
-                        })
-                        .where(and(eq(chats.id, chatId), eq(chats.ownerUserId, input.userId)));
+            if (!repairedChatIds.has(chatId)) {
+                const mutation = await chatAdvanceWithSequence(
+                    tx,
+                    sequence,
+                    input.actorUserId,
+                    chatId,
+                    "member.deleted",
+                    input.userId,
+                    input.userId,
+                );
+                chatPoints.push({
+                    chatId,
+                    pts: String(mutation.pts),
+                });
             }
-            const mutation = await chatAdvanceWithSequence(
-                tx,
-                sequence,
-                input.actorUserId,
-                chatId,
-                eventKind,
-                input.userId,
-                input.userId,
-            );
-            chatPoints.push({
-                chatId,
-                pts: String(mutation.pts),
-            });
             if (membership.kind !== "dm")
                 await tx
                     .update(chatMembers)
@@ -148,13 +88,6 @@ export async function userDelete(
                             isNull(chatMembers.leftAt),
                         ),
                     );
-            if (eventKind === "chat.deletedWithLastMember")
-                await tx
-                    .update(chats)
-                    .set({
-                        deletedAt: sql`CURRENT_TIMESTAMP`,
-                    })
-                    .where(eq(chats.id, chatId));
         }
         const [target] = await tx
             .select({
@@ -183,6 +116,7 @@ export async function userDelete(
         await tx
             .update(users)
             .set({
+                active: 0,
                 deletedAt: sql`CURRENT_TIMESTAMP`,
                 syncSequence: sequence,
                 firstName: "Deleted",

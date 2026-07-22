@@ -50,6 +50,7 @@ export async function agentContainerGetConfigurationContext(
             and(
                 eq(agentRigBindings.containerName, containerName),
                 eq(users.kind, "agent"),
+                eq(users.active, 1),
                 isNull(users.deletedAt),
                 eq(agentImages.status, "ready"),
                 isNull(agentImages.deletedAt),

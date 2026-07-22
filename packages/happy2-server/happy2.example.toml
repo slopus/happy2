@@ -37,6 +37,9 @@ url = "file:happy2.db"
 # The product server owns Rig sessions. Clients never access this socket or token.
 # By default, Server-started Rig keeps its configuration, durable state, socket,
 # and token under .happy2/rig instead of reusing the user's global Rig daemon.
+# "managed" makes Happy own, version-check, start, and stop this private daemon.
+# Separately supervised server deployments may choose "attached"; desktop never does.
+daemon_mode = "managed"
 # Set the standard RIG_HOME environment variable to an absolute path to move
 # that private Rig home.
 enabled = true
@@ -94,6 +97,15 @@ expiry_days = 30
 
 [auth.password]
 enabled = true
+
+# Desktop-owned account-free access. This is mutually exclusive with every
+# account authentication method and is accepted only for an all-in-one server
+# whose bind and public URL are loopback, trusted_proxy_hops is zero, and dev
+# tokens are disabled. The named environment variable must contain a random
+# 32-4096 character Bearer capability. Do not enable this for a hosted server.
+[auth.local]
+enabled = false
+token_env = "HAPPY2_LOCAL_ACCESS_TOKEN"
 
 # Allows an authenticated Settings session to create an opaque bearer token for
 # local web development. Every token inherits its backing session's expiry and

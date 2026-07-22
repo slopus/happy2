@@ -3,13 +3,14 @@ import { eq } from "drizzle-orm";
 import { RegistrationClosedError } from "../errors.js";
 import { serverSetupState, serverSetupSteps } from "../../schema.js";
 
-/** Checks the completed-server policy or availability of the unclaimed bootstrap slot without reserving it. */
+/** Checks the completed-server policy or that both account and administrator bootstrap owner slots remain unclaimed without reserving them. */
 export async function requireNewRegistrationRequestAllowedDb(
     executor: DrizzleExecutor,
 ): Promise<void> {
     const [setup] = await executor
         .select({
             bootstrapAccountId: serverSetupState.bootstrapAccountId,
+            bootstrapAdminUserId: serverSetupState.bootstrapAdminUserId,
             registrationEnabled: serverSetupState.registrationEnabled,
         })
         .from(serverSetupState)
@@ -24,6 +25,6 @@ export async function requireNewRegistrationRequestAllowedDb(
     const allowed =
         completion.state === "complete"
             ? setup.registrationEnabled === 1
-            : setup.bootstrapAccountId === null;
+            : setup.bootstrapAccountId === null && setup.bootstrapAdminUserId === null;
     if (!allowed) throw new RegistrationClosedError();
 }

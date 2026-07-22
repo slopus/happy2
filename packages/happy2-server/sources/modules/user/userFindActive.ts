@@ -1,12 +1,12 @@
 import { type DrizzleExecutor } from "../drizzle.js";
 import { type User } from "./types.js";
-import { accounts, users } from "../schema.js";
+import { users } from "../schema.js";
 import { and, eq, isNull } from "drizzle-orm";
 import { asUser } from "./impl/asUser.js";
 
 /**
- * Resolves a user only when both the profile and its credential account remain active.
- * This lookup gives authentication and product routes one definition of a usable user identity.
+ * Resolves an active product identity directly from the authoritative users lifecycle state.
+ * This lookup intentionally does not infer product access from credential-account state.
  */
 export async function userFindActive(
     executor: DrizzleExecutor,
@@ -17,15 +17,6 @@ export async function userFindActive(
             user: users,
         })
         .from(users)
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
-        .where(
-            and(
-                eq(users.id, id),
-                eq(accounts.active, 1),
-                isNull(accounts.bannedAt),
-                isNull(accounts.deletedAt),
-                isNull(users.deletedAt),
-            ),
-        );
+        .where(and(eq(users.id, id), eq(users.active, 1), isNull(users.deletedAt)));
     return row ? asUser(row.user) : undefined;
 }

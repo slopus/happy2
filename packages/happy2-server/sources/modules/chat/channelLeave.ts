@@ -3,7 +3,7 @@ import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { chatHint } from "./chatHint.js";
-import { chatMembers, chats } from "../schema.js";
+import { chatMembers, chats, users } from "../schema.js";
 
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { chatGetAccess } from "./chatGetAccess.js";
@@ -35,12 +35,16 @@ export async function channelLeave(
                     userId: chatMembers.userId,
                 })
                 .from(chatMembers)
+                .innerJoin(users, eq(users.id, chatMembers.userId))
                 .where(
                     and(
                         eq(chatMembers.chatId, chatId),
                         ne(chatMembers.userId, actorUserId),
                         isNull(chatMembers.leftAt),
                         eq(chatMembers.role, "owner"),
+                        eq(users.kind, "human"),
+                        eq(users.active, 1),
+                        isNull(users.deletedAt),
                     ),
                 )
                 .orderBy(chatMembers.joinedAt, chatMembers.userId)

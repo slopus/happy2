@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import type { DrizzleExecutor } from "../../drizzle.js";
 import {
     accounts,
@@ -20,16 +20,13 @@ export async function permissionEffectiveDb(
             ownerUserId: serverSetupState.bootstrapAdminUserId,
         })
         .from(users)
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
         .innerJoin(serverSetupState, eq(serverSetupState.id, 1))
         .where(
             and(
                 eq(users.id, userId),
                 eq(users.kind, "human"),
                 isNull(users.deletedAt),
-                eq(accounts.active, 1),
-                isNull(accounts.bannedAt),
-                isNull(accounts.deletedAt),
+                eq(users.active, 1),
             ),
         )
         .limit(1);

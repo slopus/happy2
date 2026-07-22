@@ -28,6 +28,7 @@ export interface ServerConfig {
     database: { url: string; authTokenEnv?: string };
     agents: {
         enabled: boolean;
+        daemonMode: "attached" | "managed";
         directory: string;
         socketPath: string;
         tokenPath: string;
@@ -83,6 +84,7 @@ export interface ServerConfig {
         expiryDays: number;
     };
     auth: {
+        local: { enabled: boolean; tokenEnv: string };
         password: { enabled: boolean };
         magicLink: { enabled: boolean; from?: string; redirectUrl?: string };
         oidc: Map<string, OidcProviderConfig>;

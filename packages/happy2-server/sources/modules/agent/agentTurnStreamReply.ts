@@ -17,6 +17,7 @@ import { chatAdvanceWithSequence } from "../chat/chatAdvanceWithSequence.js";
 import { messageGetProjection } from "../message/messageGetProjection.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { messageSendInTransaction } from "../message/messageSendInTransaction.js";
+import { agentActiveExists } from "./impl/agentActiveExists.js";
 
 const MAX_AGENT_TURN_TRACE_ENTRIES = 512;
 const MAX_STREAM_TRACE_ENTRIES = MAX_AGENT_TURN_TRACE_ENTRIES - 1;
@@ -27,8 +28,8 @@ const MAX_TRACE_ID_CHARACTERS = 128;
 const MAX_TRACE_KEY_CHARACTERS = 512;
 
 /**
- * Applies the next leased turn output chunk to agentTurns and its visible messages projection in sequence order.
- * Committing checkpoint and chat delivery state together makes retries idempotent and keeps partial stream output resumable.
+ * Applies the next leased active-agent output chunk to agentTurns and its visible messages projection in sequence order.
+ * Requiring users.active while committing checkpoint and chat delivery state prevents deactivated sessions from publishing and keeps authorized partial output resumable.
  */
 export async function agentTurnStreamReply(
     executor: DrizzleExecutor,
@@ -69,6 +70,7 @@ export async function agentTurnStreamReply(
                     input.expectedEventId === undefined
                         ? isNull(agentTurns.lastSessionEventId)
                         : eq(agentTurns.lastSessionEventId, input.expectedEventId),
+                    agentActiveExists(tx, input.agentUserId),
                 ),
             )
             .returning({

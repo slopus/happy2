@@ -1,6 +1,6 @@
 import { type AccountTarget } from "./accountTarget.js";
 import { type DrizzleTransaction } from "../../drizzle.js";
-import { accountBans, accounts } from "../../schema.js";
+import { accountBans, accounts, users } from "../../schema.js";
 
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
 
@@ -43,4 +43,5 @@ export async function closeElapsedBan(
                 lte(accounts.banExpiresAt, now),
             ),
         );
+    await tx.update(users).set({ active: 1 }).where(eq(users.id, target.userId));
 }

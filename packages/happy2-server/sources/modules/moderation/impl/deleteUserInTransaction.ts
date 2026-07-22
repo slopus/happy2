@@ -2,11 +2,12 @@ import { type DrizzleTransaction } from "../../drizzle.js";
 import { OperationsError, type OperationsSyncHint } from "../../operations/types.js";
 
 import { accounts, authSessions, chatMembers, chats, users } from "../../schema.js";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { advanceChatMutation } from "./advanceChatMutation.js";
 import { syncEventInsert } from "../../sync/syncEventInsert.js";
 import { syncSequenceNextWithTimestamp } from "../../sync/syncSequenceNextWithTimestamp.js";
+import { moderationRepairChannelOwnershipForUserDeactivation } from "../moderationRepairChannelOwnershipForUserDeactivation.js";
 /**
  * Removes the target from chatMembers, repairs owned chats, revokes authSessions and accounts, then tombstones the users identity.
  * Performing the cascade inside the moderation action prevents deleted users from retaining ownership or authentication when any dependent cleanup fails.
@@ -24,8 +25,7 @@ export async function deleteUserInTransaction(
             accountId: users.accountId,
         })
         .from(users)
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
-        .where(and(eq(users.id, targetUserId), isNull(users.deletedAt), isNull(accounts.deletedAt)))
+        .where(and(eq(users.id, targetUserId), eq(users.active, 1), isNull(users.deletedAt)))
         .limit(1);
     if (!target) throw new OperationsError("not_found", "User was not found");
     if (target.role === "admin") {
@@ -34,15 +34,12 @@ export async function deleteUserInTransaction(
                 id: users.id,
             })
             .from(users)
-            .innerJoin(accounts, eq(accounts.id, users.accountId))
             .where(
                 and(
                     sql`${users.id} != ${targetUserId}`,
                     eq(users.role, "admin"),
+                    eq(users.active, 1),
                     isNull(users.deletedAt),
-                    eq(accounts.active, 1),
-                    isNull(accounts.bannedAt),
-                    isNull(accounts.deletedAt),
                 ),
             )
             .limit(1);
@@ -68,70 +65,32 @@ export async function deleteUserInTransaction(
                 isNull(chats.deletedAt),
             ),
         );
-    const chatPoints: Array<{
-        chatId: string;
-        pts: string;
-    }> = [];
+    const ownership = await moderationRepairChannelOwnershipForUserDeactivation(tx, {
+        actorUserId,
+        orphanPolicy: "delete",
+        sequence,
+        userId: targetUserId,
+    });
+    const repairedChatIds = new Set(ownership.map(({ chatId }) => chatId));
+    const chatPoints = ownership.map(({ chatId, pts }) => ({
+        chatId,
+        pts: String(pts),
+    }));
     for (const membership of memberships) {
         const chatId = membership.chatId;
-        let eventKind = "member.deleted";
-        if (membership.kind !== "dm" && membership.role === "owner") {
-            const [successor] = await tx
-                .select({
-                    userId: chatMembers.userId,
-                })
-                .from(chatMembers)
-                .innerJoin(users, eq(users.id, chatMembers.userId))
-                .innerJoin(accounts, eq(accounts.id, users.accountId))
-                .where(
-                    and(
-                        eq(chatMembers.chatId, chatId),
-                        sql`${chatMembers.userId} != ${targetUserId}`,
-                        isNull(chatMembers.leftAt),
-                        isNull(users.deletedAt),
-                        eq(accounts.active, 1),
-                        isNull(accounts.bannedAt),
-                        isNull(accounts.deletedAt),
-                    ),
-                )
-                .orderBy(
-                    sql`case ${chatMembers.role} when 'owner' then 0 when 'admin' then 1 else 2 end`,
-                    asc(chatMembers.joinedAt),
-                    asc(chatMembers.userId),
-                )
-                .limit(1);
-            if (successor) {
-                const successorId = successor.userId;
-                await tx
-                    .update(chatMembers)
-                    .set({
-                        role: "owner",
-                        syncSequence: sequence,
-                        updatedAt: sql`CURRENT_TIMESTAMP`,
-                    })
-                    .where(
-                        and(eq(chatMembers.chatId, chatId), eq(chatMembers.userId, successorId)),
-                    );
-                await tx
-                    .update(chats)
-                    .set({
-                        ownerUserId: successorId,
-                    })
-                    .where(eq(chats.id, chatId));
-                eventKind = "member.deletedAndOwnershipTransferred";
-            } else eventKind = "chat.deleted";
+        if (!repairedChatIds.has(chatId)) {
+            const pts = await advanceChatMutation(tx, {
+                sequence,
+                chatId,
+                kind: "member.deleted",
+                entityId: targetUserId,
+                actorUserId,
+            });
+            chatPoints.push({
+                chatId,
+                pts: String(pts),
+            });
         }
-        const pts = await advanceChatMutation(tx, {
-            sequence,
-            chatId,
-            kind: eventKind,
-            entityId: targetUserId,
-            actorUserId,
-        });
-        chatPoints.push({
-            chatId,
-            pts: String(pts),
-        });
         if (membership.kind !== "dm")
             await tx
                 .update(chatMembers)
@@ -148,16 +107,6 @@ export async function deleteUserInTransaction(
                         isNull(chatMembers.leftAt),
                     ),
                 );
-        if (eventKind === "chat.deleted")
-            await tx
-                .update(chats)
-                .set({
-                    deletedAt: sql`CURRENT_TIMESTAMP`,
-                    deletedByUserId: actorUserId,
-                    deleteReason: "last member deleted",
-                    ownerUserId: null,
-                })
-                .where(eq(chats.id, chatId));
     }
     if (!target.accountId) throw new Error("User account is missing");
     const accountId = target.accountId;
@@ -183,6 +132,7 @@ export async function deleteUserInTransaction(
     await tx
         .update(users)
         .set({
+            active: 0,
             deletedAt: sql`CURRENT_TIMESTAMP`,
             syncSequence: sequence,
             firstName: "Deleted",

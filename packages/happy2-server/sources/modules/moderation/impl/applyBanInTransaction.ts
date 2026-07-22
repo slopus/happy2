@@ -1,7 +1,7 @@
 import { type DrizzleTransaction } from "../../drizzle.js";
 import { OperationsError, type OperationsSyncHint } from "../../operations/types.js";
 
-import { accountBans, accounts, authSessions } from "../../schema.js";
+import { accountBans, accounts, authSessions, users } from "../../schema.js";
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 
@@ -10,9 +10,11 @@ import { createId } from "@paralleldrive/cuid2";
 import { accountTargetDb } from "./accountTargetDb.js";
 import { closeElapsedBan } from "./closeElapsedBan.js";
 import { syncUserMutation } from "./syncUserMutation.js";
+import { syncSequenceNextWithTimestamp } from "../../sync/syncSequenceNextWithTimestamp.js";
+import { moderationRepairChannelOwnershipForUserDeactivation } from "../moderationRepairChannelOwnershipForUserDeactivation.js";
 /**
- * Inserts accountBans state, disables accounts, and revokes authSessions as one branch of a larger moderation action.
- * Reusing the action transaction ensures the access cutoff rolls back if its report resolution, notification, or audit record cannot be stored.
+ * Inserts accountBans state, repairs owned channels, disables accounts, and revokes authSessions as one branch of a larger moderation action.
+ * Reusing one sequence and action transaction keeps channel authority, access cutoff, report resolution, notification, and audit evidence atomic.
  */
 export async function applyBanInTransaction(
     tx: DrizzleTransaction,
@@ -43,11 +45,23 @@ export async function applyBanInTransaction(
             bannedByUserId: actorUserId,
         })
         .where(eq(accounts.id, target.accountId));
+    const sequence = await syncSequenceNextWithTimestamp(tx);
+    const ownership = await moderationRepairChannelOwnershipForUserDeactivation(tx, {
+        actorUserId,
+        orphanPolicy: "clear",
+        sequence,
+        userId: target.userId,
+    });
+    await tx.update(users).set({ active: 0 }).where(eq(users.id, target.userId));
     await tx
         .update(authSessions)
         .set({
             revokedAt: sql`CURRENT_TIMESTAMP`,
         })
         .where(and(eq(authSessions.accountId, target.accountId), isNull(authSessions.revokedAt)));
-    return syncUserMutation(tx, actorUserId, target.userId, "user.banned");
+    const hint = await syncUserMutation(tx, actorUserId, target.userId, "user.banned", sequence);
+    return {
+        ...hint,
+        chats: ownership.map(({ chatId, pts }) => ({ chatId, pts: String(pts) })),
+    };
 }

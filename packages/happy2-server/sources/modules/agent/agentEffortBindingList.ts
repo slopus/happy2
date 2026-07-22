@@ -25,7 +25,7 @@ export async function agentEffortBindingList(executor: DrizzleExecutor): Promise
         })
         .from(agentRigBindings)
         .innerJoin(users, eq(users.id, agentRigBindings.userId))
-        .where(and(eq(users.kind, "agent"), isNull(users.deletedAt)))
+        .where(and(eq(users.kind, "agent"), eq(users.active, 1), isNull(users.deletedAt)))
         .orderBy(agentRigBindings.userId, agentRigBindings.chatId)
         .then((rows) =>
             rows.map((row) => ({

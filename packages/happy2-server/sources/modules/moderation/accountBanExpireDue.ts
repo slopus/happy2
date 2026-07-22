@@ -83,8 +83,10 @@ export async function accountBanExpireDue(
                     id: accounts.id,
                 });
             if (!updated.length) continue;
-            if (row.userId)
+            if (row.userId) {
+                await tx.update(users).set({ active: 1 }).where(eq(users.id, row.userId));
                 await syncUserMutation(tx, input?.actorUserId, row.userId, "user.unbanned");
+            }
             await auditAppend(tx, {
                 actorUserId: input?.actorUserId,
                 action: "user.ban_expired",

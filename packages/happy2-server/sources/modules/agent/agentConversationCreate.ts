@@ -27,6 +27,7 @@ export async function agentConversationCreate(
                 and(
                     eq(users.id, input.agentUserId),
                     eq(users.kind, "agent"),
+                    eq(users.active, 1),
                     isNull(users.deletedAt),
                     eq(agentImages.status, "ready"),
                     isNull(agentImages.lastError),

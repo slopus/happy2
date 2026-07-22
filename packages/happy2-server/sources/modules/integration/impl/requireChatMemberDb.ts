@@ -1,10 +1,10 @@
 import { type DrizzleExecutor } from "../../drizzle.js";
 import { IntegrationError } from "../../integrations/types.js";
-import { accounts, chatMembers, chats, users } from "../../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { chatMembers, chats, users } from "../../schema.js";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 /**
- * Requires an active human account to have a current membership in a live, unarchived chat before an integration posts there.
+ * Requires an active human users identity to have current membership in a live, unarchived chat before an integration posts there.
  * Combining user, account, chat, and membership lifecycle checks prevents slash commands and webhooks from targeting stale relationships.
  */
 export async function requireChatMemberDb(
@@ -19,7 +19,6 @@ export async function requireChatMemberDb(
         .from(chatMembers)
         .innerJoin(chats, eq(chats.id, chatMembers.chatId))
         .innerJoin(users, eq(users.id, chatMembers.userId))
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
         .where(
             and(
                 eq(chatMembers.chatId, chatId),
@@ -27,10 +26,9 @@ export async function requireChatMemberDb(
                 isNull(chatMembers.leftAt),
                 isNull(chats.deletedAt),
                 isNull(chats.archivedAt),
+                eq(users.kind, "human"),
                 isNull(users.deletedAt),
-                eq(accounts.active, 1),
-                isNull(accounts.bannedAt),
-                isNull(accounts.deletedAt),
+                eq(users.active, 1),
             ),
         );
     if (!row) throw new IntegrationError("not_found", "Chat was not found");

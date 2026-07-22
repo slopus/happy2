@@ -51,7 +51,7 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
     const port = integer(server.port, "server.port", defaults.server.port);
     const publicUrl =
         string(server.public_url, "server.public_url", true) ?? defaults.server.publicUrl;
-    new URL(publicUrl);
+    const parsedPublicUrl = new URL(publicUrl);
     const trustedProxyHops = integer(
         server.trusted_proxy_hops,
         "server.trusted_proxy_hops",
@@ -61,6 +61,10 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
 
     const database = table(root.database ?? {}, "database");
     const agents = table(root.agents ?? {}, "agents");
+    const agentDaemonMode =
+        string(agents.daemon_mode, "agents.daemon_mode", true) ?? defaults.agents.daemonMode;
+    if (agentDaemonMode !== "attached" && agentDaemonMode !== "managed")
+        throw new Error("agents.daemon_mode must be attached or managed");
     const files = table(root.files ?? {}, "files");
     const plugins = table(root.plugins ?? {}, "plugins");
     const portSharing = table(root.port_sharing ?? {}, "port_sharing");
@@ -211,6 +215,7 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
         string(jwt.public_key_path, "jwt.public_key_path", true) ?? defaults.jwt.publicKeyPath;
 
     const auth = table(root.auth ?? {}, "auth");
+    const local = table(auth.local ?? {}, "auth.local");
     const password = table(auth.password ?? {}, "auth.password");
     const magicLink = table(auth.magic_link ?? {}, "auth.magic_link");
     const cloudflareAccess = table(auth.cloudflare_access ?? {}, "auth.cloudflare_access");
@@ -245,6 +250,11 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
         throw new Error("only one OIDC provider can be enabled at a time");
     }
 
+    const localEnabled = boolean(local.enabled, "auth.local.enabled", defaults.auth.local.enabled);
+    const localTokenEnv =
+        string(local.token_env, "auth.local.token_env", true) ?? defaults.auth.local.tokenEnv;
+    if (!/^[A-Z_][A-Z0-9_]*$/u.test(localTokenEnv))
+        throw new Error("auth.local.token_env must be an uppercase environment variable name");
     const passwordEnabled = boolean(
         password.enabled,
         "auth.password.enabled",
@@ -297,7 +307,13 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
             );
         normalizedCloudflareAccessTeamDomain = teamDomain.origin;
     }
+    const devTokensEnabled = boolean(
+        devTokens.enabled,
+        "auth.dev_tokens.enabled",
+        defaults.auth.devTokens.enabled,
+    );
     const enabledMethods = [
+        localEnabled,
         passwordEnabled,
         magicEnabled,
         oidc.size > 0,
@@ -306,6 +322,17 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
     if (enabledMethods > 1) {
         throw new Error("only one authentication method can be enabled at a time");
     }
+    if (
+        localEnabled &&
+        (role !== "all" ||
+            !loopbackHost(host) ||
+            !loopbackHost(parsedPublicUrl.hostname) ||
+            trustedProxyHops !== 0 ||
+            devTokensEnabled)
+    )
+        throw new Error(
+            "account-free local access requires an all-in-one loopback server without trusted proxies or development tokens",
+        );
     return {
         server: {
             role,
@@ -322,7 +349,9 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
         },
         agents: {
             enabled: boolean(agents.enabled, "agents.enabled", defaults.agents.enabled),
-            directory: defaults.agents.directory,
+            daemonMode: agentDaemonMode,
+            directory:
+                string(agents.directory, "agents.directory", true) ?? defaults.agents.directory,
             socketPath:
                 string(agents.socket_path, "agents.socket_path", true) ??
                 defaults.agents.socketPath,
@@ -399,6 +428,10 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
             expiryDays,
         },
         auth: {
+            local: {
+                enabled: localEnabled,
+                tokenEnv: localTokenEnv,
+            },
             password: {
                 enabled: passwordEnabled,
             },
@@ -416,14 +449,15 @@ export function parseConfig(input: string, defaults: ServerConfig = defaultConfi
                 audience: cloudflareAccessAudience,
             },
             devTokens: {
-                enabled: boolean(
-                    devTokens.enabled,
-                    "auth.dev_tokens.enabled",
-                    defaults.auth.devTokens.enabled,
-                ),
+                enabled: devTokensEnabled,
             },
         },
     };
+}
+
+function loopbackHost(value: string): boolean {
+    const normalized = value.toLowerCase().replace(/^\[/u, "").replace(/\]$/u, "");
+    return normalized === "::1" || (isIP(normalized) === 4 && normalized.startsWith("127."));
 }
 
 function normalizedHostname(value: string | undefined, path: string): string | undefined {

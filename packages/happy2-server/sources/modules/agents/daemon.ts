@@ -1,16 +1,17 @@
 import { execFile } from "node:child_process";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
+import { dirname } from "node:path";
 import type { Duplex } from "node:stream";
 import { readPackageVersion } from "@slopus/rig/dist/readPackageVersion.js";
 import WebSocket, { createWebSocketStream } from "ws";
 
 import {
     internalConfigurationMatches,
-    internalConfigurationOwns,
     internalConfigurationRequiresReplacement,
     internalConfigurationWrite,
 } from "./impl/internalConfiguration.js";
+import { managedPrivateDirectoryPrepare } from "./impl/managedPrivateDirectoryPrepare.js";
 
 import type {
     AttachSecretRequest,
@@ -52,6 +53,7 @@ import type {
 const MAX_TERMINAL_WIRE_BYTES = 4 * 1024 * 1024 + 20;
 
 export interface RigDaemonConfig {
+    daemonMode: "attached" | "managed";
     directory: string;
     socketPath: string;
     tokenPath: string;
@@ -150,6 +152,7 @@ export type RigTurnInspection =
 
 export class RigDaemonClient {
     private readonly sessionSecretReconciliations = new Map<string, Promise<void>>();
+    private closeTask?: Promise<void>;
     private daemonReload?: Promise<void>;
     private daemonReloadAttempted = false;
     private daemonVersion?: string;
@@ -157,6 +160,27 @@ export class RigDaemonClient {
     private ready?: Promise<void>;
 
     constructor(private readonly config: RigDaemonConfig) {}
+
+    close(): Promise<void> {
+        if (!this.closeTask) {
+            const readiness = [...new Set([this.ready, this.daemonReload])].filter(
+                (task): task is Promise<void> => task !== undefined,
+            );
+            this.closeTask = this.closeOnce(readiness);
+        }
+        return this.closeTask;
+    }
+
+    private async closeOnce(readiness: readonly Promise<void>[]): Promise<void> {
+        if (this.config.daemonMode !== "managed") return;
+        await Promise.allSettled(readiness);
+        try {
+            await this.stopDaemon();
+        } finally {
+            this.ready = undefined;
+            this.token = undefined;
+        }
+    }
 
     async ensureGlobalEventQueue(signal?: AbortSignal): Promise<void> {
         const current = await this.connectedRequest<GetDaemonConfigResponse>(
@@ -565,6 +589,7 @@ export class RigDaemonClient {
     }
 
     private ensureReady(): Promise<void> {
+        if (this.closeTask) return Promise.reject(shutdownError());
         if (this.daemonReload) return this.daemonReload;
         if (!this.ready) {
             this.ready = this.connect().catch((error) => {
@@ -576,18 +601,17 @@ export class RigDaemonClient {
     }
 
     private async reloadDaemon(signal?: AbortSignal): Promise<void> {
-        if (signal?.aborted) throw shutdownError();
+        if (this.closeTask || signal?.aborted) throw shutdownError();
         if (this.daemonReloadAttempted) return this.ensureReady();
         this.daemonReloadAttempted = true;
         if (!this.daemonReload) {
             this.ready = undefined;
             this.token = undefined;
-            const reload = execute(this.config.command, ["daemon", "reload"], {
-                RIG_HOME: this.config.directory,
-                RIG_SERVER_DIRECTORY: "",
-                RIG_SERVER_SOCKET_PATH: this.config.socketPath,
-                RIG_SERVER_TOKEN_PATH: this.config.tokenPath,
-            }).then(() => this.connect());
+            const reload = execute(
+                this.config.command,
+                ["daemon", "reload"],
+                this.daemonEnvironment(),
+            ).then(() => this.connect());
             this.daemonReload = reload.finally(() => {
                 this.daemonReload = undefined;
             });
@@ -596,14 +620,14 @@ export class RigDaemonClient {
     }
 
     private async connect(): Promise<void> {
+        if (this.config.daemonMode === "managed") await this.managedDirectoriesPrepare();
         this.token = await readToken(this.config.tokenPath);
         const daemonHealthy = Boolean(this.token) && (await this.healthy());
-        if (!internalConfigurationOwns(this.config)) {
+        if (this.config.daemonMode === "attached") {
             if (daemonHealthy) return;
             await this.startDaemon();
             return this.waitForReady();
         }
-
         const configurationMatches = await internalConfigurationMatches(this.config.directory);
         const replacementRequired = internalConfigurationRequiresReplacement({
             bundledVersion: readPackageVersion(),
@@ -619,9 +643,33 @@ export class RigDaemonClient {
     }
 
     private async startDaemon(): Promise<void> {
-        await mkdir(this.config.directory, { recursive: true, mode: 0o700 });
-        await chmod(this.config.directory, 0o700);
+        if (this.config.daemonMode === "managed") await this.managedDirectoriesPrepare();
+        else {
+            await mkdir(this.config.directory, { recursive: true, mode: 0o700 });
+            await chmod(this.config.directory, 0o700);
+            await Promise.all(
+                [...new Set([dirname(this.config.socketPath), dirname(this.config.tokenPath)])].map(
+                    managedPrivateDirectoryPrepare,
+                ),
+            );
+        }
+        if (this.closeTask) throw shutdownError();
         await execute(this.config.command, ["daemon", "start"], this.daemonEnvironment());
+    }
+
+    private async managedDirectoriesPrepare(): Promise<void> {
+        // Runtime roots can exceed the Unix-domain socket length limit, so
+        // endpoints may live in a separate short private temporary directory.
+        // Validate every managed path before reading a token or probing a socket.
+        await Promise.all(
+            [
+                ...new Set([
+                    this.config.directory,
+                    dirname(this.config.socketPath),
+                    dirname(this.config.tokenPath),
+                ]),
+            ].map(managedPrivateDirectoryPrepare),
+        );
     }
 
     private async stopDaemon(): Promise<void> {
@@ -647,6 +695,12 @@ export class RigDaemonClient {
     private daemonEnvironment(): Record<string, string> {
         return {
             RIG_HOME: this.config.directory,
+            ...(this.config.daemonMode === "managed"
+                ? {
+                      // Happy (2) owns the complete delivery path for this private Rig.
+                      RIG_DISABLE_HAPPY_SYNC: "1",
+                  }
+                : {}),
             RIG_SERVER_DIRECTORY: "",
             RIG_SERVER_SOCKET_PATH: this.config.socketPath,
             RIG_SERVER_TOKEN_PATH: this.config.tokenPath,

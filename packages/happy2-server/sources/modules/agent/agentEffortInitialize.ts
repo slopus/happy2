@@ -22,7 +22,14 @@ export async function agentEffortInitialize(
                 effort: users.agentEffort,
             })
             .from(users)
-            .where(and(eq(users.id, agentUserId), eq(users.kind, "agent"), isNull(users.deletedAt)))
+            .where(
+                and(
+                    eq(users.id, agentUserId),
+                    eq(users.kind, "agent"),
+                    eq(users.active, 1),
+                    isNull(users.deletedAt),
+                ),
+            )
             .limit(1);
         if (!agent || agent.effort) return undefined;
         const sequence = await syncSequenceNext(tx);

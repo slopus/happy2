@@ -1,7 +1,7 @@
 import { type AuthenticatedIntegration, type IntegrationScope } from "../integrations/types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 
-import { accounts, apiCredentials, integrations, users } from "../schema.js";
+import { apiCredentials, integrations, users } from "../schema.js";
 import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
 
 import { hashesEqual, secretHash, tokenPrefix } from "../integrations/secrets.js";
@@ -34,7 +34,6 @@ export async function apiCredentialAuthenticate(
         .from(apiCredentials)
         .innerJoin(integrations, eq(integrations.id, apiCredentials.integrationId))
         .innerJoin(users, eq(users.id, integrations.createdByUserId))
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
         .where(
             and(
                 eq(apiCredentials.tokenPrefix, tokenPrefix(token)),
@@ -45,11 +44,10 @@ export async function apiCredentialAuthenticate(
                 ),
                 eq(integrations.active, 1),
                 isNull(integrations.deletedAt),
+                eq(users.kind, "human"),
                 eq(users.role, "admin"),
                 isNull(users.deletedAt),
-                eq(accounts.active, 1),
-                isNull(accounts.bannedAt),
-                isNull(accounts.deletedAt),
+                eq(users.active, 1),
             ),
         );
     const digest = secretHash(token);

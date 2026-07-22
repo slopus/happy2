@@ -11,5 +11,9 @@ describe("supportedAuthMethods", () => {
         });
         config.server.role = "api";
         expect(supportedAuthMethods(config).method).toBeNull();
+        config.server.role = "all";
+        config.auth.password.enabled = false;
+        config.auth.local.enabled = true;
+        expect(supportedAuthMethods(config).method).toBe("local");
     });
 });

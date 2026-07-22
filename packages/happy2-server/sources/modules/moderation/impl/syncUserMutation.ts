@@ -6,15 +6,16 @@ import { syncEvents, users } from "../../schema.js";
 import { syncSequenceNextWithTimestamp } from "../../sync/syncSequenceNextWithTimestamp.js";
 /**
  * Advances the target users sync sequence and inserts the corresponding targeted syncEvents notification for an operations change.
- * Requiring the moderation transaction prevents product identity state from changing without a reconciliation hint for affected clients.
+ * Reusing a caller-supplied ownership sequence when present prevents product identity and channel authority from exposing different reconciliation boundaries.
  */
 export async function syncUserMutation(
     tx: DrizzleTransaction,
     actorUserId: string | undefined,
     targetUserId: string,
     kind: string,
+    suppliedSequence?: number,
 ): Promise<OperationsSyncHint> {
-    const sequence = await syncSequenceNextWithTimestamp(tx);
+    const sequence = suppliedSequence ?? (await syncSequenceNextWithTimestamp(tx));
     await tx
         .update(users)
         .set({

@@ -90,6 +90,7 @@ export async function documentCreate(
                     and(
                         eq(users.id, creatorUserId),
                         eq(users.kind, "agent"),
+                        eq(users.active, 1),
                         isNull(users.deletedAt),
                     ),
                 )

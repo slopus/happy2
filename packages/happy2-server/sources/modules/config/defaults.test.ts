@@ -8,12 +8,17 @@ describe("configless defaults", () => {
         expect(config.server.role).toBe("all");
         expect(config.database.url).toBe(`file:${join(process.cwd(), ".happy2", "happy2.db")}`);
         expect(config.agents).toMatchObject({
+            daemonMode: "managed",
             directory: join(process.cwd(), ".happy2", "rig"),
             socketPath: join(process.cwd(), ".happy2", "rig", "server.sock"),
             tokenPath: join(process.cwd(), ".happy2", "rig", "token"),
             defaultCwd: join(process.cwd(), ".happy2", "workspaces"),
         });
         expect(config.agents.command).toContain("node_modules/@slopus/rig/dist/main.js");
+        expect(config.auth.local).toEqual({
+            enabled: false,
+            tokenEnv: "HAPPY2_LOCAL_ACCESS_TOKEN",
+        });
         expect(config.auth.password).toEqual({ enabled: true });
         expect(config.auth.magicLink.enabled).toBe(false);
         expect(config.auth.devTokens.enabled).toBe(false);

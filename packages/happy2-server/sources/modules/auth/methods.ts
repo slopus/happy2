@@ -2,7 +2,7 @@ import type { ServerConfig } from "../config/type.js";
 
 export interface SupportedAuthMethods {
     role: ServerConfig["server"]["role"];
-    method: "password" | "magic_link" | "oidc" | "cloudflare_access" | null;
+    method: "local" | "password" | "magic_link" | "oidc" | "cloudflare_access" | null;
     devTokensEnabled: boolean;
     oidcProvider?: string;
 }
@@ -14,6 +14,7 @@ export function supportedAuthMethods(config: ServerConfig): SupportedAuthMethods
         devTokensEnabled: config.server.role !== "api" && config.auth.devTokens.enabled,
     };
     if (config.server.role === "api") return { ...base, method: null };
+    if (config.auth.local.enabled) return { ...base, method: "local" };
     if (config.auth.password.enabled) {
         return { ...base, method: "password" };
     }

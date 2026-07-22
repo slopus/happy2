@@ -1,10 +1,11 @@
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 import { agentTurns } from "../schema.js";
 import { and, eq, sql } from "drizzle-orm";
+import { agentActiveExists } from "./impl/agentActiveExists.js";
 
 /**
- * Stores the latest acknowledged Rig event position on the leased agentTurns row when the checkpoint moves forward.
- * Ownership and monotonicity checks let a resumed worker continue safely without an older callback rewinding progress.
+ * Stores the latest acknowledged Rig event position on an active agent's leased agentTurns row when the checkpoint moves forward.
+ * Active identity, ownership, and monotonicity checks let an authorized resumed worker continue safely without an older callback rewinding progress.
  */
 export async function agentTurnCheckpoint(
     executor: DrizzleExecutor,
@@ -44,6 +45,7 @@ export async function agentTurnCheckpoint(
                     eq(agentTurns.agentUserId, input.agentUserId),
                     eq(agentTurns.workerId, input.workerId),
                     eq(agentTurns.status, "running"),
+                    agentActiveExists(tx, input.agentUserId),
                 ),
             )
             .returning({

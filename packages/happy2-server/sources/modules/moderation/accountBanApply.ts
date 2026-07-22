@@ -2,7 +2,7 @@ import { type AccountBan, OperationsError } from "../operations/types.js";
 import { type AuditContext } from "../operations/auditContext.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
-import { accountBans, accounts, authSessions } from "../schema.js";
+import { accountBans, accounts, authSessions, users } from "../schema.js";
 import { accountTargetState } from "./impl/accountTargetState.js";
 
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -19,10 +19,12 @@ import { banDb } from "./impl/banDb.js";
 import { closeElapsedBan } from "./impl/closeElapsedBan.js";
 import { userRequireOperationsAdmin } from "../operations/userRequireOperationsAdmin.js";
 import { syncUserMutation } from "./impl/syncUserMutation.js";
+import { syncSequenceNextWithTimestamp } from "../sync/syncSequenceNextWithTimestamp.js";
+import { moderationRepairChannelOwnershipForUserDeactivation } from "./moderationRepairChannelOwnershipForUserDeactivation.js";
 
 /**
- * Creates an accountBans record, disables its accounts credential, and revokes active authSessions under operations-administrator authority.
- * The ban, session cutoff, user sync hint, and audit evidence commit together so access disappears at the same boundary the moderation action becomes visible.
+ * Creates an accountBans record, repairs owned channels, disables its accounts credential, and revokes active authSessions under operations-administrator authority.
+ * The ownership transfer, ban, session cutoff, user sync hint, and audit evidence commit together so access disappears without leaving inactive channel authority.
  */
 export async function accountBanApply(
     executor: DrizzleExecutor,
@@ -63,6 +65,14 @@ export async function accountBanApply(
                 bannedByUserId: input.actorUserId,
             })
             .where(eq(accounts.id, target.accountId));
+        const sequence = await syncSequenceNextWithTimestamp(tx);
+        await moderationRepairChannelOwnershipForUserDeactivation(tx, {
+            actorUserId: input.actorUserId,
+            orphanPolicy: "clear",
+            sequence,
+            userId: target.userId,
+        });
+        await tx.update(users).set({ active: 0 }).where(eq(users.id, target.userId));
         const sessions = await tx
             .update(authSessions)
             .set({
@@ -74,7 +84,7 @@ export async function accountBanApply(
             .returning({
                 id: authSessions.id,
             });
-        await syncUserMutation(tx, input.actorUserId, target.userId, "user.banned");
+        await syncUserMutation(tx, input.actorUserId, target.userId, "user.banned", sequence);
         const ban = await banDb(tx, id);
         await auditAppend(tx, {
             actorUserId: input.actorUserId,

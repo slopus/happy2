@@ -41,6 +41,7 @@ export async function agentEffortContextDb(
                 eq(chatMembers.userId, agentUserId),
                 isNull(chatMembers.leftAt),
                 eq(users.kind, "agent"),
+                eq(users.active, 1),
                 isNull(users.deletedAt),
             ),
         )

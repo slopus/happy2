@@ -1,7 +1,7 @@
 import { CollaborationError, type UserSummary } from "./types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 
-import { accounts, chatMembers, users } from "../schema.js";
+import { chatMembers, users } from "../schema.js";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { asUser } from "./asUser.js";
 
@@ -10,7 +10,7 @@ import { userSelection } from "./userSelection.js";
 import { chatGetAccess } from "./chatGetAccess.js";
 import { chatRequireManager } from "./chatRequireManager.js";
 /**
- * Lists active members of an accessible or administrator-managed chat, including live agents and eligible human accounts, ordered by display name.
+ * Lists members with active users identities in an accessible or administrator-managed chat, ordered by display name.
  * Falling back to manager authority supports private-channel administration while preserving not-found behavior for ordinary outsiders.
  */
 export async function chatMemberList(
@@ -32,21 +32,12 @@ export async function chatMemberList(
         .select(userSelection)
         .from(chatMembers)
         .innerJoin(users, eq(users.id, chatMembers.userId))
-        .leftJoin(accounts, eq(accounts.id, users.accountId))
         .where(
             and(
                 eq(chatMembers.chatId, chatId),
                 isNull(chatMembers.leftAt),
                 isNull(users.deletedAt),
-                or(
-                    eq(users.kind, "agent"),
-                    and(
-                        eq(users.kind, "human"),
-                        eq(accounts.active, 1),
-                        isNull(accounts.bannedAt),
-                        isNull(accounts.deletedAt),
-                    ),
-                ),
+                eq(users.active, 1),
             ),
         )
         .orderBy(sql`lower(${users.firstName})`, sql`lower(${users.lastName})`, users.id);

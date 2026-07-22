@@ -1,8 +1,8 @@
 import { type DrizzleTransaction } from "../../drizzle.js";
-import { accounts, chatMembers, chats, users } from "../../schema.js";
+import { chatMembers, chats, users } from "../../schema.js";
 import { channelAdvance } from "../../chat/channelAdvance.js";
 
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { createId } from "@paralleldrive/cuid2";
 
@@ -14,9 +14,10 @@ import { userJoinAutoChannels } from "../../user/userJoinAutoChannels.js";
 import { agentDefaultConversationEnsure } from "../agentDefaultConversationEnsure.js";
 import { userAnnounceJoinedServer } from "../../user/userAnnounceJoinedServer.js";
 import { projectDefaultEnsure } from "../../project/projectDefaultEnsure.js";
+
 /**
- * Repairs the main channel, default-agent memberships, and each active human's default-agent conversation after the agent exists.
- * The caller owns one transaction so no product surface can observe only part of the required default-agent substrate.
+ * Repairs public administration, private human ownership, the main channel, default-agent memberships, and each active human's default-agent conversation.
+ * Public channels stay ownerless, private successors come only from their joined active humans, and the caller's transaction keeps the complete default-agent substrate atomic.
  */
 export async function ensureDefaultAgentChannelsDb(
     executor: DrizzleTransaction,
@@ -24,17 +25,13 @@ export async function ensureDefaultAgentChannelsDb(
 ): Promise<void> {
     const defaultProject = await projectDefaultEnsure(executor);
     let [main] = await executor
-        .select({
-            id: chats.id,
-        })
+        .select({ id: chats.id })
         .from(chats)
         .where(and(eq(chats.isMain, 1), isNull(chats.deletedAt)))
         .limit(1);
     if (!main) {
         const [welcome] = await executor
-            .select({
-                id: chats.id,
-            })
+            .select({ id: chats.id })
             .from(chats)
             .where(and(eq(chats.slug, "welcome"), isNull(chats.deletedAt)))
             .limit(1);
@@ -67,9 +64,7 @@ export async function ensureDefaultAgentChannelsDb(
                 entityId: welcome.id,
                 actorUserId: defaultAgentUserId,
             });
-            main = {
-                id: welcome.id,
-            };
+            main = { id: welcome.id };
         } else {
             const id = createId();
             await executor.insert(chats).values({
@@ -103,9 +98,7 @@ export async function ensureDefaultAgentChannelsDb(
                 entityId: id,
                 actorUserId: defaultAgentUserId,
             });
-            main = {
-                id,
-            };
+            main = { id };
         }
     } else {
         await executor
@@ -120,58 +113,66 @@ export async function ensureDefaultAgentChannelsDb(
     const channels = await executor
         .select({
             id: chats.id,
+            kind: chats.kind,
             defaultAgentUserId: chats.defaultAgentUserId,
+            ownerUserId: chats.ownerUserId,
         })
         .from(chats)
-        .where(and(ne(chats.kind, "dm"), isNull(chats.deletedAt), isNull(chats.archivedAt)));
+        .where(and(ne(chats.kind, "dm"), isNull(chats.deletedAt), isNull(chats.archivedAt)))
+        .orderBy(chats.id);
     for (const channel of channels) {
-        for (const participant of [{ id: defaultAgentUserId, kind: "member.defaultAgentJoined" }]) {
-            const [membership] = await executor
-                .select({ leftAt: chatMembers.leftAt })
-                .from(chatMembers)
-                .where(
-                    and(eq(chatMembers.chatId, channel.id), eq(chatMembers.userId, participant.id)),
-                )
-                .limit(1);
-            const needsAssignment = channel.defaultAgentUserId === null;
-            if (membership?.leftAt === null && !needsAssignment) continue;
-            const sequence = await syncSequenceNext(executor);
-            await channelAdvance(executor, {
-                sequence,
-                chatId: channel.id,
-                kind: needsAssignment ? "chat.defaultAgentAssigned" : participant.kind,
-                entityId: participant.id,
-                actorUserId: defaultAgentUserId,
+        if (channel.kind === "public_channel")
+            await repairPublicChannelOwnership(executor, channel.id, channel.ownerUserId);
+        else if (channel.kind === "private_channel")
+            await repairPrivateChannelHumanOwnership(executor, {
+                channelId: channel.id,
+                currentOwnerUserId: channel.ownerUserId,
             });
-            if (needsAssignment)
-                await executor
-                    .update(chats)
-                    .set({ defaultAgentUserId })
-                    .where(and(eq(chats.id, channel.id), isNull(chats.defaultAgentUserId)));
+
+        const [membership] = await executor
+            .select({ leftAt: chatMembers.leftAt, role: chatMembers.role })
+            .from(chatMembers)
+            .where(
+                and(eq(chatMembers.chatId, channel.id), eq(chatMembers.userId, defaultAgentUserId)),
+            )
+            .limit(1);
+        const needsAssignment = channel.defaultAgentUserId === null;
+        const requiredRole = channel.id === main.id ? "admin" : "member";
+        if (membership?.leftAt === null && membership.role === requiredRole && !needsAssignment)
+            continue;
+        const sequence = await syncSequenceNext(executor);
+        await channelAdvance(executor, {
+            sequence,
+            chatId: channel.id,
+            kind: needsAssignment ? "chat.defaultAgentAssigned" : "member.defaultAgentJoined",
+            entityId: defaultAgentUserId,
+            actorUserId: defaultAgentUserId,
+        });
+        if (needsAssignment)
             await executor
-                .insert(chatMembers)
-                .values({
-                    chatId: channel.id,
-                    userId: participant.id,
-                    role:
-                        participant.id === defaultAgentUserId && channel.id === main.id
-                            ? "admin"
-                            : "member",
-                    membershipEpoch: createId(),
+                .update(chats)
+                .set({ defaultAgentUserId })
+                .where(and(eq(chats.id, channel.id), isNull(chats.defaultAgentUserId)));
+        await executor
+            .insert(chatMembers)
+            .values({
+                chatId: channel.id,
+                userId: defaultAgentUserId,
+                role: requiredRole,
+                membershipEpoch: createId(),
+                syncSequence: sequence,
+            })
+            .onConflictDoUpdate({
+                target: [chatMembers.chatId, chatMembers.userId],
+                set: {
+                    role: requiredRole,
+                    membershipEpoch: sql`excluded.membership_epoch`,
                     syncSequence: sequence,
-                })
-                .onConflictDoUpdate({
-                    target: [chatMembers.chatId, chatMembers.userId],
-                    set: {
-                        role: channel.id === main.id ? "admin" : "member",
-                        membershipEpoch: sql`excluded.membership_epoch`,
-                        syncSequence: sequence,
-                        joinedAt: sql`CURRENT_TIMESTAMP`,
-                        updatedAt: sql`CURRENT_TIMESTAMP`,
-                        leftAt: null,
-                    },
-                });
-        }
+                    joinedAt: sql`CURRENT_TIMESTAMP`,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                    leftAt: null,
+                },
+            });
     }
     const activeUsers = await executor
         .select({
@@ -179,16 +180,8 @@ export async function ensureDefaultAgentChannelsDb(
             username: users.username,
         })
         .from(users)
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
-        .where(
-            and(
-                eq(users.kind, "human"),
-                isNull(users.deletedAt),
-                eq(accounts.active, 1),
-                isNull(accounts.bannedAt),
-                isNull(accounts.deletedAt),
-            ),
-        );
+        .where(and(eq(users.kind, "human"), eq(users.active, 1), isNull(users.deletedAt)))
+        .orderBy(users.id);
     for (const user of activeUsers) {
         const [mainMembership] = await executor
             .select({ userId: chatMembers.userId })
@@ -211,4 +204,192 @@ export async function ensureDefaultAgentChannelsDb(
                 await syncSequenceNext(executor),
             );
     }
+}
+
+async function repairPublicChannelOwnership(
+    executor: DrizzleTransaction,
+    channelId: string,
+    currentOwnerUserId: string | null,
+): Promise<void> {
+    const ownerMemberships = await executor
+        .select({ userId: chatMembers.userId })
+        .from(chatMembers)
+        .where(and(eq(chatMembers.chatId, channelId), eq(chatMembers.role, "owner")));
+    if (currentOwnerUserId === null && ownerMemberships.length === 0) return;
+    const sequence = await syncSequenceNext(executor);
+    if (currentOwnerUserId !== null)
+        await executor
+            .update(chats)
+            .set({ ownerUserId: null, updatedAt: sql`CURRENT_TIMESTAMP` })
+            .where(eq(chats.id, channelId));
+    if (ownerMemberships.length)
+        await executor
+            .update(chatMembers)
+            .set({
+                role: "admin",
+                syncSequence: sequence,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(
+                and(
+                    eq(chatMembers.chatId, channelId),
+                    inArray(
+                        chatMembers.userId,
+                        ownerMemberships.map(({ userId }) => userId),
+                    ),
+                    eq(chatMembers.role, "owner"),
+                ),
+            );
+    await channelAdvance(executor, {
+        sequence,
+        chatId: channelId,
+        kind: "chat.ownerRepaired",
+        entityId: channelId,
+    });
+}
+
+async function repairPrivateChannelHumanOwnership(
+    executor: DrizzleTransaction,
+    input: {
+        channelId: string;
+        currentOwnerUserId: string | null;
+    },
+): Promise<void> {
+    const owner = await privateChannelOwnerCandidate(
+        executor,
+        input.channelId,
+        input.currentOwnerUserId,
+    );
+    const ownerMemberships = await executor
+        .select({
+            active: users.active,
+            deletedAt: users.deletedAt,
+            kind: users.kind,
+            leftAt: chatMembers.leftAt,
+            userId: chatMembers.userId,
+        })
+        .from(chatMembers)
+        .leftJoin(users, eq(users.id, chatMembers.userId))
+        .where(and(eq(chatMembers.chatId, input.channelId), eq(chatMembers.role, "owner")));
+    const invalidOwnerUserIds = ownerMemberships
+        .filter(
+            (membership) =>
+                membership.leftAt !== null ||
+                membership.kind !== "human" ||
+                membership.active !== 1 ||
+                membership.deletedAt !== null,
+        )
+        .map(({ userId }) => userId);
+    const supersededOwnerUserIds = ownerMemberships
+        .filter(
+            (membership) =>
+                membership.userId !== owner?.id &&
+                membership.leftAt === null &&
+                membership.kind === "human" &&
+                membership.active === 1 &&
+                membership.deletedAt === null,
+        )
+        .map(({ userId }) => userId);
+    const ownerChanged = input.currentOwnerUserId !== (owner?.id ?? null);
+    const membershipNeedsPromotion = Boolean(owner && owner.membershipRole !== "owner");
+    if (
+        !ownerChanged &&
+        invalidOwnerUserIds.length === 0 &&
+        supersededOwnerUserIds.length === 0 &&
+        !membershipNeedsPromotion
+    )
+        return;
+    const sequence = await syncSequenceNext(executor);
+    if (ownerChanged)
+        await executor
+            .update(chats)
+            .set({ ownerUserId: owner?.id ?? null, updatedAt: sql`CURRENT_TIMESTAMP` })
+            .where(eq(chats.id, input.channelId));
+    if (invalidOwnerUserIds.length)
+        await executor
+            .update(chatMembers)
+            .set({
+                role: "member",
+                syncSequence: sequence,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(
+                and(
+                    eq(chatMembers.chatId, input.channelId),
+                    inArray(chatMembers.userId, invalidOwnerUserIds),
+                    eq(chatMembers.role, "owner"),
+                ),
+            );
+    if (supersededOwnerUserIds.length)
+        await executor
+            .update(chatMembers)
+            .set({
+                role: "admin",
+                syncSequence: sequence,
+                updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(
+                and(
+                    eq(chatMembers.chatId, input.channelId),
+                    inArray(chatMembers.userId, supersededOwnerUserIds),
+                    eq(chatMembers.role, "owner"),
+                ),
+            );
+    if (owner && membershipNeedsPromotion)
+        await ensureOwnerMembership(executor, input.channelId, owner.id, sequence);
+    await channelAdvance(executor, {
+        sequence,
+        chatId: input.channelId,
+        kind: "chat.ownerRepaired",
+        entityId: owner?.id ?? input.channelId,
+        actorUserId: owner?.id,
+    });
+}
+
+async function privateChannelOwnerCandidate(
+    executor: DrizzleTransaction,
+    channelId: string,
+    currentOwnerUserId: string | null,
+): Promise<{ id: string; membershipRole: string } | undefined> {
+    const [member] = await executor
+        .select({ id: users.id, membershipRole: chatMembers.role })
+        .from(chatMembers)
+        .innerJoin(users, eq(users.id, chatMembers.userId))
+        .where(
+            and(
+                eq(chatMembers.chatId, channelId),
+                isNull(chatMembers.leftAt),
+                eq(users.kind, "human"),
+                eq(users.active, 1),
+                isNull(users.deletedAt),
+            ),
+        )
+        .orderBy(
+            currentOwnerUserId
+                ? sql`case when ${users.id} = ${currentOwnerUserId} then 0 when ${chatMembers.role} = 'owner' then 1 when ${chatMembers.role} = 'admin' then 2 else 3 end`
+                : sql`case when ${chatMembers.role} = 'owner' then 0 when ${chatMembers.role} = 'admin' then 1 else 2 end`,
+            chatMembers.joinedAt,
+            chatMembers.userId,
+        )
+        .limit(1);
+    return member;
+}
+
+async function ensureOwnerMembership(
+    executor: DrizzleTransaction,
+    channelId: string,
+    ownerUserId: string,
+    sequence: number,
+): Promise<void> {
+    const [membership] = await executor
+        .update(chatMembers)
+        .set({
+            role: "owner",
+            syncSequence: sequence,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+            leftAt: null,
+        })
+        .where(and(eq(chatMembers.chatId, channelId), eq(chatMembers.userId, ownerUserId)))
+        .returning({ userId: chatMembers.userId });
+    if (!membership) throw new Error("Channel owner membership is missing");
 }

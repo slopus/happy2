@@ -8,6 +8,8 @@ export type StandaloneHappy2 = RunningHappy2;
 export interface StandaloneOptions {
     errorLogPath?: string;
     logger?: boolean;
+    /** Explicit process-private local capability captured by an embedding host. */
+    localAccessToken?: string;
     webRoot?: string;
 }
 
@@ -33,6 +35,7 @@ export async function startStandaloneHappy2(
         backend = await startBackendHappy2(backendConfig, {
             errorLogPath: options.errorLogPath,
             logger: options.logger,
+            localAccessToken: options.localAccessToken,
         });
         web = await startWebHappy2({
             backendUrl: backend.url,
@@ -43,6 +46,10 @@ export async function startStandaloneHappy2(
             trustedProxyHops: config.server.trustedProxyHops,
             webRoot: options.webRoot,
         });
+        // Account-free local servers bind an ephemeral loopback gateway port.
+        // Absolute file URLs must use that renderer-facing origin, not the
+        // pre-bind loopback placeholder in the generated configuration.
+        if (config.auth.local.enabled) backendConfig.server.publicUrl = web.url;
 
         let closed = false;
         const close = async () => {

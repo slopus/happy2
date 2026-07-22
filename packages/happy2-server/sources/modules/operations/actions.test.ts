@@ -16,6 +16,7 @@ import { accountBanList } from "../moderation/accountBanList.js";
 import { accountBanExpireDue } from "../moderation/accountBanExpireDue.js";
 import { accountBanApply } from "../moderation/accountBanApply.js";
 import { userCreateProfile } from "../user/userCreateProfile.js";
+import { userFindActive } from "../user/userFindActive.js";
 import { sessionFindActive } from "../auth/sessionFindActive.js";
 import { sessionCreate } from "../auth/sessionCreate.js";
 import { fileCreate } from "../file/fileCreate.js";
@@ -97,6 +98,7 @@ describe("operations actions", () => {
             reason: "Repeated abuse",
             status: "active",
         });
+        expect(await userFindActive(executor, member.user.id)).toBeUndefined();
         expect(await sessionFindActive(executor, session.id)).toBeUndefined();
         await expect(
             sessionCreate(executor, member.account.id, new Date(Date.now() + 60_000), {}),
@@ -122,6 +124,9 @@ describe("operations actions", () => {
         expect(revoked).toMatchObject({
             status: "revoked",
             revokeReason: "Appeal accepted",
+        });
+        expect(await userFindActive(executor, member.user.id)).toMatchObject({
+            id: member.user.id,
         });
         await expect(
             sessionCreate(executor, member.account.id, new Date(Date.now() + 60_000), {}),
@@ -151,6 +156,9 @@ describe("operations actions", () => {
         });
         await expect(accountBanExpireDue(executor)).resolves.toBe(1);
         await expect(accountBanExpireDue(executor)).resolves.toBe(0);
+        expect(await userFindActive(executor, member.user.id)).toMatchObject({
+            id: member.user.id,
+        });
         await expect(
             sessionCreate(executor, member.account.id, new Date(Date.now() + 60_000), {}),
         ).resolves.toBeDefined();

@@ -128,6 +128,7 @@ function fakeAuth(
                       : undefined;
             if (!selected) return undefined;
             return {
+                local: false,
                 session: {
                     id: `session-${token}`,
                     accountId: selected.account.id,

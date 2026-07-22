@@ -14,6 +14,8 @@ export interface RunningHappy2 extends AsyncDisposable {
 export interface BackendOptions {
     errorLogPath?: string;
     logger?: boolean;
+    /** Explicit process-private local capability captured by an embedding host. */
+    localAccessToken?: string;
 }
 
 /** Starts only the Happy (2) backend, without serving or proxying the web application. */
@@ -35,6 +37,7 @@ export async function startBackendHappy2(
             tokens: await TokenService.create(config),
             errorLogPath: options.errorLogPath,
             logger: options.logger,
+            localAccessToken: options.localAccessToken,
         });
         const url = await app.listen({ host: config.server.host, port: config.server.port });
         let closed = false;

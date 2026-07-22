@@ -7,8 +7,8 @@ import {
     type UserOnboardingStepState,
 } from "../setup/types.js";
 
-import { accounts, syncEvents, userOnboardingSteps, users } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { syncEvents, userOnboardingSteps, users } from "../schema.js";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 
@@ -35,15 +35,12 @@ export async function userOnboardingUpdateStep(
                 photoFileId: users.photoFileId,
             })
             .from(users)
-            .innerJoin(accounts, eq(accounts.id, users.accountId))
             .where(
                 and(
                     eq(users.id, input.userId),
                     eq(users.kind, "human"),
                     isNull(users.deletedAt),
-                    eq(accounts.active, 1),
-                    isNull(accounts.bannedAt),
-                    isNull(accounts.deletedAt),
+                    eq(users.active, 1),
                 ),
             );
         if (!user) throw new SetupError("not_found", "Active user was not found");

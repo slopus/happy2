@@ -461,6 +461,7 @@ function gymConfig(databaseUrl: string): ServerConfig {
     config.jwt.keyId = "gym-server";
     config.auth.password.enabled = false;
     config.agents.enabled = false;
+    config.agents.daemonMode = "attached";
     return config;
 }
 

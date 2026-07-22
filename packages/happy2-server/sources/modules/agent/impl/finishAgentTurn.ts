@@ -15,13 +15,14 @@ import { syncSequenceNext } from "../../sync/syncSequenceNext.js";
 import { messageRecordDelivery } from "../../message/messageRecordDelivery.js";
 import { messageReplaceMentions } from "../../message/messageReplaceMentions.js";
 import { messageSendInTransaction } from "../../message/messageSendInTransaction.js";
+import { agentActiveExists } from "./agentActiveExists.js";
 
 const MAX_TRACE_DETAIL_CHARACTERS = 64 * 1_024;
 const MAX_TRACE_SUMMARY_CHARACTERS = 500;
 
 /**
- * Finalizes agentTurns and their messages output, including the terminal chat and search projections produced by the run.
- * The worker-facing transaction prevents a completed lease from being visible before its final answer is durable and searchable.
+ * Finalizes an active agent's agentTurns and message output, including terminal chat and search projections produced by the run.
+ * The users.active and worker-owned transaction prevents deactivated sessions from publishing and prevents a completed lease from becoming visible before its final answer is durable.
  */
 export async function finishAgentTurn(
     executor: DrizzleExecutor,
@@ -84,6 +85,7 @@ export async function finishAgentTurn(
                     eq(agentTurns.sessionId, input.sessionId),
                     eq(agentTurns.workerId, input.workerId),
                     eq(agentTurns.status, "running"),
+                    agentActiveExists(tx, input.agentUserId),
                 ),
             )
             .returning({

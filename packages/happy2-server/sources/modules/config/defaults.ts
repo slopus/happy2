@@ -24,6 +24,7 @@ export function defaultConfig(
         database: { url: `file:${join(paths.runtimeDirectory, "happy2.db")}` },
         agents: {
             enabled: true,
+            daemonMode: "managed",
             directory: paths.rigDirectory,
             socketPath:
                 environment.RIG_SERVER_SOCKET_PATH ?? join(paths.rigDirectory, "server.sock"),
@@ -72,6 +73,7 @@ export function defaultConfig(
             expiryDays: 30,
         },
         auth: {
+            local: { enabled: false, tokenEnv: "HAPPY2_LOCAL_ACCESS_TOKEN" },
             password: { enabled: true },
             magicLink: { enabled: false },
             oidc: new Map(),

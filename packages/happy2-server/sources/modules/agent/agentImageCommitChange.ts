@@ -49,6 +49,7 @@ export async function agentImageCommitChange(
                 and(
                     eq(users.id, input.agentUserId),
                     eq(users.kind, "agent"),
+                    eq(users.active, 1),
                     isNull(users.deletedAt),
                 ),
             )

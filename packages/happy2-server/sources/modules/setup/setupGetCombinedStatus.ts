@@ -5,8 +5,8 @@ import {
 } from "./types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 
-import { accounts, users } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { users } from "../schema.js";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { emptyUserSteps } from "./impl/emptyUserSteps.js";
 
 import { publicStatus } from "./impl/publicStatus.js";
@@ -15,12 +15,12 @@ import { redactServerSteps } from "./impl/redactServerSteps.js";
 import { readServerSnapshot } from "./impl/readServerSnapshot.js";
 import { readUserSteps } from "./impl/readUserSteps.js";
 /**
- * Derives the authenticated account's next onboarding route from server and user step state.
- * It also centralizes setup-management eligibility and redaction so incomplete accounts cannot infer protected server details.
+ * Derives an authenticated account or account-free local user's next onboarding route from server and user step state.
+ * It also centralizes setup-management eligibility and redaction so incomplete identities cannot infer protected server details.
  */
 export async function setupGetCombinedStatus(
     executor: DrizzleExecutor,
-    accountId: string,
+    identity: { accountId: string } | { userId: string },
 ): Promise<CombinedOnboardingStatus> {
     const snapshot = await readServerSnapshot(executor);
     const [user] = await executor
@@ -29,21 +29,22 @@ export async function setupGetCombinedStatus(
             role: users.role,
         })
         .from(users)
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
         .where(
             and(
-                eq(users.accountId, accountId),
+                "accountId" in identity
+                    ? eq(users.accountId, identity.accountId)
+                    : eq(users.id, identity.userId),
                 eq(users.kind, "human"),
+                eq(users.active, 1),
                 isNull(users.deletedAt),
-                eq(accounts.active, 1),
-                isNull(accounts.bannedAt),
-                isNull(accounts.deletedAt),
             ),
         )
         .limit(1);
     const canManage = user
         ? user.role === "admin"
-        : !snapshot.bootstrapAdminUserId && snapshot.bootstrapAccountId === accountId;
+        : "accountId" in identity &&
+          !snapshot.bootstrapAdminUserId &&
+          snapshot.bootstrapAccountId === identity.accountId;
     const userSteps = user ? await readUserSteps(executor, user.id) : emptyUserSteps();
     const serverComplete = snapshot.steps.server_setup_complete.state === "complete";
     const userComplete =

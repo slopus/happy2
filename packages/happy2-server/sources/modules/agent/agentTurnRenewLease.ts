@@ -1,10 +1,11 @@
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 import { agentTurns } from "../schema.js";
 import { and, eq, sql } from "drizzle-orm";
+import { agentActiveExists } from "./impl/agentActiveExists.js";
 
 /**
- * Extends the deadline on an agentTurns lease only for the worker and token that currently own it.
- * The guarded heartbeat prevents a stale process from prolonging work that has already been reassigned.
+ * Extends the deadline on an agentTurns lease only while its agent remains active and the current worker owns it.
+ * The guarded heartbeat aborts deactivated execution and prevents a stale process from prolonging work that has already been reassigned.
  */
 export async function agentTurnRenewLease(
     executor: DrizzleExecutor,
@@ -27,6 +28,7 @@ export async function agentTurnRenewLease(
                     eq(agentTurns.agentUserId, input.agentUserId),
                     eq(agentTurns.workerId, input.workerId),
                     eq(agentTurns.status, "running"),
+                    agentActiveExists(tx, input.agentUserId),
                 ),
             )
             .returning({

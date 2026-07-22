@@ -1,11 +1,11 @@
 import { type DrizzleExecutor } from "../drizzle.js";
-import { agentRigBindings, agentTurns, files, messageAttachments } from "../schema.js";
-import { and, eq } from "drizzle-orm";
+import { agentRigBindings, agentTurns, files, messageAttachments, users } from "../schema.js";
+import { and, eq, isNull } from "drizzle-orm";
 import { agentTurnAttachmentPath } from "./impl/agentTurnAttachmentPath.js";
 
 /**
- * Resolves the safe stored files attached to one exact leased agent turn and its isolated container.
- * Matching the durable turn to its Rig binding prevents another session from materializing arbitrary file records, while excluding deleted, incomplete, and infected uploads preserves the normal file-serving safety boundary.
+ * Resolves the safe stored files attached to one exact active agent's leased turn and isolated container.
+ * Matching the durable turn to its Rig binding and active identity prevents stale sessions from materializing arbitrary file records, while excluding deleted, incomplete, and infected uploads preserves the normal file-serving safety boundary.
  */
 export async function agentTurnAttachmentGetContext(
     executor: DrizzleExecutor,
@@ -37,12 +37,16 @@ export async function agentTurnAttachmentGetContext(
                 eq(agentRigBindings.sessionId, agentTurns.sessionId),
             ),
         )
+        .innerJoin(users, eq(users.id, agentTurns.agentUserId))
         .where(
             and(
                 eq(agentTurns.userMessageId, input.userMessageId),
                 eq(agentTurns.agentUserId, input.agentUserId),
                 eq(agentTurns.chatId, input.chatId),
                 eq(agentTurns.sessionId, input.sessionId),
+                eq(users.kind, "agent"),
+                eq(users.active, 1),
+                isNull(users.deletedAt),
             ),
         )
         .limit(1);

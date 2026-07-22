@@ -1352,22 +1352,26 @@ export class AgentService {
         this.typingRenewals.clear();
         for (const activity of this.agentActivities.values()) clearInterval(activity.timer);
         this.agentActivities.clear();
-        await Promise.race([
-            Promise.allSettled([
-                ...this.bindingCreations.values(),
-                ...this.containerConfigurations.values(),
-                ...this.imageMutations.values(),
-                ...this.drains.values(),
-                ...this.imageBuilds.values(),
-                ...Array.from(this.turnStreams.values(), (stream) => stream.task),
-                ...(this.queueTask ? [this.queueTask] : []),
-            ]),
-            shutdownDeadline(),
-        ]);
-        await Promise.all([
-            agentTurnReleaseLeases(this.executor, this.workerId),
-            agentImageReleaseBuildLeases(this.executor, this.workerId),
-        ]);
+        try {
+            await Promise.race([
+                Promise.allSettled([
+                    ...this.bindingCreations.values(),
+                    ...this.containerConfigurations.values(),
+                    ...this.imageMutations.values(),
+                    ...this.drains.values(),
+                    ...this.imageBuilds.values(),
+                    ...Array.from(this.turnStreams.values(), (stream) => stream.task),
+                    ...(this.queueTask ? [this.queueTask] : []),
+                ]),
+                shutdownDeadline(),
+            ]);
+            await Promise.all([
+                agentTurnReleaseLeases(this.executor, this.workerId),
+                agentImageReleaseBuildLeases(this.executor, this.workerId),
+            ]);
+        } finally {
+            await this.daemon.close();
+        }
     }
     private queueImageBuild(imageId: string): void {
         if (this.stopping || this.imageBuilds.has(imageId) || this.pendingImageBuilds.has(imageId))
@@ -1710,6 +1714,7 @@ export class AgentService {
             const result = call.skill
                 ? await this.executePluginSkillRead(
                       event.sessionId,
+                      call.runId,
                       call.id,
                       call.definition.name,
                       call.skill,
@@ -1827,28 +1832,37 @@ export class AgentService {
 
     private async executePluginSkillRead(
         sessionId: string,
+        runId: string,
         callId: string,
         functionName: string,
         skill: PluginSkillDefinition,
     ): Promise<PluginFunctionResult> {
-        return this.executeDurablePluginCall(sessionId, callId, () => {
+        return this.executeDurablePluginCall(sessionId, callId, async () => {
+            if (!(await agentTurnGetPluginContext(this.executor, { sessionId, runId })))
+                return {
+                    status: "failed" as const,
+                    error: {
+                        code: "plugin_chat_unavailable",
+                        message: "The skill call is not bound to one current agent turn",
+                    },
+                };
             if (functionName !== "read_skill")
-                return Promise.resolve({
+                return {
                     status: "failed" as const,
                     error: {
                         code: "plugin_skill_invalid",
                         message: "Rig requested a durable skill through an unknown function",
                     },
-                });
+                };
             return this.pluginCapabilities
                 ? this.pluginCapabilities.readSkill(skill, this.shutdown.signal)
-                : Promise.resolve({
+                : {
                       status: "failed" as const,
                       error: {
                           code: "plugin_skills_unavailable",
                           message: "Plugin skills are unavailable on this server",
                       },
-                  });
+                  };
         });
     }
 
@@ -1967,6 +1981,17 @@ export class AgentService {
         input: AgentTurnWork,
         signal: AbortSignal,
     ): Promise<AgentTurnSubmission> {
+        if (
+            signal.aborted ||
+            !(await agentTurnRenewLease(this.executor, {
+                agentUserId: input.agentUserId,
+                userMessageId: input.userMessageId,
+                workerId: input.workerId,
+            }))
+        )
+            throw new AgentTurnStreamStopped(
+                `Agent turn ${input.userMessageId} lease was lost before session inspection.`,
+            );
         let baselineMessageCount = input.baselineMessageCount;
         let lastSessionEventId = input.lastSessionEventId;
         let runId = input.runId;

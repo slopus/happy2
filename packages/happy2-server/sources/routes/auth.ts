@@ -27,6 +27,11 @@ export function registerAuthRoutes(
     app.get("/v0/auth/session", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return reply.code(401).send({ error: "unauthorized" });
+        if (current.local)
+            return {
+                user: current.user,
+                authentication: "local",
+            };
         if (!current.session)
             return {
                 user: current.user,

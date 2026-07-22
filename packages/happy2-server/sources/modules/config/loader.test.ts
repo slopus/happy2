@@ -71,6 +71,22 @@ redirect_path = "/v0/auth/oidc/example/callback"
         expect(config.files.directory).toBe(join(process.cwd(), ".happy2", "files"));
     });
 
+    it("loads explicit managed and attached Rig daemon ownership", () => {
+        expect(
+            parseConfig(`${base}
+[agents]
+daemon_mode = "attached"
+directory = "/srv/private-rig"
+`).agents,
+        ).toMatchObject({ daemonMode: "attached", directory: "/srv/private-rig" });
+        expect(() =>
+            parseConfig(`${base}
+[agents]
+daemon_mode = "global"
+`),
+        ).toThrow("agents.daemon_mode");
+    });
+
     it("loads dev tokens independently of the selected authentication mechanism", () => {
         const config = parseConfig(`${base}
 [auth.password]
@@ -105,6 +121,95 @@ team_domain = "https://happy.cloudflareaccess.com"
 audience = "cloudflare-access-audience"
 `),
         ).toThrow("only one authentication method");
+    });
+
+    it("accepts account-free local access only on an isolated loopback server", () => {
+        const config = parseConfig(`[server]
+role = "all"
+host = "127.0.0.1"
+port = 47831
+public_url = "http://127.0.0.1:47831"
+trusted_proxy_hops = 0
+
+[auth.local]
+enabled = true
+token_env = "HAPPY2_DESKTOP_LOCAL_TOKEN"
+
+[auth.password]
+enabled = false
+`);
+        expect(config.auth.local).toEqual({
+            enabled: true,
+            tokenEnv: "HAPPY2_DESKTOP_LOCAL_TOKEN",
+        });
+
+        for (const source of [
+            `[server]
+host = "0.0.0.0"
+public_url = "http://127.0.0.1:47831"
+[auth.local]
+enabled = true
+[auth.password]
+enabled = false
+`,
+            `[server]
+host = "127.0.0.1"
+public_url = "https://happy.example.test"
+[auth.local]
+enabled = true
+[auth.password]
+enabled = false
+`,
+            `[server]
+host = "127.0.0.1"
+public_url = "http://127.0.0.1:47831"
+[auth.local]
+enabled = true
+[auth.password]
+enabled = true
+`,
+            `[server]
+host = "127.0.0.1"
+public_url = "http://127.0.0.1:47831"
+trusted_proxy_hops = 1
+[auth.local]
+enabled = true
+[auth.password]
+enabled = false
+`,
+            `[server]
+role = "auth"
+host = "127.0.0.1"
+public_url = "http://127.0.0.1:47831"
+[auth.local]
+enabled = true
+[auth.password]
+enabled = false
+`,
+            `[server]
+host = "127.0.0.1"
+public_url = "http://127.0.0.1:47831"
+[auth.local]
+enabled = true
+[auth.password]
+enabled = false
+[auth.dev_tokens]
+enabled = true
+`,
+        ])
+            expect(() => parseConfig(source)).toThrow();
+
+        expect(() =>
+            parseConfig(`[server]
+host = "127.0.0.1"
+public_url = "http://127.0.0.1:47831"
+[auth.local]
+enabled = true
+token_env = "invalid-token-env"
+[auth.password]
+enabled = false
+`),
+        ).toThrow("auth.local.token_env");
     });
 
     it("loads a Cloudflare Access application and rejects unsafe team domains", () => {

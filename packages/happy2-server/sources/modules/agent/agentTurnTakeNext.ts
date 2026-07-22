@@ -1,12 +1,12 @@
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 import { agentTurnWork } from "./impl/agentTurnWork.js";
 import { agentTurnWorkSelection } from "./impl/agentTurnWorkSelection.js";
-import { agentTurns, messages } from "../schema.js";
-import { and, eq, sql } from "drizzle-orm";
+import { agentTurns, messages, users } from "../schema.js";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 /**
- * Claims the oldest eligible agentTurns item for one worker and records a bounded ownership lease.
- * The conditional state transition serializes competing workers so each queued turn has at most one active executor.
+ * Claims the oldest eligible active agent's agentTurns item for one worker and records a bounded ownership lease.
+ * The active identity query and conditional state transition prevent deactivated work from resuming while serializing competing workers to at most one executor.
  */
 export async function agentTurnTakeNext(
     executor: DrizzleExecutor,
@@ -37,7 +37,16 @@ export async function agentTurnTakeNext(
             .select(agentTurnWorkSelection)
             .from(agentTurns)
             .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
-            .where(and(eq(agentTurns.chatId, chatId), eq(agentTurns.status, "running")))
+            .innerJoin(users, eq(users.id, agentTurns.agentUserId))
+            .where(
+                and(
+                    eq(agentTurns.chatId, chatId),
+                    eq(agentTurns.status, "running"),
+                    eq(users.kind, "agent"),
+                    eq(users.active, 1),
+                    isNull(users.deletedAt),
+                ),
+            )
             .limit(1);
         if (active?.actorUserId) {
             if (
@@ -78,7 +87,16 @@ export async function agentTurnTakeNext(
             .select(agentTurnWorkSelection)
             .from(agentTurns)
             .innerJoin(messages, eq(messages.id, agentTurns.userMessageId))
-            .where(and(eq(agentTurns.chatId, chatId), eq(agentTurns.status, "pending")))
+            .innerJoin(users, eq(users.id, agentTurns.agentUserId))
+            .where(
+                and(
+                    eq(agentTurns.chatId, chatId),
+                    eq(agentTurns.status, "pending"),
+                    eq(users.kind, "agent"),
+                    eq(users.active, 1),
+                    isNull(users.deletedAt),
+                ),
+            )
             .orderBy(messages.sequence, agentTurns.agentUserId)
             .limit(1);
         if (!next?.actorUserId) return undefined;

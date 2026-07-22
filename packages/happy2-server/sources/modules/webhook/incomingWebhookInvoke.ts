@@ -5,8 +5,8 @@ import {
     IntegrationError,
 } from "../integrations/types.js";
 
-import { accounts, integrations, users, webhookSubscriptions } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { integrations, users, webhookSubscriptions } from "../schema.js";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 import { parseScopes } from "../integration/parseScopes.js";
 import { requiredText } from "./impl/requiredText.js";
@@ -45,7 +45,6 @@ export async function incomingWebhookInvoke(
         .from(webhookSubscriptions)
         .innerJoin(integrations, eq(integrations.id, webhookSubscriptions.integrationId))
         .innerJoin(users, eq(users.id, integrations.createdByUserId))
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
         .where(
             and(
                 eq(webhookSubscriptions.direction, "incoming"),
@@ -54,11 +53,10 @@ export async function incomingWebhookInvoke(
                 eq(integrations.kind, "incoming_webhook"),
                 eq(integrations.active, 1),
                 isNull(integrations.deletedAt),
+                eq(users.kind, "human"),
                 eq(users.role, "admin"),
                 isNull(users.deletedAt),
-                eq(accounts.active, 1),
-                isNull(accounts.bannedAt),
-                isNull(accounts.deletedAt),
+                eq(users.active, 1),
             ),
         );
     if (!row || !parseScopes(row.scopesJson).includes("messages:write"))

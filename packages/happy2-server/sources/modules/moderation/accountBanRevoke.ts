@@ -58,6 +58,7 @@ export async function accountBanRevoke(
                 bannedByUserId: null,
             })
             .where(eq(accounts.id, target.accountId));
+        await tx.update(users).set({ active: 1 }).where(eq(users.id, target.userId));
         await syncUserMutation(tx, input.actorUserId, target.userId, "user.unbanned");
         const ban = await banDb(tx, text(current.id));
         await auditAppend(tx, {

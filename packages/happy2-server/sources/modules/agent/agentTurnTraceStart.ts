@@ -1,5 +1,5 @@
 import { createId } from "@paralleldrive/cuid2";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { MessageSummary, MutationHint } from "../chat/types.js";
 import { chatAdvanceWithSequence } from "../chat/chatAdvanceWithSequence.js";
 import { chatHint } from "../chat/chatHint.js";
@@ -7,13 +7,13 @@ import type { DrizzleExecutor } from "../drizzle.js";
 import { withTransaction } from "../drizzle.js";
 import { messageGetProjection } from "../message/messageGetProjection.js";
 import { messageSendInTransaction } from "../message/messageSendInTransaction.js";
-import { agentTurnTraceEntries, agentTurns, messages } from "../schema.js";
+import { agentTurnTraceEntries, agentTurns, messages, users } from "../schema.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { agentReplyMutationId } from "./impl/agentReplyMutationId.js";
 
 /**
- * Materializes the empty assistant reply, links agentTurns, and inserts the first agentTurnTraceEntries span for a worker-owned running turn.
- * This gives clients a stable message identity before response text exists; retries reuse the linked message and only publish a new chat mutation when the trace had to be initialized.
+ * Materializes the empty assistant reply, links agentTurns, and inserts the first agentTurnTraceEntries span for an active agent's worker-owned running turn.
+ * Requiring users.active prevents stale sessions from creating output; authorized retries reuse the stable message identity and only publish when the trace had to be initialized.
  */
 export async function agentTurnTraceStart(
     executor: DrizzleExecutor,
@@ -34,6 +34,7 @@ export async function agentTurnTraceStart(
                 traceEntryCount: agentTurns.traceEntryCount,
             })
             .from(agentTurns)
+            .innerJoin(users, eq(users.id, agentTurns.agentUserId))
             .where(
                 and(
                     eq(agentTurns.userMessageId, input.userMessageId),
@@ -41,6 +42,9 @@ export async function agentTurnTraceStart(
                     eq(agentTurns.sessionId, input.sessionId),
                     eq(agentTurns.workerId, input.workerId),
                     eq(agentTurns.status, "running"),
+                    eq(users.kind, "agent"),
+                    eq(users.active, 1),
+                    isNull(users.deletedAt),
                 ),
             )
             .limit(1);

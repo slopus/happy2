@@ -225,6 +225,8 @@ export class MockRigDaemon implements AsyncDisposable {
     private automaticReply: string | undefined = "All tests are passing.";
     private dropSubmissionResponse = false;
     private durableGlobalEventQueue = false;
+    private daemonVersion = "0.0.27";
+    private daemonLifecycleStatePath?: string;
     private readonly createEventId = createEventIdFactory();
     private globalEventDeliveryPaused = false;
     private globalCursor = 0;
@@ -267,6 +269,15 @@ export class MockRigDaemon implements AsyncDisposable {
 
     setAutomaticReply(reply: string | undefined): void {
         this.automaticReply = reply;
+    }
+
+    setDaemonVersion(version: string): void {
+        this.daemonVersion = version;
+    }
+
+    /** Lets a command-wrapper fixture make daemon stop/start observable to health checks. */
+    setDaemonLifecycleStatePath(path: string): void {
+        this.daemonLifecycleStatePath = path;
     }
 
     secretEnvironment(secretId: string): Readonly<Record<string, string>> | undefined {
@@ -719,7 +730,12 @@ export class MockRigDaemon implements AsyncDisposable {
         if (request.headers.authorization !== `Bearer ${this.token}`)
             return sendJson(response, 401, {});
         const url = new URL(request.url ?? "/", "http://rig.invalid");
-        if (request.method === "GET" && url.pathname === "/health")
+        if (request.method === "GET" && url.pathname === "/health") {
+            const lifecycleState = this.daemonLifecycleStatePath
+                ? await readFile(this.daemonLifecycleStatePath, "utf8").catch(() => "stopped")
+                : "started";
+            if (lifecycleState.trim() !== "started")
+                return sendJson(response, 503, { ready: false, status: "stopped" });
             return sendJson(response, 200, {
                 catalog: {
                     defaultModelId: MOCK_MODEL_ID,
@@ -729,10 +745,11 @@ export class MockRigDaemon implements AsyncDisposable {
                 },
                 durableGlobalEventQueue: this.durableGlobalEventQueue,
                 healthy: true,
-                identity: { version: "0.0.27" },
+                identity: { version: this.daemonVersion },
                 ready: true,
                 status: "ready",
             });
+        }
         if (request.method === "GET" && url.pathname === "/models")
             return sendJson(response, 200, {
                 catalog: {

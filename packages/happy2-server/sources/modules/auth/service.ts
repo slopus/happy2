@@ -1,6 +1,7 @@
 import { userUpdateProfile } from "../user/userUpdateProfile.js";
 import { userTouchAccess } from "../user/userTouchAccess.js";
 import { userFindActiveByAccount } from "../user/userFindActiveByAccount.js";
+import { userFindLocal } from "../user/userFindLocal.js";
 import { userCreateProfile } from "../user/userCreateProfile.js";
 import { sessionRevoke } from "./sessionRevoke.js";
 import { sessionRefresh } from "./sessionRefresh.js";
@@ -17,6 +18,7 @@ import { accountFindOrCreateOidc } from "./accountFindOrCreateOidc.js";
 import { accountFindOidc } from "./accountFindOidc.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { createId } from "@paralleldrive/cuid2";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { FastifyRequest } from "fastify";
 import type { ServerConfig } from "../config/type.js";
 import { AccountExistsError, RegistrationClosedError } from "./errors.js";
@@ -42,22 +44,40 @@ export interface AuthenticatedAccount {
     session?: ActiveSession;
     cloudflareAccess?: CloudflareAccessIdentity;
 }
-export interface Authenticated extends AuthenticatedAccount {
-    user: User;
-}
+export type Authenticated =
+    | {
+          local: true;
+          user: User;
+      }
+    | (AuthenticatedAccount & {
+          local: false;
+          user: User;
+      });
 export interface AuthToken {
     token: string;
     expiresAt: string;
     profileRequired: boolean;
 }
 export class AuthService {
+    private readonly localToken: string | undefined;
     private readonly passwordPepper: string | undefined;
     private readonly shouldTouchAccess = accessTouchThrottle();
     constructor(
         private readonly config: ServerConfig,
         private readonly executor: DrizzleExecutor,
         private readonly tokens: TokenService,
+        suppliedLocalToken?: string,
     ) {
+        this.localToken = config.auth.local.enabled
+            ? (suppliedLocalToken ?? process.env[config.auth.local.tokenEnv])
+            : undefined;
+        if (
+            config.auth.local.enabled &&
+            (!this.localToken || this.localToken.length < 32 || this.localToken.length > 4_096)
+        )
+            throw new Error(
+                `${config.auth.local.tokenEnv} must contain a 32-4096 character local access token`,
+            );
         this.passwordPepper = config.auth.password.enabled
             ? process.env.HAPPY2_PASSWORD_PEPPER
             : undefined;
@@ -122,6 +142,14 @@ export class AuthService {
 
     /** Product routes use active Users, never bare authentication accounts. */
     async authenticate(request: AuthenticationRequest): Promise<Authenticated | undefined> {
+        const supplied = bearerToken(request);
+        if (this.localToken && supplied && localTokenMatches(this.localToken, supplied)) {
+            const user = await userFindLocal(this.executor);
+            if (!user) return undefined;
+            if (this.shouldTouchAccess(undefined, user.id))
+                await userTouchAccess(this.executor, undefined, user.id);
+            return { local: true, user };
+        }
         const account = await this.authenticateAccount(request);
         if (!account) return undefined;
         const user = await userFindActiveByAccount(this.executor, account.accountId);
@@ -130,6 +158,7 @@ export class AuthService {
             await userTouchAccess(this.executor, account.session?.id, user.id);
         return {
             ...account,
+            local: false,
             user,
         };
     }
@@ -299,7 +328,7 @@ export class AuthService {
     async createDevToken(request: FastifyRequest): Promise<CreatedDevToken | undefined> {
         if (!this.config.auth.devTokens.enabled) return undefined;
         const current = await this.authenticate(request);
-        if (!current) return undefined;
+        if (!current || current.local) return undefined;
         let session = current.session;
         if (!session) {
             const expiresAt = current.cloudflareAccess?.expiresAt;
@@ -376,4 +405,10 @@ function validatedProfile(body: unknown): CreateProfile | undefined {
 }
 function expiry(config: ServerConfig): Date {
     return new Date(Date.now() + config.jwt.expiryDays * 86_400_000);
+}
+
+function localTokenMatches(expected: string, supplied: string): boolean {
+    const expectedDigest = createHash("sha256").update(expected).digest();
+    const suppliedDigest = createHash("sha256").update(supplied).digest();
+    return timingSafeEqual(expectedDigest, suppliedDigest);
 }

@@ -1,7 +1,7 @@
 import { type DrizzleTransaction } from "../../drizzle.js";
 import { OperationsError, type OperationsSyncHint } from "../../operations/types.js";
 
-import { accountBans, accounts } from "../../schema.js";
+import { accountBans, accounts, users } from "../../schema.js";
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 
@@ -36,5 +36,6 @@ export async function revokeBanInTransaction(
             bannedByUserId: null,
         })
         .where(eq(accounts.id, target.accountId));
+    await tx.update(users).set({ active: 1 }).where(eq(users.id, target.userId));
     return syncUserMutation(tx, actorUserId, target.userId, "user.unbanned");
 }

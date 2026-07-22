@@ -1918,6 +1918,7 @@ export const userStorageQuotas = sqliteTable("user_storage_quotas", {
 export const users = sqliteTable("users", {
     id: text("id").primaryKey().notNull(),
     accountId: text("account_id"),
+    active: integer("active").notNull().default(1),
     kind: text("kind").notNull().default("human"),
     agentImageId: text("agent_image_id"),
     agentEffort: text("agent_effort"),

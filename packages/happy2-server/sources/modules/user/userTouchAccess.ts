@@ -3,7 +3,7 @@ import { accounts, authSessions, users } from "../schema.js";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 
 /**
- * Best-effort updates authSessions.lastSeenAt and users.lastAccessAt when their active-account minute guards allow a touch.
+ * Best-effort updates authSessions.lastSeenAt and users.lastAccessAt when their independent lifecycle minute guards allow a touch.
  * The independent telemetry writes intentionally swallow failure and need no cross-row transaction because neither timestamp authorizes the request.
  */
 export async function userTouchAccess(
@@ -43,19 +43,6 @@ export async function userTouchAccess(
                     ),
                 );
         }
-        const activeUserAccount = executor
-            .select({
-                id: accounts.id,
-            })
-            .from(accounts)
-            .where(
-                and(
-                    eq(accounts.id, users.accountId),
-                    eq(accounts.active, 1),
-                    isNull(accounts.bannedAt),
-                    isNull(accounts.deletedAt),
-                ),
-            );
         await executor
             .update(users)
             .set({
@@ -64,8 +51,8 @@ export async function userTouchAccess(
             .where(
                 and(
                     eq(users.id, userId),
+                    eq(users.active, 1),
                     isNull(users.deletedAt),
-                    sql`exists ${activeUserAccount}`,
                     or(
                         isNull(users.lastAccessAt),
                         lt(users.lastAccessAt, sql`datetime('now', '-1 minute')`),

@@ -22,6 +22,7 @@ describe("main channel onboarding and service messages", () => {
                 autoJoin: true,
                 membershipRole: "member",
             });
+            expect(welcome).not.toHaveProperty("ownerUserId");
             const welcomeMembers = await members(ada.client, welcome.id);
             expect(welcomeMembers).toEqual(
                 expect.arrayContaining([

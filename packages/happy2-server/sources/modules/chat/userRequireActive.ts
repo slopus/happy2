@@ -1,11 +1,11 @@
 import { CollaborationError } from "./types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
-import { accounts, users } from "../schema.js";
-import { and, eq, isNull } from "drizzle-orm";
+import { users } from "../schema.js";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 /**
- * Requires a non-deleted human profile backed by an active, unbanned, non-deleted account.
- * Applying the full product-identity predicate here prevents credential-only or disabled accounts from authorizing chat actions.
+ * Requires a non-deleted human whose users lifecycle state is active.
+ * Applying the full product-identity predicate here prevents credential-only, disabled, or accountless agent rows from authorizing chat actions.
  */
 export async function userRequireActive(executor: DrizzleExecutor, userId: string): Promise<void> {
     const [row] = await executor
@@ -13,14 +13,12 @@ export async function userRequireActive(executor: DrizzleExecutor, userId: strin
             id: users.id,
         })
         .from(users)
-        .innerJoin(accounts, eq(accounts.id, users.accountId))
         .where(
             and(
                 eq(users.id, userId),
+                eq(users.kind, "human"),
                 isNull(users.deletedAt),
-                isNull(accounts.deletedAt),
-                isNull(accounts.bannedAt),
-                eq(accounts.active, 1),
+                eq(users.active, 1),
             ),
         )
         .limit(1);

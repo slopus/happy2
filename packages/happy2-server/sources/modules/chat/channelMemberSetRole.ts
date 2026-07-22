@@ -4,7 +4,7 @@ import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { chatHint } from "./chatHint.js";
-import { chatMembers, chats } from "../schema.js";
+import { chatMembers, chats, users } from "../schema.js";
 
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
@@ -54,6 +54,25 @@ export async function channelMemberSetRole(
         if (!member) throw new CollaborationError("not_found", "Member was not found");
         if (member.role === input.role)
             throw new CollaborationError("conflict", "Member already has this role");
+        if (input.role === "owner") {
+            const [eligibleOwner] = await tx
+                .select({ id: users.id })
+                .from(users)
+                .where(
+                    and(
+                        eq(users.id, input.userId),
+                        eq(users.kind, "human"),
+                        eq(users.active, 1),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .limit(1);
+            if (!eligibleOwner)
+                throw new CollaborationError(
+                    "invalid",
+                    "Channel ownership requires an active human",
+                );
+        }
         let replacementOwnerId: string | undefined;
         if (member.role === "owner" && input.role !== "owner") {
             const [another] = await tx
@@ -61,12 +80,16 @@ export async function channelMemberSetRole(
                     userId: chatMembers.userId,
                 })
                 .from(chatMembers)
+                .innerJoin(users, eq(users.id, chatMembers.userId))
                 .where(
                     and(
                         eq(chatMembers.chatId, input.chatId),
                         ne(chatMembers.userId, input.userId),
                         isNull(chatMembers.leftAt),
                         eq(chatMembers.role, "owner"),
+                        eq(users.kind, "human"),
+                        eq(users.active, 1),
+                        isNull(users.deletedAt),
                     ),
                 )
                 .orderBy(chatMembers.joinedAt, chatMembers.userId)

@@ -9,9 +9,10 @@ import { baseImageSelectedId } from "./impl/baseImageSelectedId.js";
 import { baseImageSyncHint } from "./impl/baseImageSyncHint.js";
 import { encodedMetadata } from "./impl/encodedMetadata.js";
 import { serverStepDb } from "./impl/serverStepDb.js";
+import { userFindLocal } from "../user/userFindLocal.js";
 
 /**
- * Completes a leased agentImages build and atomically promotes a selected image through agentImageSettings while completing its serverSetupSteps row.
+ * Completes a leased agentImages build and atomically promotes a selected image as the account bootstrap owner or durable account-free local owner while completing its serverSetupSteps row.
  * A promotion or setup invariant failure rolls back those rows, audit history, and syncEvents so the worker records one retryable failure without changing the previous default.
  */
 export async function setupBaseImageCompleteBuild(
@@ -38,10 +39,11 @@ export async function setupBaseImageCompleteBuild(
             .from(serverSetupState)
             .where(eq(serverSetupState.id, 1))
             .limit(1);
-        if (!setup?.bootstrapAdminUserId)
+        const actorUserId = setup?.bootstrapAdminUserId ?? (await userFindLocal(tx))?.id;
+        if (!actorUserId)
             throw new Error("Base image promotion requires the bootstrap administrator");
         await agentImageSetDefault(tx, {
-            actorUserId: setup.bootstrapAdminUserId,
+            actorUserId,
             imageId: input.imageId,
         });
         const now = new Date().toISOString();
@@ -65,7 +67,7 @@ export async function setupBaseImageCompleteBuild(
             sequence,
             kind: "setup.baseImage.ready",
             entityId: input.imageId,
-            actorUserId: setup.bootstrapAdminUserId,
+            actorUserId,
         });
         return baseImageSyncHint(sequence);
     });

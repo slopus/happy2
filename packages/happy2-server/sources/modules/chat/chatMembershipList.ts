@@ -1,7 +1,7 @@
 import { type ChatRole, type UserSummary } from "./types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 
-import { accounts, chatMembers, users } from "../schema.js";
+import { chatMembers, users } from "../schema.js";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { asUser } from "./asUser.js";
 
@@ -33,21 +33,12 @@ export async function chatMembershipList(
         })
         .from(chatMembers)
         .innerJoin(users, eq(users.id, chatMembers.userId))
-        .leftJoin(accounts, eq(accounts.id, users.accountId))
         .where(
             and(
                 eq(chatMembers.chatId, chatId),
                 isNull(chatMembers.leftAt),
                 isNull(users.deletedAt),
-                or(
-                    eq(users.kind, "agent"),
-                    and(
-                        eq(users.kind, "human"),
-                        eq(accounts.active, 1),
-                        isNull(accounts.bannedAt),
-                        isNull(accounts.deletedAt),
-                    ),
-                ),
+                eq(users.active, 1),
             ),
         )
         .orderBy(chatMembers.joinedAt, chatMembers.userId);

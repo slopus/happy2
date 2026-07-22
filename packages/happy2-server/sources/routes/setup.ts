@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { AuthService } from "../modules/auth/service.js";
+import type { Authenticated, AuthService } from "../modules/auth/service.js";
 import {
     SetupError,
     setupChooseRegistrationPolicy,
@@ -32,15 +32,17 @@ export function registerSetupRoutes(
     app.get("/v0/setup/status", async () => setupGetPublicStatus(executor));
 
     app.get("/v0/setup", async (request, reply) => {
-        const current = await auth.authenticateAccount(request);
-        if (!current) return unauthorized(reply);
-        return setupGetCombinedStatus(executor, current.accountId);
+        const current = await auth.authenticate(request);
+        if (current) return setupGetCombinedStatus(executor, setupIdentity(current));
+        const account = await auth.authenticateAccount(request);
+        if (!account) return unauthorized(reply);
+        return setupGetCombinedStatus(executor, { accountId: account.accountId });
     });
 
     app.get("/v0/setup/sandboxProviders", async (request, reply) => {
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
-        const onboarding = await setupGetCombinedStatus(executor, current.accountId);
+        const onboarding = await setupGetCombinedStatus(executor, setupIdentity(current));
         if (!onboarding.server.canManage)
             return reply.code(403).send({
                 error: "forbidden",
@@ -60,7 +62,7 @@ export function registerSetupRoutes(
         const current = await auth.authenticate(request);
         if (!current) return unauthorized(reply);
         try {
-            const onboarding = await setupGetCombinedStatus(executor, current.accountId);
+            const onboarding = await setupGetCombinedStatus(executor, setupIdentity(current));
             if (!onboarding.server.canManage)
                 throw new SetupError("forbidden", "Server administrator permission is required");
             const body = requestBody(request, ["providerId"]);
@@ -82,7 +84,7 @@ export function registerSetupRoutes(
             if (hint) await publishServerHint(request, pubsub, hint);
             return {
                 provider: status,
-                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                onboarding: await setupGetCombinedStatus(executor, setupIdentity(current)),
                 ...(hint ? { sync: hint } : {}),
             };
         } catch (error) {
@@ -115,7 +117,7 @@ export function registerSetupRoutes(
             const baseImages = await agents.getSetupBaseImages(current.user.id);
             return reply.code(baseImages.selectedImage?.status === "ready" ? 200 : 202).send({
                 baseImages,
-                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                onboarding: await setupGetCombinedStatus(executor, setupIdentity(current)),
                 ...(result.hint ? { sync: result.hint } : {}),
             });
         } catch (error) {
@@ -132,7 +134,7 @@ export function registerSetupRoutes(
             const result = await agents.retrySetupBaseImage(current.user.id);
             return reply.code(202).send({
                 baseImages: await agents.getSetupBaseImages(current.user.id),
-                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                onboarding: await setupGetCombinedStatus(executor, setupIdentity(current)),
                 sync: result.hint,
             });
         } catch (error) {
@@ -154,7 +156,7 @@ export function registerSetupRoutes(
             });
             if (hint) await publishUserHint(request, pubsub, current.user.id, hint);
             return {
-                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                onboarding: await setupGetCombinedStatus(executor, setupIdentity(current)),
                 ...(hint ? { sync: hint } : {}),
             };
         } catch (error) {
@@ -177,10 +179,16 @@ export function registerSetupRoutes(
                 username: body.username,
             });
             if (result.hint) await publishServerHint(request, pubsub, result.hint);
+            const registrationHint = current.local
+                ? await setupChooseRegistrationPolicy(executor, current.user.id, false)
+                : undefined;
+            if (registrationHint) await publishServerHint(request, pubsub, registrationHint);
             return reply.code(result.hint ? 201 : 200).send({
                 agent: result.agent,
-                onboarding: await setupGetCombinedStatus(executor, current.accountId),
-                ...(result.hint ? { sync: result.hint } : {}),
+                onboarding: await setupGetCombinedStatus(executor, setupIdentity(current)),
+                ...((registrationHint ?? result.hint)
+                    ? { sync: registrationHint ?? result.hint }
+                    : {}),
             });
         } catch (error) {
             return handledError(reply, error) ?? Promise.reject(error);
@@ -194,6 +202,11 @@ export function registerSetupRoutes(
             const body = requestBody(request, ["enabled"]);
             if (typeof body.enabled !== "boolean")
                 throw new SetupError("invalid", "enabled must be a boolean");
+            if (current.local && body.enabled)
+                throw new SetupError(
+                    "conflict",
+                    "Account-free local access cannot enable registration",
+                );
             const hint = await setupChooseRegistrationPolicy(
                 executor,
                 current.user.id,
@@ -201,13 +214,17 @@ export function registerSetupRoutes(
             );
             if (hint) await publishServerHint(request, pubsub, hint);
             return {
-                onboarding: await setupGetCombinedStatus(executor, current.accountId),
+                onboarding: await setupGetCombinedStatus(executor, setupIdentity(current)),
                 ...(hint ? { sync: hint } : {}),
             };
         } catch (error) {
             return handledError(reply, error) ?? Promise.reject(error);
         }
     });
+}
+
+function setupIdentity(current: Authenticated): { accountId: string } | { userId: string } {
+    return current.local ? { userId: current.user.id } : { accountId: current.accountId };
 }
 
 async function publishServerHint(
