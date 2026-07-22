@@ -188,15 +188,18 @@ token bound to the user and preview subdomain. Happy rechecks the durable user
 and audience access in SQLite on every HTTP and WebSocket request, so deleting a
 user or removing a chat member revokes an existing credential immediately.
 
-Tokens work as Bearer credentials or through the host-only
-`happy2_port_share` HttpOnly cookie. A browser that opens a restricted stable
-share URL without a current preview cookie is redirected through the main API
-session, then back with a one-minute redemption token whose only identity claim
-is the authenticated user. The preview host rechecks that user's current access
-and exchanges it for the user-and-subdomain cookie before returning to the
-original path. Direct token callers should renew after the returned 15-minute
-`refreshAfter` time. Happy strips both credentials before forwarding HTTP or
-WebSocket traffic to the agent container.
+Direct callers present tokens as
+`X-Happy2-Port-Share-Authorization: Bearer <token>`; standard `Authorization`
+remains application traffic. Browsers use the host-only `happy2_port_share`
+HttpOnly cookie. A browser that opens a restricted stable share URL without a
+current preview cookie is redirected through the main API session, then back
+with a one-minute redemption token whose only identity claim is the authenticated
+user. The preview host rechecks that user's current access and exchanges it for
+the user-and-subdomain cookie before returning to the original path. Direct token
+callers should renew after the returned 15-minute `refreshAfter` time. Happy strips
+the dedicated header and preview cookie before forwarding HTTP or WebSocket
+traffic to the agent container; application authorization and cookies pass
+through.
 
 ## Server and user onboarding
 

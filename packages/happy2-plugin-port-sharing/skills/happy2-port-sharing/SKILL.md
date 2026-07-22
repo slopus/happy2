@@ -41,9 +41,10 @@ Prefer `happy2_port_share_probe` for routine verification because it consumes a
 fresh token without returning it. Use
 `happy2_port_share_create_access_token` only when a custom client genuinely
 needs the bearer token. Treat the returned token as a secret: consume it only
-in an Authorization header, never paste it into chat, source files, logs, URLs,
-or command history. Tokens last one hour; request a fresh one after the returned
-`refreshAfter` time rather than persisting it.
+in an `X-Happy2-Port-Share-Authorization: Bearer <token>` header, never in the
+application `Authorization` header, and never paste it into chat, source files,
+logs, URLs, or command history. Tokens last one hour; request a fresh one after
+the returned `refreshAfter` time rather than persisting it.
 
 Happy rechecks the token's user and the share's current audience in SQLite on
 every request. Removing a user from a chat immediately revokes their access to a

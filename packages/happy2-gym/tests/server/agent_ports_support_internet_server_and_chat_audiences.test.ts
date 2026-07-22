@@ -446,6 +446,11 @@ describe("agent port sharing audiences", () => {
                     })
                 ).statusCode,
             ).toBe(302);
+            expect(
+                await websocketUpgradeResponse(serverUrl, host, "/socket", {
+                    authorization: `Bearer ${access.token}`,
+                }),
+            ).toMatchObject({ statusCode: 401 });
             const bearerResponse = await publicRequest(serverUrl, host, "/preview?mode=full", {
                 authorization: "Bearer application-token",
                 cookie: "application_session=app-cookie; theme=dark",
