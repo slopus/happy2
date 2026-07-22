@@ -104,12 +104,13 @@ describe("plugin build helpers", () => {
         await mkdir(join(root, "src"), { recursive: true });
         await writeFile(join(root, "package.json"), '{"type":"module"}\n', "utf8");
         await writeFile(
-            join(root, "src/server.ts"),
+            join(root, "src/entry.ts"),
             'import { join } from "path"; export const joined = join("plugin", "server");\n',
             "utf8",
         );
         const result = await buildPlugin({
             root,
+            server: "src/entry.ts",
             manifest: {
                 description: "Tests Node server bundling.",
                 displayName: "Node server",
@@ -119,6 +120,9 @@ describe("plugin build helpers", () => {
             serverMinify: true,
         });
         const bundled = await readFile(join(result.outputDirectory, "server.js"), "utf8");
+        await expect(
+            readFile(join(result.outputDirectory, "entry.js"), "utf8"),
+        ).rejects.toMatchObject({ code: "ENOENT" });
         expect(bundled).not.toContain("__vite-browser-external");
         const loaded = (await import(
             `${pathToFileURL(join(result.outputDirectory, "server.js")).href}?test=${Date.now()}`

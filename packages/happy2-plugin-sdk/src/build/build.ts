@@ -97,13 +97,14 @@ async function bundleServer(
     await viteBuild({
         build: {
             emptyOutDir: false,
-            lib: { entry, formats: ["es"], fileName: () => "server.js" },
+            lib: { entry, formats: ["es"] },
             minify,
             outDir: output,
             rollupOptions: {
                 external: (id) => NODE_BUILTINS.has(id),
                 output: {
                     banner: 'import { createRequire as __happy2CreateRequire } from "node:module"; const require = __happy2CreateRequire(import.meta.url);',
+                    entryFileNames: "server.js",
                 },
             },
             sourcemap: false,
@@ -118,6 +119,9 @@ async function bundleServer(
         logLevel: "warn",
         root,
         ssr: { noExternal: true },
+    });
+    await lstat(resolve(output, "server.js")).catch((error: unknown) => {
+        throw new Error("Plugin server build did not emit server.js", { cause: error });
     });
 }
 
