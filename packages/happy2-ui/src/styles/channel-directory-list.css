@@ -1,0 +1,73 @@
+/*
+ * The channel directory is a compact, history-free list inside the directory
+ * dialog. Fixed icon/action lanes keep the access details aligned while the
+ * central text column can shrink without moving the Join control.
+ */
+.happy2-channel-directory-list {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.happy2-channel-directory-list__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 56px;
+    padding: 8px 12px;
+}
+
+.happy2-channel-directory-list__row + .happy2-channel-directory-list__row {
+    border-top: 1px solid var(--divider);
+}
+
+.happy2-channel-directory-list__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: var(--text-secondary);
+}
+
+.happy2-channel-directory-list__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+}
+
+.happy2-channel-directory-list__name {
+    overflow: hidden;
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    color: var(--text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-channel-directory-list__meta {
+    overflow: hidden;
+    font-family: var(--happy2-font-ui);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--text-secondary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-channel-directory-list__error {
+    padding: 8px 12px;
+    border-top: 1px solid var(--divider);
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--warning-critical);
+}

@@ -2,6 +2,7 @@ import { type CSSProperties } from "react";
 import {
     Box,
     Button,
+    ChannelAccessSummary,
     FormRow,
     InfoPanel,
     PortShareControl,
@@ -9,11 +10,23 @@ import {
     Select,
     Switch,
     TextField,
+    type ChannelVisibility,
     type InfoPanelProfile,
     type MemberItem,
     type SelectOption,
 } from "./ChatPageComponents.js";
 import type { PortShareView } from "./chatPageModels.js";
+/**
+ * Read-only access model shown in a channel's details: its public/private
+ * visibility, who is credited (a public channel's creator versus a private
+ * channel's owner), and, for a child, the parent it inherits visibility from.
+ */
+export interface ChannelAccessView {
+    visibility: ChannelVisibility;
+    directoryListed: boolean;
+    steward?: { name: string };
+    inheritedFrom?: string;
+}
 const formStyle: CSSProperties = { display: "flex", flexDirection: "column" };
 const footerStyle: CSSProperties = {
     display: "flex",
@@ -28,6 +41,7 @@ const effortStyle: CSSProperties = {
 };
 export interface ChatInfoPanelProps {
     about?: string;
+    access?: ChannelAccessView;
     autoJoin: boolean;
     busy: boolean;
     canEdit: boolean;
@@ -82,6 +96,20 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
             }
             title={props.profileOverride?.name ?? props.title}
         >
+            {!props.profileOverride && !props.peer && props.access ? (
+                <FormRow
+                    control={
+                        <ChannelAccessSummary
+                            directoryListed={props.access.directoryListed}
+                            inheritedFrom={props.access.inheritedFrom}
+                            steward={props.access.steward}
+                            visibility={props.access.visibility}
+                        />
+                    }
+                    label="Access"
+                    layout="stacked"
+                />
+            ) : null}
             {!props.profileOverride && props.portShare ? (
                 <FormRow
                     control={

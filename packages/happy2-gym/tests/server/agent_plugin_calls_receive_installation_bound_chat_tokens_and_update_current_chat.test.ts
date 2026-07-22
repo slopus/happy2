@@ -166,35 +166,56 @@ describe("agent plugin chat capabilities", () => {
             | { statusCode: number; body: Record<string, unknown> }
             | undefined;
         let replayedPeopleResult: { statusCode: number; body: Record<string, unknown> } | undefined;
+        let replayedProjectResult:
+            | { statusCode: number; body: Record<string, unknown> }
+            | undefined;
         runtime.action = async ({ call, chatToken, runtimeToken }) => {
             const users =
                 call.name === "channel_members_update" && persistedUsers
                     ? persistedUsers
                     : referencedUsers(call);
             const request =
-                call.name === "channel_members_update"
+                call.name === "project_create"
                     ? {
-                          path: "/channels/updateMembers",
+                          path: "/projects/createProject",
                           body: {
-                              add: selectCapabilities(call.arguments.addUsers, users),
-                              remove: selectCapabilities(call.arguments.removeUsers, users),
+                              ...call.arguments,
+                              owner: selectCapabilities([call.arguments.owner], users)[0],
+                              people: selectCapabilities(call.arguments.people, users),
+                              idempotencyKey: "gym-project-create",
                           },
                       }
-                    : call.name === "channel_child_create"
+                    : call.name === "channel_members_update"
                       ? {
-                            path: "/channels/createChildChannel",
-                            body: call.arguments,
-                        }
-                      : {
-                            path: "/channels/createChannel",
+                            path: "/channels/updateMembers",
                             body: {
-                                ...call.arguments,
-                                idempotencyKey: `gym-${String(call.arguments.name)
-                                    .toLowerCase()
-                                    .replace(/[^a-z0-9]+/g, "-")}`,
-                                members: selectCapabilities(call.arguments.members, users),
+                                add: selectCapabilities(call.arguments.addUsers, users),
+                                remove: selectCapabilities(call.arguments.removeUsers, users),
                             },
-                        };
+                        }
+                      : call.name === "channel_child_create"
+                        ? {
+                              path: "/channels/createChildChannel",
+                              body: call.arguments,
+                          }
+                        : call.name === "message_send"
+                          ? {
+                                path: "/messages/send",
+                                body: {
+                                    ...call.arguments,
+                                    idempotencyKey: `gym-message-${runtime.calls.indexOf(call)}`,
+                                },
+                            }
+                          : {
+                                path: "/channels/createChannel",
+                                body: {
+                                    ...call.arguments,
+                                    idempotencyKey: `gym-${String(call.arguments.name)
+                                        .toLowerCase()
+                                        .replace(/[^a-z0-9]+/g, "-")}`,
+                                    members: selectCapabilities(call.arguments.members, users),
+                                },
+                            };
             const response = await server.pluginHost().post(request.path, request.body, {
                 headers: {
                     authorization: `Bearer ${runtimeToken}`,
@@ -234,6 +255,18 @@ describe("agent plugin chat capabilities", () => {
                     body: replayed.json(),
                 };
             }
+            if (call.name === "project_create") {
+                const replayed = await server.pluginHost().post(request.path, request.body, {
+                    headers: {
+                        authorization: `Bearer ${runtimeToken}`,
+                        "x-happy2-chat-token": chatToken,
+                    },
+                });
+                replayedProjectResult = {
+                    statusCode: replayed.statusCode,
+                    body: replayed.json(),
+                };
+            }
             return { statusCode: response.statusCode, body: response.json() };
         };
         const owner = await server.createUser({
@@ -248,14 +281,16 @@ describe("agent plugin chat capabilities", () => {
         const client = server.as(owner);
         const installationId = await install(client);
         const originChatId = await createAgent(client);
-        expect(
-            (
-                await client.post(`/v0/chats/${originChatId}/sendMessage`, {
-                    text: "Create feature channels with @feature_friend and @feature_reviewer.",
-                    clientMutationId: "channel-capability-turn",
-                })
-            ).statusCode,
-        ).toBe(201);
+        const triggeringMessage = await client.post(`/v0/chats/${originChatId}/sendMessage`, {
+            text: "Create feature channels with @feature_friend and @feature_reviewer.",
+            clientMutationId: "channel-capability-turn",
+        });
+        expect(triggeringMessage.statusCode).toBe(201);
+        expect(triggeringMessage.json().message).toMatchObject({
+            sender: { id: owner.id },
+            kind: "user",
+            automated: false,
+        });
         await waitFor(() => rig.submittedRuns.length === 1, "origin Rig submission");
         const originRun = rig.submittedRuns[0]!;
         const createTool = originRun.externalTools.find(({ name }) =>
@@ -264,8 +299,93 @@ describe("agent plugin chat capabilities", () => {
         const membersTool = originRun.externalTools.find(({ name }) =>
             name.includes(`plugin_${installationId}_channel_members_update_`),
         );
-        if (!createTool || !membersTool)
+        const messageTool = originRun.externalTools.find(({ name }) =>
+            name.includes(`plugin_${installationId}_message_send_`),
+        );
+        const projectTool = originRun.externalTools.find(({ name }) =>
+            name.includes(`plugin_${installationId}_project_create_`),
+        );
+        if (!createTool || !membersTool || !messageTool || !projectTool)
             throw new Error("Chat Management channel tools were not submitted to Rig");
+
+        const projectCallId = rig.requestExternalToolCall(originRun.runId, projectTool.name, {
+            name: "Delegated launch",
+            description: "A mixed-visibility project provisioned by the agent.",
+            owner: "@feature_reviewer",
+            people: ["@feature_friend"],
+            channels: [
+                { name: "Launch lobby", visibility: "public" },
+                {
+                    name: "Launch command",
+                    description: "Private launch coordination.",
+                    visibility: "private",
+                },
+            ],
+        });
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === projectCallId)?.status !== "pending",
+            "project creation",
+        );
+        const projectResolution = completedOutput(projectCallId, rig);
+        const project = projectResolution.project as { id: string; createdByUserId: string };
+        const projectChannels = projectResolution.channels as Array<{
+            chat: {
+                id: string;
+                kind: "public_channel" | "private_channel";
+                createdByUserId: string;
+                ownerUserId?: string;
+                projectId: string;
+            };
+            token: string;
+        }>;
+        expect(project).toMatchObject({
+            id: expect.any(String),
+            createdByUserId: reviewer.id,
+        });
+        expect(projectChannels).toHaveLength(2);
+        expect(
+            projectChannels.every(({ token }) => typeof token === "string" && token.length > 0),
+        ).toBe(true);
+        const publicProjectChannel = projectChannels.find(
+            ({ chat }) => chat.kind === "public_channel",
+        )!.chat;
+        const privateProjectChannel = projectChannels.find(
+            ({ chat }) => chat.kind === "private_channel",
+        )!.chat;
+        expect(publicProjectChannel).toMatchObject({
+            createdByUserId: reviewer.id,
+            projectId: project.id,
+        });
+        expect(publicProjectChannel).not.toHaveProperty("ownerUserId");
+        expect(privateProjectChannel).toMatchObject({
+            createdByUserId: reviewer.id,
+            ownerUserId: reviewer.id,
+            projectId: project.id,
+        });
+        expect(replayedProjectResult?.statusCode).toBe(201);
+        expect(
+            (replayedProjectResult?.body.channels as Array<{ chat: { id: string } }>).map(
+                ({ chat }) => chat.id,
+            ),
+        ).toEqual(projectChannels.map(({ chat }) => chat.id));
+        expect(
+            (await client.get(`/v0/chats/${privateProjectChannel.id}`)).json().chat,
+        ).toMatchObject({
+            membershipRole: "admin",
+        });
+        expect(
+            (await server.as(reviewer).get(`/v0/chats/${privateProjectChannel.id}`)).json().chat,
+        ).toMatchObject({ membershipRole: "owner" });
+        expect(
+            (await server.as(reviewer).get(`/v0/chats/${publicProjectChannel.id}`)).json().chat,
+        ).toMatchObject({ membershipRole: "admin" });
+        expect(
+            (await server.as(friend).get(`/v0/chats/${privateProjectChannel.id}`)).json().chat,
+        ).toMatchObject({ membershipRole: "member" });
+        expect(
+            (await server.as(friend).get(`/v0/chats/${publicProjectChannel.id}`)).json().chat,
+        ).toMatchObject({ membershipRole: "member" });
 
         const peopleInput = {
             name: "Feature briefing",
@@ -327,6 +447,7 @@ describe("agent plugin chat capabilities", () => {
         ).toEqual([
             expect.objectContaining({
                 audience: "people",
+                automated: true,
                 text: "Background for @feature_friend and @feature_reviewer; no action yet.",
             }),
         ]);
@@ -365,6 +486,15 @@ describe("agent plugin chat capabilities", () => {
         const agentResolution = completedOutput(agentCallId, rig);
         const agentChatId = (agentResolution.chat as { id: string }).id;
         await waitFor(() => rig.submittedRuns.length === 2, "new channel agent turn");
+        expect((await client.get(`/v0/chats/${agentChatId}/messages`)).json().messages).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    audience: "agents",
+                    automated: true,
+                    text: "Implement the feature with @feature_friend and ask @feature_reviewer for review.",
+                }),
+            ]),
+        );
         const channelRun = rig.submittedRuns[1]!;
         const channelMembersTool = channelRun.externalTools.find(({ name }) =>
             name.includes(`plugin_${installationId}_channel_members_update_`),
@@ -372,12 +502,19 @@ describe("agent plugin chat capabilities", () => {
         const childChannelTool = channelRun.externalTools.find(({ name }) =>
             name.includes(`plugin_${installationId}_channel_child_create_`),
         );
-        if (!channelMembersTool || !childChannelTool)
+        const channelMessageTool = channelRun.externalTools.find(({ name }) =>
+            name.includes(`plugin_${installationId}_message_send_`),
+        );
+        if (!channelMembersTool || !childChannelTool || !channelMessageTool)
             throw new Error("New channel did not receive its channel management tools");
         const childCallId = rig.requestExternalToolCall(channelRun.runId, childChannelTool.name, {
             name: "Feature parallel investigation",
             description: "Shares the implementation workspace with an independent history.",
             agentModelId: "gym/alternate-agent",
+            initialMessage: {
+                audience: "people",
+                text: "Child-only context without starting its agent yet.",
+            },
         });
         await waitFor(
             () => rig.externalToolCalls.find(({ id }) => id === childCallId)?.status !== "pending",
@@ -393,7 +530,18 @@ describe("agent plugin chat capabilities", () => {
             parentChatId: agentChatId,
             agentModelId: "gym/alternate-agent",
         });
-        expect((await server.as(friend).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(200);
+        expect(childResolution.initialMessage).toMatchObject({
+            chatId: childChat.id,
+            sender: { id: owner.id },
+            automated: true,
+            audience: "people",
+            text: "Child-only context without starting its agent yet.",
+        });
+        expect(rig.submittedRuns).toHaveLength(2);
+        expect((await server.as(friend).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(404);
+        expect((await server.as(friend).post(`/v0/chats/${childChat.id}/join`)).statusCode).toBe(
+            200,
+        );
         const updateCallId = rig.requestExternalToolCall(
             channelRun.runId,
             channelMembersTool.name,
@@ -414,7 +562,61 @@ describe("agent plugin chat capabilities", () => {
         expect((await server.as(friend).get(`/v0/chats/${agentChatId}`)).statusCode).toBe(404);
         expect((await server.as(reviewer).get(`/v0/chats/${agentChatId}`)).statusCode).toBe(200);
         expect((await server.as(friend).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(404);
-        expect((await server.as(reviewer).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(200);
+        expect((await server.as(reviewer).get(`/v0/chats/${childChat.id}`)).statusCode).toBe(404);
+        expect((await server.as(reviewer).post(`/v0/chats/${childChat.id}/join`)).statusCode).toBe(
+            200,
+        );
+
+        const peopleMessageCallId = rig.requestExternalToolCall(
+            channelRun.runId,
+            channelMessageTool.name,
+            {
+                audience: "people",
+                text: "Automated progress update without another inference turn.",
+            },
+        );
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === peopleMessageCallId)?.status !==
+                "pending",
+            "people-only automated message",
+        );
+        expect(completedOutput(peopleMessageCallId, rig)).toMatchObject({
+            message: {
+                chatId: agentChatId,
+                sender: { id: owner.id },
+                automated: true,
+                audience: "people",
+                text: "Automated progress update without another inference turn.",
+            },
+        });
+        expect(rig.submittedRuns).toHaveLength(2);
+
+        const agentMessageCallId = rig.requestExternalToolCall(
+            channelRun.runId,
+            channelMessageTool.name,
+            {
+                audience: "agents",
+                text: "Automated follow-up that starts another inference turn.",
+            },
+        );
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === agentMessageCallId)?.status !==
+                "pending",
+            "agent-addressed automated message",
+        );
+        expect(completedOutput(agentMessageCallId, rig)).toMatchObject({
+            message: {
+                chatId: agentChatId,
+                sender: { id: owner.id },
+                automated: true,
+                audience: "agents",
+                text: "Automated follow-up that starts another inference turn.",
+            },
+        });
+        rig.completeRun(channelRun.runId, "Finished the channel-management turn.");
+        await waitFor(() => rig.submittedRuns.length === 3, "automated follow-up inference turn");
     }, 30_000);
 });
 
@@ -501,6 +703,13 @@ class ChatManagementRuntime implements PluginMcpRuntime {
                                 },
                             },
                             {
+                                name: "message_send",
+                                title: "Send a message",
+                                description:
+                                    "Posts an automated message to the current chat with explicit inference.",
+                                inputSchema: { type: "object", additionalProperties: false },
+                            },
+                            {
                                 name: "channel_members_update",
                                 title: "Add or remove channel members",
                                 description: "Adds or removes users from the current channel.",
@@ -510,6 +719,12 @@ class ChatManagementRuntime implements PluginMcpRuntime {
                                 name: "channel_create",
                                 title: "Create a channel",
                                 description: "Creates a channel with an optional initial message.",
+                                inputSchema: { type: "object", additionalProperties: false },
+                            },
+                            {
+                                name: "project_create",
+                                title: "Create a project",
+                                description: "Creates a project with initial channels.",
                                 inputSchema: { type: "object", additionalProperties: false },
                             },
                             {
@@ -640,11 +855,13 @@ function completedOutput(
 async function install(client: GymRequestClient): Promise<string> {
     const installed = await client.post("/v0/admin/plugins/chat-management/installPlugin", {
         permissions: [
+            "projects:create",
             "channels:create",
             "channels:create-child",
             "chats:members:add",
             "chats:members:remove",
             "chats:update",
+            "messages:send",
         ],
     });
     expect(installed.statusCode).toBe(202);

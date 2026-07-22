@@ -17,6 +17,7 @@ const SQUARE_PNG = Buffer.from(
 );
 
 const ALL_PERMISSIONS = [
+    "projects:create",
     "channels:create",
     "channels:create-child",
     "chats:members:add",
@@ -171,6 +172,10 @@ describe("granular plugin host collaboration capabilities", () => {
                     name: "PluginSearchNeedle child",
                     description: "Independent child conversation in the parent workspace.",
                     agentModelId: "gym/alternate-agent",
+                    initialMessage: {
+                        text: "pluginsearchneedle child opening",
+                        audience: "people",
+                    },
                 },
                 privateHeaders,
             );
@@ -180,6 +185,12 @@ describe("granular plugin host collaboration capabilities", () => {
                     kind: "private_channel",
                     parentChatId: privateChatId,
                     agentModelId: "gym/alternate-agent",
+                },
+                initialMessage: {
+                    text: "pluginsearchneedle child opening",
+                    audience: "people",
+                    automated: true,
+                    sender: { id: owner.id },
                 },
                 token: expect.any(String),
             });
@@ -214,7 +225,11 @@ describe("granular plugin host collaboration capabilities", () => {
             );
             expect(sent.statusCode).toBe(201);
             expect(sent.json()).toMatchObject({
-                message: { chatId: privateChatId, sender: { id: owner.id } },
+                message: {
+                    chatId: privateChatId,
+                    sender: { id: owner.id },
+                    automated: true,
+                },
                 token: expect.any(String),
             });
             const messageId = sent.json().message.id as string;
@@ -432,11 +447,22 @@ describe("granular plugin host collaboration capabilities", () => {
             const deniedChild = await server
                 .pluginHost()
                 .post("/channels/createChildChannel", { name: "Must not create" }, authorization);
+            const deniedProject = await server.pluginHost().post(
+                "/projects/createProject",
+                {
+                    name: "Must not create",
+                    people: [],
+                    channels: [{ name: "Denied", visibility: "private" }],
+                },
+                authorization,
+            );
             expect(history.statusCode).toBe(200);
             expect(denied.statusCode).toBe(403);
             expect(denied.json().message).toContain("messages:send");
             expect(deniedChild.statusCode).toBe(403);
             expect(deniedChild.json().message).toContain("channels:create-child");
+            expect(deniedProject.statusCode).toBe(403);
+            expect(deniedProject.json().message).toContain("projects:create");
             const users = await server
                 .pluginHost()
                 .post("/search", { query: "plugin_api_member", filters: ["users"] }, authorization);

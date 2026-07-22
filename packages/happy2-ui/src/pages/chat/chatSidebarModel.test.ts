@@ -321,11 +321,14 @@ it("groups discoverable channels under their project in the channel directory", 
         avatarFor: () => undefined,
     });
 
-    expect(model.directoryItems).toEqual([
-        { kind: "label", label: "Product" },
-        { id: "product", icon: "hash", kind: "item", label: "Roadmap" },
-        { kind: "label", label: "Research" },
-        { id: "research", icon: "hash", kind: "item", label: "Experiments" },
+    expect(model.directoryChannels()).toEqual([
+        { id: "product", name: "Roadmap", projectName: "Product", visibility: "public" },
+        {
+            id: "research",
+            name: "Experiments",
+            projectName: "Research",
+            visibility: "public",
+        },
     ]);
 });
 
@@ -447,5 +450,95 @@ it("keeps the default-agent conversation in Agents when member projection is una
     expect(model.sections.find((section) => section.id === "dms")!.items).toEqual([]);
     expect(model.sections.find((section) => section.id === "agents")!.items).toEqual([
         expect.objectContaining({ id: "happy-chat", kind: "agent" }),
+    ]);
+});
+
+it("projects every eligible unjoined channel into the directory with inherited parent context", () => {
+    const publicParent = chat("engineering", "public_channel", {
+        name: "Engineering",
+        membershipRole: undefined,
+    });
+    const publicChild = chat("release", "public_channel", {
+        name: "Release checklist",
+        parentChatId: publicParent.id,
+        membershipRole: undefined,
+    });
+    const privateParent = chat("founders", "private_channel", {
+        name: "Founders",
+        membershipRole: undefined,
+    });
+    const privateChild = chat("hiring", "private_channel", {
+        name: "Hiring plan",
+        parentChatId: privateParent.id,
+        membershipRole: undefined,
+    });
+    // A voluntarily-left channel stays eligible and therefore remains joinable.
+    const rejoin = chat("alumni", "public_channel", {
+        name: "Alumni",
+        membershipRole: undefined,
+    });
+    const joined = chat("already-joined", "public_channel", { name: "Already joined" });
+    const archived = chat("archived", "public_channel", {
+        archivedAt: "2026-07-03T00:00:00.000Z",
+        membershipRole: undefined,
+        name: "Archived",
+    });
+    const model = chatSidebarModelCreate({
+        user: () => ({ id: "human-1", firstName: "Ada" }),
+        activeConversationId: () => "",
+        search: () => "",
+        sidebarSnapshot: () => ({
+            status: { type: "ready" },
+            projects: [project],
+            chats: [projection(publicParent, "Engineering")],
+        }),
+        directorySnapshot: () => ({
+            status: { type: "ready", value: true },
+            users: [],
+            channels: [
+                publicParent,
+                publicChild,
+                privateParent,
+                privateChild,
+                rejoin,
+                joined,
+                archived,
+            ],
+        }),
+        avatarFor: () => undefined,
+    });
+    expect(model.directoryChannels()).toEqual([
+        {
+            id: "engineering",
+            name: "Engineering",
+            projectName: "Product",
+            visibility: "public",
+        },
+        {
+            id: "release",
+            name: "Release checklist",
+            projectName: "Product",
+            visibility: "public",
+            parentName: "Engineering",
+        },
+        {
+            id: "founders",
+            name: "Founders",
+            projectName: "Product",
+            visibility: "private",
+        },
+        {
+            id: "hiring",
+            name: "Hiring plan",
+            projectName: "Product",
+            visibility: "private",
+            parentName: "Founders",
+        },
+        {
+            id: "alumni",
+            name: "Alumni",
+            projectName: "Product",
+            visibility: "public",
+        },
     ]);
 });

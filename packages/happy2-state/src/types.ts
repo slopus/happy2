@@ -439,6 +439,8 @@ export interface MessageSummary {
         readonly photoFileId?: string;
     };
     readonly kind: "user" | "automated";
+    /** True when a user-attributed message was posted through automation such as a plugin. */
+    readonly automated: boolean;
     readonly audience: MessageAudience;
     /** Every agent this message addressed (default agent plus explicit additions). */
     readonly agentUserIds: readonly string[];

@@ -2,9 +2,8 @@ import { type ChatSummary, CollaborationError, type MutationHint } from "./types
 
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
-import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
-import { chatHint } from "./chatHint.js";
-import { chats, files } from "../schema.js";
+import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { chatMembers, chats, files, users } from "../schema.js";
 
 import { isUniqueConstraint } from "./isUniqueConstraint.js";
 
@@ -12,10 +11,11 @@ import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatRequireManager } from "./chatRequireManager.js";
 import { userRequireServerAdmin } from "./userRequireServerAdmin.js";
+import { chatDescendantIds } from "./impl/chatDescendantIds.js";
 
 /**
- * Applies validated name, description, or presentation changes to a manageable chats channel without altering omitted fields.
- * The single channel-version transition lets clients reconcile the complete updated projection instead of observing independent metadata edits.
+ * Applies validated metadata to chats and propagates only a parent's visibility through its descendants.
+ * A public-to-private transition updates chatMembers to select one already-active human owner per channel without joining anyone, preserving independent child membership and ownership.
  */
 export async function channelUpdate(
     executor: DrizzleExecutor,
@@ -85,15 +85,65 @@ export async function channelUpdate(
         const nextIsListed = input.isListed ?? access.isListed;
         const directoryVisibilityChanged =
             wasPubliclyListed !== (nextKind === "public_channel" && nextIsListed);
+        const visibilityChanged = input.kind !== undefined && input.kind !== access.kind;
+        const descendantIds = visibilityChanged ? await chatDescendantIds(tx, input.chatId) : [];
+        const affectedChatIds = [input.chatId, ...descendantIds];
+        const privateOwners = new Map<string, string>();
+        if (visibilityChanged && input.kind === "private_channel") {
+            const candidates = await tx
+                .select({
+                    chatId: chatMembers.chatId,
+                    userId: chatMembers.userId,
+                    role: chatMembers.role,
+                    createdByUserId: chats.createdByUserId,
+                })
+                .from(chatMembers)
+                .innerJoin(chats, eq(chats.id, chatMembers.chatId))
+                .innerJoin(users, eq(users.id, chatMembers.userId))
+                .where(
+                    and(
+                        inArray(chatMembers.chatId, affectedChatIds),
+                        isNull(chatMembers.leftAt),
+                        isNull(users.agentRole),
+                        isNull(users.deletedAt),
+                    ),
+                )
+                .orderBy(chatMembers.joinedAt, chatMembers.userId);
+            for (const chatId of affectedChatIds) {
+                const eligible = candidates.filter((candidate) => candidate.chatId === chatId);
+                const owner =
+                    (chatId === input.chatId
+                        ? eligible.find((candidate) => candidate.userId === input.actorUserId)
+                        : eligible.find(
+                              (candidate) => candidate.userId === candidate.createdByUserId,
+                          )) ??
+                    eligible.find((candidate) => candidate.role === "admin") ??
+                    eligible[0];
+                if (!owner)
+                    throw new CollaborationError(
+                        "conflict",
+                        chatId === input.chatId
+                            ? "Join the channel before making it private"
+                            : "Every child needs an active human member before becoming private",
+                    );
+                privateOwners.set(chatId, owner.userId);
+            }
+        }
         const sequence = await syncSequenceNext(tx);
-        const mutation = await chatAdvanceWithSequence(
-            tx,
-            sequence,
-            input.actorUserId,
-            input.chatId,
-            directoryVisibilityChanged ? "chat.visibilityChanged" : "chat.updated",
-            input.chatId,
-        );
+        const mutations = [];
+        for (const chatId of affectedChatIds)
+            mutations.push(
+                await chatAdvanceWithSequence(
+                    tx,
+                    sequence,
+                    input.actorUserId,
+                    chatId,
+                    visibilityChanged || (chatId === input.chatId && directoryVisibilityChanged)
+                        ? "chat.visibilityChanged"
+                        : "chat.updated",
+                    chatId,
+                ),
+            );
         try {
             await tx
                 .update(chats)
@@ -118,6 +168,10 @@ export async function channelUpdate(
                         : {
                               kind: input.kind,
                               visibility: input.kind === "public_channel" ? "public" : "private",
+                              ownerUserId:
+                                  input.kind === "public_channel"
+                                      ? null
+                                      : privateOwners.get(input.chatId),
                           }),
                     ...(input.photoFileId === undefined
                         ? {}
@@ -138,6 +192,50 @@ export async function channelUpdate(
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                 })
                 .where(and(eq(chats.id, input.chatId), isNull(chats.deletedAt)));
+            if (visibilityChanged)
+                for (const chatId of descendantIds)
+                    await tx
+                        .update(chats)
+                        .set({
+                            kind: input.kind,
+                            visibility: input.kind === "public_channel" ? "public" : "private",
+                            ownerUserId:
+                                input.kind === "public_channel" ? null : privateOwners.get(chatId),
+                            lifecycleVersion: sql`${chats.lifecycleVersion} + 1`,
+                            updatedAt: sql`CURRENT_TIMESTAMP`,
+                        })
+                        .where(eq(chats.id, chatId));
+            if (visibilityChanged) {
+                await tx
+                    .update(chatMembers)
+                    .set({
+                        role: "admin",
+                        syncSequence: sequence,
+                        updatedAt: sql`CURRENT_TIMESTAMP`,
+                    })
+                    .where(
+                        and(
+                            inArray(chatMembers.chatId, affectedChatIds),
+                            eq(chatMembers.role, "owner"),
+                        ),
+                    );
+                if (input.kind === "private_channel")
+                    for (const chatId of affectedChatIds)
+                        await tx
+                            .update(chatMembers)
+                            .set({
+                                role: "owner",
+                                syncSequence: sequence,
+                                updatedAt: sql`CURRENT_TIMESTAMP`,
+                            })
+                            .where(
+                                and(
+                                    eq(chatMembers.chatId, chatId),
+                                    eq(chatMembers.userId, privateOwners.get(chatId)!),
+                                    isNull(chatMembers.leftAt),
+                                ),
+                            );
+            }
         } catch (error) {
             if (isUniqueConstraint(error))
                 throw new CollaborationError("conflict", "Channel slug is already in use");
@@ -146,7 +244,14 @@ export async function channelUpdate(
         const chat = await chatRequireManager(tx, input.actorUserId, input.chatId);
         return {
             chat,
-            hint: chatHint(sequence, input.chatId, mutation.pts),
+            hint: {
+                sequence: String(sequence),
+                chats: mutations.map((mutation) => ({
+                    chatId: mutation.chatId,
+                    pts: String(mutation.pts),
+                })),
+                areas: [],
+            },
         };
     });
 }

@@ -640,6 +640,20 @@ export function createPluginHostApi(
             throw error;
         }
     });
+    app.post("/projects/createProject", async (request, reply) => {
+        try {
+            const result = await plugins.projectCreate(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                projectCreateInput(request.body),
+            );
+            return reply.code(201).send(result);
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.post("/channels/createChildChannel", async (request, reply) => {
         try {
             const result = await plugins.channelCreateChild(
@@ -1197,13 +1211,70 @@ function channelCreateInput(value: unknown): {
     };
 }
 
+function projectCreateInput(value: unknown): {
+    name: string;
+    description?: string;
+    owner?: PluginUserCapability;
+    people: PluginUserCapability[];
+    channels: {
+        visibility: "public" | "private";
+        name: string;
+        description?: string;
+    }[];
+    idempotencyKey?: string;
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["name", "description", "owner", "people", "channels", "idempotencyKey"]);
+    const name = requiredTrimmedString(body.name, "name", 100);
+    const description =
+        body.description === undefined
+            ? undefined
+            : requiredTrimmedString(body.description, "description", 500);
+    const owner = body.owner === undefined ? undefined : userCapability(body.owner, "owner");
+    const people = userCapabilities(body.people, "people");
+    if (!Array.isArray(body.channels) || body.channels.length < 1 || body.channels.length > 20)
+        throw new PluginHostRequestError("channels must contain 1-20 channels");
+    const channels = body.channels.map((value, index) => {
+        const channel = bodyRecord(value, `channels[${index}]`);
+        onlyBodyKeys(channel, ["visibility", "name", "description"], `channels[${index}]`);
+        const rawVisibility = channel.visibility ?? "public";
+        if (rawVisibility !== "public" && rawVisibility !== "private")
+            throw new PluginHostRequestError(
+                `channels[${index}].visibility must be public or private`,
+            );
+        const visibility: "public" | "private" = rawVisibility;
+        const channelDescription =
+            channel.description === undefined
+                ? undefined
+                : requiredTrimmedString(channel.description, `channels[${index}].description`, 500);
+        return {
+            visibility,
+            name: requiredTrimmedString(channel.name, `channels[${index}].name`, 100),
+            ...(channelDescription ? { description: channelDescription } : {}),
+        };
+    });
+    const idempotencyKey =
+        body.idempotencyKey === undefined
+            ? undefined
+            : requiredToken(body.idempotencyKey, "idempotencyKey", 128);
+    return {
+        name,
+        ...(description ? { description } : {}),
+        ...(owner ? { owner } : {}),
+        people,
+        channels,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+    };
+}
+
 function childChannelCreateInput(value: unknown): {
     name: string;
     description?: string;
     agentModelId?: string;
+    initialMessage?: { audience: "agents" | "people"; text: string };
 } {
     const body = bodyRecord(value);
-    onlyBodyKeys(body, ["name", "description", "agentModelId"]);
+    onlyBodyKeys(body, ["name", "description", "agentModelId", "initialMessage"]);
     const name = requiredTrimmedString(body.name, "name", 100);
     const description =
         body.description === undefined
@@ -1211,10 +1282,22 @@ function childChannelCreateInput(value: unknown): {
             : requiredTrimmedString(body.description, "description", 500);
     const agentModelId =
         body.agentModelId === undefined ? undefined : identifier(body.agentModelId, "agentModelId");
+    let initialMessage: { audience: "agents" | "people"; text: string } | undefined;
+    if (body.initialMessage !== undefined) {
+        const message = bodyRecord(body.initialMessage, "initialMessage");
+        onlyBodyKeys(message, ["audience", "text"], "initialMessage");
+        if (message.audience !== "agents" && message.audience !== "people")
+            throw new PluginHostRequestError("initialMessage.audience must be agents or people");
+        initialMessage = {
+            audience: message.audience,
+            text: requiredMessageText(message.text),
+        };
+    }
     return {
         name,
         ...(description ? { description } : {}),
         ...(agentModelId ? { agentModelId } : {}),
+        ...(initialMessage ? { initialMessage } : {}),
     };
 }
 
@@ -1233,6 +1316,15 @@ function userCapabilities(value: unknown, name: string): PluginUserCapability[] 
     if (new Set(result.map(({ id }) => id)).size !== result.length)
         throw new PluginHostRequestError(`${name} contains a duplicate user`);
     return result;
+}
+
+function userCapability(value: unknown, name: string): PluginUserCapability {
+    const capability = bodyRecord(value, name);
+    onlyBodyKeys(capability, ["id", "token"], name);
+    return {
+        id: requiredToken(capability.id, `${name}.id`, 128),
+        token: requiredToken(capability.token, `${name}.token`, 4_096),
+    };
 }
 
 function bodyRecord(value: unknown, name = "Request body"): Record<string, unknown> {

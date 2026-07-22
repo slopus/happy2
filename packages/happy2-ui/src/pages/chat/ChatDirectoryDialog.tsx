@@ -2,18 +2,20 @@ import { type CSSProperties } from "react";
 import {
     Box,
     Button,
+    ChannelDirectoryList,
     EmptyState,
-    Menu,
     Modal,
     ModalOverlay,
-    type MenuItem,
+    type ChannelDirectoryItem,
 } from "./ChatPageComponents.js";
 const actionsStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "8px" };
 export interface ChatDirectoryDialogProps {
-    items: MenuItem[];
+    channels: readonly ChannelDirectoryItem[];
+    joiningId?: string;
+    error?: string;
     onChannelCreate(): void;
     onClose(): void;
-    onSelect(chatId: string): void;
+    onJoin(chatId: string): void;
 }
 export function ChatDirectoryDialog(props: ChatDirectoryDialogProps) {
     return (
@@ -32,11 +34,16 @@ export function ChatDirectoryDialog(props: ChatDirectoryDialogProps) {
                 size="small"
                 title="Channel directory"
             >
-                {props.items.length > 0 ? (
-                    <Menu items={props.items} onSelect={props.onSelect} width={328} />
+                {props.channels.length > 0 ? (
+                    <ChannelDirectoryList
+                        channels={props.channels}
+                        error={props.error}
+                        joiningId={props.joiningId}
+                        onJoin={props.onJoin}
+                    />
                 ) : (
                     <EmptyState
-                        description="There are no public channels waiting to be joined."
+                        description="There are no eligible channels waiting to be joined."
                         icon="hash"
                         size="inline"
                         title="No channels to join"

@@ -8,10 +8,11 @@ import { chatUpdateInsert } from "./chatUpdateInsert.js";
 import { isUniqueConstraint } from "./isUniqueConstraint.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { CollaborationError, type ChatSummary, type MutationHint } from "./types.js";
+import { childMemberRequireParent } from "./impl/childMemberRequireParent.js";
 
 /**
- * Lets a channel manager create one private child beneath an active top-level channel, copying its current memberships, ownership, and default agent while selecting an independent agent model and message timeline.
- * The transaction publishes the chats row only after every inherited chatMembers row exists, which preserves parent-controlled access while giving the child its own durable timeline and future Rig session.
+ * Inserts one chats child beneath an actively joined parent manager, inheriting visibility while keeping ownership, membership, model, and history independent.
+ * Its initial chatMembers rows make the creator a private owner, retain the parent's active default agent, and require every other eligible parent member to join explicitly.
  */
 export async function channelCreateChild(
     executor: DrizzleExecutor,
@@ -23,7 +24,7 @@ export async function channelCreateChild(
         topic?: string;
         agentModelId?: string;
     },
-): Promise<{ chat: ChatSummary; hint: MutationHint; memberUserIds: string[] }> {
+): Promise<{ chat: ChatSummary; hint: MutationHint; notifiedUserIds: string[] }> {
     return withTransaction(executor, async (tx) => {
         const parent = await chatRequireManager(tx, input.actorUserId, input.parentChatId);
         if (parent.kind === "dm" || parent.parentChatId)
@@ -36,31 +37,39 @@ export async function channelCreateChild(
                 "invalid",
                 "Child channels cannot be created under an archived channel",
             );
-        if (!parent.projectId || !parent.ownerUserId || !parent.defaultAgentUserId)
-            throw new Error("Parent channel project, ownership, or default agent is missing");
-        const memberships = await tx
-            .select({
-                userId: chatMembers.userId,
-                role: chatMembers.role,
-            })
+        await childMemberRequireParent(tx, parent.id, input.actorUserId);
+        if (!parent.projectId) throw new Error("Parent channel project is missing");
+        if (!parent.defaultAgentUserId) throw new Error("Parent channel default agent is missing");
+        if (parent.kind === "private_channel" && !parent.ownerUserId)
+            throw new Error("Private parent channel ownership is missing");
+        const parentMemberships = await tx
+            .select({ userId: chatMembers.userId })
             .from(chatMembers)
             .where(and(eq(chatMembers.chatId, parent.id), isNull(chatMembers.leftAt)));
-        if (memberships.length === 0) throw new Error("Parent channel has no active memberships");
+        if (!parentMemberships.some(({ userId }) => userId === parent.defaultAgentUserId))
+            throw new Error("Parent channel default agent membership is missing");
+        const initialMemberships = new Map<string, "owner" | "admin" | "member">();
+        initialMemberships.set(
+            input.actorUserId,
+            parent.kind === "private_channel" ? "owner" : "admin",
+        );
+        if (!initialMemberships.has(parent.defaultAgentUserId))
+            initialMemberships.set(parent.defaultAgentUserId, "member");
         const id = createId();
         const sequence = await syncSequenceNext(tx);
         try {
             await tx.insert(chats).values({
                 id,
-                kind: "private_channel",
                 projectId: parent.projectId,
+                kind: parent.kind,
                 name: input.name,
                 slug: input.slug,
                 topic: input.topic,
                 parentChatId: parent.id,
                 createdByUserId: input.actorUserId,
                 pts: 1,
-                ownerUserId: parent.ownerUserId,
-                visibility: "private",
+                ownerUserId: parent.kind === "private_channel" ? input.actorUserId : null,
+                visibility: parent.kind === "public_channel" ? "public" : "private",
                 isListed: 0,
                 defaultAgentUserId: parent.defaultAgentUserId,
                 agentModelId: input.agentModelId,
@@ -72,10 +81,10 @@ export async function channelCreateChild(
             throw error;
         }
         await tx.insert(chatMembers).values(
-            memberships.map((membership) => ({
+            [...initialMemberships].map(([userId, role]) => ({
                 chatId: id,
-                userId: membership.userId,
-                role: membership.role,
+                userId,
+                role,
                 membershipEpoch: createId(),
                 syncSequence: sequence,
             })),
@@ -92,7 +101,12 @@ export async function channelCreateChild(
         return {
             chat,
             hint: chatHint(sequence, id, 1),
-            memberUserIds: memberships.map((membership) => membership.userId),
+            notifiedUserIds: [
+                ...new Set([
+                    ...parentMemberships.map(({ userId }) => userId),
+                    ...initialMemberships.keys(),
+                ]),
+            ],
         };
     });
 }

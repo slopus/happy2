@@ -2,11 +2,13 @@ import { useState, type CSSProperties } from "react";
 import {
     Box,
     Button,
+    ChannelAccessSummary,
     FormRow,
     Modal,
     ModalOverlay,
     Select,
     TextField,
+    type ChannelVisibility,
     type SelectOption,
 } from "./ChatPageComponents.js";
 const stackStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "8px" };
@@ -17,6 +19,12 @@ export interface ChatChildChannelCreateDialogProps {
     busy: boolean;
     /** Name of the parent channel, shown so the user knows where the child is created. */
     parentName?: string;
+    /**
+     * Visibility inherited from the parent. A child always shares its parent's
+     * public/private visibility; the dialog states this and that membership and
+     * history remain independent. Omit only when the parent visibility is unknown.
+     */
+    parentVisibility?: ChannelVisibility;
     /** Available agent models as ready Select options (value = model id, label = display name). */
     models: readonly SelectOption[];
     /** Server default model id, surfaced in the default option's label when known. */
@@ -73,6 +81,12 @@ export function ChatChildChannelCreateDialog(props: ChatChildChannelCreateDialog
                 }
             >
                 <Box style={stackStyle}>
+                    {props.parentVisibility ? (
+                        <ChannelAccessSummary
+                            inheritedFrom={props.parentName}
+                            visibility={props.parentVisibility}
+                        />
+                    ) : null}
                     <FormRow
                         control={
                             <TextField

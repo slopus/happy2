@@ -92,6 +92,7 @@ export async function dataExportBuildArtifact(
                 senderUserId: messages.senderUserId,
                 senderBotId: messages.senderBotId,
                 kind: messages.kind,
+                automated: messages.automated,
                 text: messages.text,
                 createdAt: messages.createdAt,
                 editedAt: messages.editedAt,

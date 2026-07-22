@@ -53,10 +53,16 @@ export function chatChannelModelCreate(options: ChatChannelModelOptions) {
     }
     function menuItems(): MenuItem[] {
         const chat = options.activeChat();
+        // Managing (edit / subchannel / archive) is reserved for a non-main channel
+        // the viewer belongs to. Leaving is broader: every non-DM channel the viewer
+        // belongs to can be left, including the main channel and children. DMs are
+        // fixed memberships and are never leavable here.
         const manageable = chat?.kind !== "dm" && chat?.membershipRole && !chat.isMain;
-        const edit: MenuItem[] = options.canEdit()
-            ? [{ icon: "settings", id: "edit", kind: "item", label: "Edit settings" }]
-            : [];
+        const leavable = chat?.kind !== "dm" && Boolean(chat?.membershipRole);
+        const edit: MenuItem[] =
+            options.canEdit() && Boolean(manageable)
+                ? [{ icon: "settings", id: "edit", kind: "item", label: "Edit settings" }]
+                : [];
         // Child channels require a top-level parent, so the affordance is offered
         // only on manageable, non-archived, non-child channels.
         const child: MenuItem[] =
@@ -78,7 +84,7 @@ export function chatChannelModelCreate(options: ChatChannelModelOptions) {
                           ]
                     : [{ icon: "inbox", id: "archive", kind: "item", label: "Archive channel" }]
                 : [];
-        const leave: MenuItem[] = manageable
+        const leave: MenuItem[] = leavable
             ? [
                   {
                       danger: true,

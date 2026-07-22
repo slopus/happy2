@@ -13,6 +13,7 @@ import {
 } from "react";
 import { Avatar, type AvatarSize, type ToneName } from "./Avatar";
 import { happyLogoUrl } from "./assets";
+import { AutomatedTag } from "./AutomatedTag";
 import { ReactionChip } from "./Badge";
 import { EmojiPicker, type EmojiItem } from "./EmojiPicker";
 import { Icon, type IconName } from "./Icon";
@@ -69,6 +70,14 @@ export type MessageProps = Omit<HTMLAttributes<HTMLDivElement>, "style"> & {
     actionsVisible?: boolean;
     /** Author is an agent → accent AGENT badge next to the name. */
     agent?: boolean;
+    /**
+     * The message was posted through automation (a plugin/API acting on the
+     * author's behalf) rather than typed by hand. Shows a restrained "Automated"
+     * marker beside the author. This is orthogonal to `agent`: an automated
+     * message is still attributed to its human author and keeps their identity —
+     * it is not the separate agent/system identity treatment.
+     */
+    automated?: boolean;
     /** Who the message addressed, e.g. "To agents · Happy + 1". */
     audienceLabel?: string;
     /** Compact optional action placed in the author metadata before the time. */
@@ -174,6 +183,7 @@ export function Message(props: MessageProps) {
         "agent",
         "actionsVisible",
         "audienceLabel",
+        "automated",
         "author",
         "body",
         "children",
@@ -351,6 +361,13 @@ export function Message(props: MessageProps) {
                 ))}
             </div>
         );
+    // An own attachment/image-only automated message still needs the durable
+    // attribution marker. Normal media remains flush: this line exists only
+    // when automation requires it, never for ordinary media-only messages.
+    const ownBubbleLine =
+        local.own &&
+        (bodyNode !== null ||
+            (local.automated && (Boolean(local.images?.length) || hasAttachments())));
     return (
         <div
             {...rest}
@@ -402,6 +419,14 @@ export function Message(props: MessageProps) {
                                 {local.author}
                             </span>
                         )}
+                        {local.automated ? (
+                            <span
+                                className="happy2-message__automated"
+                                data-happy2-ui="message-automated"
+                            >
+                                <AutomatedTag />
+                            </span>
+                        ) : null}
                         {local.metaAccessory ? (
                             <span
                                 className="happy2-message__meta-accessory"
@@ -415,11 +440,23 @@ export function Message(props: MessageProps) {
                         </span>
                     </div>
                 ) : null}
-                {bodyNode && local.own ? (
+                {ownBubbleLine ? (
                     <div
                         className="happy2-message__bubble-line"
                         data-happy2-ui="message-bubble-line"
                     >
+                        {/* Own messages carry no meta row, so the automation marker
+                            rides the bubble line beside the hover time. Unlike the
+                            time it stays visible: attribution that a plugin posted
+                            on the viewer's behalf must not depend on hover. */}
+                        {local.automated ? (
+                            <span
+                                className="happy2-message__automated happy2-message__automated--own"
+                                data-happy2-ui="message-automated"
+                            >
+                                <AutomatedTag />
+                            </span>
+                        ) : null}
                         <span
                             className="happy2-message__aside-time"
                             data-happy2-ui="message-aside-time"

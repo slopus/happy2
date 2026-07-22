@@ -21,6 +21,7 @@ import {
 } from "../sidebar/sidebarState.js";
 
 export interface AreaReconcileContext {
+    directoryReconcile(): void;
     chatReconcile(chatId: string): void;
     workspaceReconcile(chatId: string): void;
     callsReconcile(): void;
@@ -49,7 +50,8 @@ export function areaReconcile(context: AreaReconcileContext, area: string): void
         const chatId = area.slice("workspace:".length);
         if (chatId) context.workspaceReconcile(chatId);
         else context.unknownArea(area);
-    } else if (area === "calls" || area.startsWith("call:")) context.callsReconcile();
+    } else if (area === "directories") context.directoryReconcile();
+    else if (area === "calls" || area.startsWith("call:")) context.callsReconcile();
     else if (area === "notifications") context.notificationsReconcile();
     else if (area === "drafts") context.draftsReconcile();
     else if (area === "documents") context.documentsReconcile();

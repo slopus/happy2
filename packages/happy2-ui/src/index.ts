@@ -98,6 +98,18 @@ export {
     type AvatarType,
     type ToneName,
 } from "./Avatar";
+export { AutomatedTag, type AutomatedTagProps } from "./AutomatedTag";
+export {
+    ChannelAccessSummary,
+    type ChannelAccessSummaryProps,
+    type ChannelStewardRole,
+    type ChannelVisibility,
+} from "./ChannelAccessSummary";
+export {
+    ChannelDirectoryList,
+    type ChannelDirectoryItem,
+    type ChannelDirectoryListProps,
+} from "./ChannelDirectoryList";
 export {
     Badge,
     type BadgeProps,

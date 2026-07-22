@@ -6,6 +6,14 @@ import {
 } from "../types.js";
 
 const definitions = {
+    "projects:create": {
+        id: "projects:create",
+        displayName: "Create projects",
+        description:
+            "Create projects with an attributed steward, initial people, and public or private channels.",
+        section: "projects",
+        access: "mutations",
+    },
     "channels:create": {
         id: "channels:create",
         displayName: "Create channels",
@@ -267,6 +275,7 @@ export function pluginApiPermissionSections(
     const requested = permissions.map((permission) => definitions[permission]);
     return (
         [
+            { id: "projects", displayName: "Projects" },
             { id: "channels", displayName: "Channels" },
             { id: "chats", displayName: "Chats" },
             { id: "messages", displayName: "Messages" },

@@ -181,7 +181,6 @@ export async function channelSetArchived(
                 actorUserId: input.actorUserId,
                 sequence,
                 kind: "joined",
-                role: joinRole,
             });
             servicePts = (
                 await createChannelServiceMessageDb(tx, {

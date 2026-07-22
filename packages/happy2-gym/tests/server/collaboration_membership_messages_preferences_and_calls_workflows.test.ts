@@ -582,6 +582,25 @@ describe("collaboration membership, messages, personal organization, and calls",
         expect((await asOutsider.get("/v0/directory/users")).json().users).toEqual(
             expect.arrayContaining([expect.objectContaining({ id: author.id })]),
         );
+        const privateForMember = await asMember.post("/v0/chats/createChannel", {
+            kind: "private_channel",
+            name: "Member private room",
+            slug: "member-private-room",
+        });
+        expect(privateForMember.statusCode).toBe(201);
+        const archivedPublic = await asMember.post("/v0/chats/createChannel", {
+            kind: "public_channel",
+            name: "Archived directory room",
+            slug: "archived-directory-room",
+        });
+        expect(archivedPublic.statusCode).toBe(201);
+        expect(
+            (
+                await asMember.post(
+                    `/v0/chats/${archivedPublic.json().chat.id as string}/archiveChannel`,
+                )
+            ).statusCode,
+        ).toBe(200);
         const directory = await asOutsider.get("/v0/directory");
         expect(directory.statusCode).toBe(200);
         expect(directory.json().channels).toEqual(
@@ -592,6 +611,22 @@ describe("collaboration membership, messages, personal organization, and calls",
         );
         expect((await asOutsider.get("/v0/directory/channels")).json().channels).toEqual(
             expect.arrayContaining([expect.objectContaining({ id: firstChatId })]),
+        );
+        const authorDirectory = await asAuthor.get("/v0/directory/channels");
+        expect(authorDirectory.statusCode).toBe(200);
+        expect(Array.isArray(authorDirectory.json().channels)).toBe(true);
+        expect(authorDirectory.json().channels).not.toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ id: privateForMember.json().chat.id as string }),
+            ]),
+        );
+        const outsiderDirectory = await asOutsider.get("/v0/directory/channels");
+        expect(outsiderDirectory.statusCode).toBe(200);
+        expect(Array.isArray(outsiderDirectory.json().channels)).toBe(true);
+        expect(outsiderDirectory.json().channels).not.toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ id: archivedPublic.json().chat.id as string }),
+            ]),
         );
 
         const fuzzySearch = await asMember.get("/v0/search?q=relese%20plannng&limit=50");

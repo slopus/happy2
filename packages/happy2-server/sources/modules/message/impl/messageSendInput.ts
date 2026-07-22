@@ -11,6 +11,7 @@ export interface MessageSendInput {
     clientMutationId?: string;
     audience?: "people" | "agents";
     kind?: "user" | "automated";
+    automated?: boolean;
     senderBotId?: string;
     forwardedFromMessageId?: string;
     agentSessionId?: string;

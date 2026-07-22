@@ -30,6 +30,7 @@ export interface PluginRemoteMcp {
 export type PluginMcp = PluginStdioMcp | PluginRemoteMcp;
 
 export type PluginHostPermission =
+    | "projects:create"
     | "channels:create"
     | "channels:create-child"
     | "chats:members:add"
@@ -65,6 +66,7 @@ export type PluginHostPermission =
     | "port-sharing:disable"
     | "port-sharing:access";
 export const pluginHostPermissions: readonly PluginHostPermission[] = [
+    "projects:create",
     "channels:create",
     "channels:create-child",
     "chats:members:add",
@@ -109,6 +111,7 @@ export interface PluginApiPermissionDefinition {
 
 export interface PluginApiPermissionSection {
     id:
+        | "projects"
         | "channels"
         | "chats"
         | "messages"

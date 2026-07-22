@@ -168,6 +168,7 @@ function optimisticMessage(
         sequence: id,
         changePts: "0",
         kind: "user",
+        automated: false,
         audience: input.audience ?? defaultAudience,
         agentUserIds: input.agentUserIds ?? [],
         text: input.text ?? "",

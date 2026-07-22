@@ -48,6 +48,7 @@ export async function messageGetProjection(
             change_pts: messages.changePts,
             sender_user_id: messages.senderUserId,
             kind: messages.kind,
+            automated: messages.automated,
             audience: messages.audience,
             text: messages.text,
             content_json: messages.contentJson,
@@ -214,6 +215,7 @@ export async function messageGetProjection(
               }
             : undefined,
         kind: row.kind as "user" | "automated",
+        automated: row.automated,
         audience: row.audience as MessageSummary["audience"],
         agentUserIds: audienceRows.map(({ agent_user_id }) => agent_user_id),
         text: deleted ? "" : row.text,

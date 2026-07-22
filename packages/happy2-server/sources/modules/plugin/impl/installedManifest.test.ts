@@ -32,6 +32,7 @@ describe("installedManifest", () => {
                     container: {
                         args: [],
                         permissions: [
+                            "projects:create",
                             "channels:create",
                             "channels:create-child",
                             "chats:members:add",
@@ -41,6 +42,7 @@ describe("installedManifest", () => {
                 }),
             ).container?.permissions,
         ).toEqual([
+            "projects:create",
             "channels:create",
             "channels:create-child",
             "chats:members:add",

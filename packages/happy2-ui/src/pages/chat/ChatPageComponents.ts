@@ -9,6 +9,8 @@ export { AppShell } from "../../AppShell.js";
 export { Banner } from "../../Banner.js";
 export { Box } from "../../Box.js";
 export { Button } from "../../Button.js";
+export { ChannelAccessSummary, type ChannelVisibility } from "../../ChannelAccessSummary.js";
+export { ChannelDirectoryList, type ChannelDirectoryItem } from "../../ChannelDirectoryList.js";
 export { ChannelHeader } from "../../ChannelHeader.js";
 export { Composer, type ContextItem, type Mentionable } from "../../Composer.js";
 export { DocumentSurface } from "../../DocumentSurface.js";

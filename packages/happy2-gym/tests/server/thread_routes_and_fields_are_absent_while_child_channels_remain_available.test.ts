@@ -57,6 +57,9 @@ describe("thread removal and child channel replacement", () => {
         });
         expect(child.json().chat).not.toHaveProperty("parentMessageId");
         expect(child.json().chat).not.toHaveProperty("followed");
+        expect(
+            (await asMember.post(`/v0/chats/${child.json().chat.id as string}/join`)).statusCode,
+        ).toBe(200);
 
         const childMessage = await asOwner.post(
             `/v0/chats/${child.json().chat.id as string}/sendMessage`,

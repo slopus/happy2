@@ -25,12 +25,13 @@ describe("server upgrades with legacy channels", () => {
                 "DROP TRIGGER chats_parent_project_match_update",
                 "DROP INDEX chats_project_id_idx",
                 "ALTER TABLE chats DROP COLUMN project_id",
+                "ALTER TABLE messages DROP COLUMN automated",
                 "DROP INDEX projects_one_default_idx",
                 "DROP INDEX projects_sync_sequence_idx",
                 "DROP TABLE projects",
             ]);
             await client.execute({
-                sql: "DELETE FROM __drizzle_migrations WHERE created_at = ?",
+                sql: "DELETE FROM __drizzle_migrations WHERE created_at >= ?",
                 args: [PROJECTS_MIGRATION_TIMESTAMP],
             });
 

@@ -2,9 +2,10 @@ import { type ChatAccess } from "./chatAccess.js";
 import { CollaborationError } from "./types.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { chatGetAccess } from "./chatGetAccess.js";
+import { childMemberRequireParent } from "./impl/childMemberRequireParent.js";
 /**
- * Requires owner or administrator authority from active membership, a recoverable voluntary departure, or server administration.
- * The durable-membership fallback lets departed managers administer while an explicit removal still produces not-found non-disclosure.
+ * Requires owner or administrator authority from active membership, a recoverable voluntary departure, or server administration, plus active parent membership for a child.
+ * The durable-membership fallback lets departed child managers administer only while they remain joined to its parent; an explicit removal still produces not-found non-disclosure.
  */
 export async function chatRequireManager(
     executor: DrizzleExecutor,
@@ -30,5 +31,6 @@ export async function chatRequireManager(
         access.membershipRole !== "admin"
     )
         throw new CollaborationError("forbidden", "Channel manager permission is required");
+    await childMemberRequireParent(executor, access.parentChatId, userId);
     return access;
 }

@@ -194,14 +194,6 @@ describe("voluntary private-channel departure and explicit membership revocation
         ).toBe(200);
         expect(
             (
-                await asChannelOwner.post(`/v0/chats/${chatId}/setMemberRole`, {
-                    userId: serverAdmin.id,
-                    role: "admin",
-                })
-            ).statusCode,
-        ).toBe(200);
-        expect(
-            (
                 await asChannelOwner.post(`/v0/chats/${chatId}/removeMember`, {
                     userId: serverAdmin.id,
                 })

@@ -5,7 +5,7 @@ import type {
     SidebarChatProjection,
     SidebarSnapshot,
 } from "happy2-state";
-import type { MenuItem, SidebarItem, SidebarSection } from "./ChatPageComponents.js";
+import type { ChannelDirectoryItem, SidebarItem, SidebarSection } from "./ChatPageComponents.js";
 import { identityInitials, toneFor } from "./chatPageModels.js";
 import type { ChatPageUser } from "./ChatPage.js";
 export interface ChatSidebarModelOptions {
@@ -160,25 +160,36 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
             },
         ];
     })();
-    const unjoinedChannels = options
-        .directorySnapshot()
-        .channels.filter((chat) => !chat.membershipRole);
-    const directoryItems: MenuItem[] = options.sidebarSnapshot().projects.flatMap((project) => {
-        const channels = unjoinedChannels.filter((chat) => chat.projectId === project.id);
-        if (channels.length === 0) return [];
-        return [
-            { kind: "label" as const, label: project.name },
-            ...channels.map((chat) => ({
-                id: chat.id,
-                icon: chat.kind === "private_channel" ? ("lock" as const) : ("hash" as const),
-                kind: "item" as const,
-                label: chat.name ?? chat.slug ?? "Untitled channel",
-            })),
-        ];
-    });
+    const directoryChannels = (): readonly ChannelDirectoryItem[] => {
+        const directory = options.directorySnapshot().channels;
+        const byId = new Map(directory.map((chat) => [chat.id, chat]));
+        const projectsById = new Map(
+            options.sidebarSnapshot().projects.map((project) => [project.id, project]),
+        );
+        for (const projection of chats()) byId.set(projection.chat.id, projection.chat);
+        return directory
+            .filter(
+                (chat) =>
+                    !chat.membershipRole && chat.kind !== "dm" && chat.archivedAt === undefined,
+            )
+            .map((chat) => {
+                const parent = chat.parentChatId ? byId.get(chat.parentChatId) : undefined;
+                return {
+                    id: chat.id,
+                    name: chat.name ?? chat.slug ?? "Untitled channel",
+                    visibility: chat.kind === "public_channel" ? "public" : "private",
+                    ...(chat.projectId && projectsById.get(chat.projectId)
+                        ? { projectName: projectsById.get(chat.projectId)!.name }
+                        : {}),
+                    ...(parent
+                        ? { parentName: parent.name ?? parent.slug ?? "Untitled channel" }
+                        : {}),
+                } satisfies ChannelDirectoryItem;
+            });
+    };
     const isServerAdmin = () =>
         users().find((person) => person.id === options.user().id)?.role === "admin";
-    return { chats, users, sections, directoryItems, isServerAdmin };
+    return { chats, users, sections, directoryChannels, isServerAdmin };
 }
 
 /**

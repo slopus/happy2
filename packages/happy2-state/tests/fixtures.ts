@@ -76,6 +76,7 @@ export function message(overrides: Partial<MessageSummary> = {}): MessageSummary
         sequence: "1",
         changePts: "1",
         kind: "user",
+        automated: false,
         audience: "people",
         agentUserIds: [],
         text: "hello",

@@ -9,6 +9,7 @@ describe("child channels create, send, and reconcile through happy2-state", () =
         const owner = await server.createUser({ username: "state_child_owner" });
         const member = await server.createUser({ username: "state_child_member" });
         const ownerClient = server.as(owner);
+        const memberClient = server.as(member);
 
         const parentResponse = await ownerClient.post("/v0/chats/createChannel", {
             kind: "private_channel",
@@ -71,8 +72,10 @@ describe("child channels create, send, and reconcile through happy2-state", () =
                 .chats.some(({ id }) => id === parentChatId),
         ).toBe(true);
 
-        // The child reconciles into the member's sidebar over the realtime stream
-        // as a first-class channel, membership cascading from the parent.
+        expect((await memberClient.post(`/v0/chats/${childChatId}/join`)).statusCode).toBe(200);
+
+        // The explicitly joined child reconciles into the member's sidebar over
+        // the realtime stream as a first-class channel.
         await expect
             .poll(
                 () =>
@@ -89,11 +92,14 @@ describe("child channels create, send, and reconcile through happy2-state", () =
         ownerState.messageSend(childChatId, { text: "First message in the child channel" });
         await ownerState.whenIdle();
         expect(
-            ownerChild.getState().messages.map((item) => ({
-                delivery: item.delivery,
-                chatId: item.message.chatId,
-                text: item.message.text,
-            })),
+            ownerChild
+                .getState()
+                .messages.filter((item) => !item.message.service)
+                .map((item) => ({
+                    delivery: item.delivery,
+                    chatId: item.message.chatId,
+                    text: item.message.text,
+                })),
         ).toEqual([
             {
                 delivery: "sent",
@@ -102,8 +108,8 @@ describe("child channels create, send, and reconcile through happy2-state", () =
             },
         ]);
 
-        // The child carries ordinary channel unread state for the member who has
-        // not opened it yet.
+        // The child carries ordinary channel unread state for the joined member
+        // who has not opened it yet.
         await expect
             .poll(
                 () =>

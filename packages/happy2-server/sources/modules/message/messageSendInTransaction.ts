@@ -234,6 +234,7 @@ export async function messageSendInTransaction(
             changePts: mutation.pts,
             senderUserId,
             kind: input.kind ?? "user",
+            automated: input.automated ?? false,
             text: input.text,
             quotedMessageId: input.quotedMessageId,
             forwardedFromMessageId: input.forwardedFromMessageId,

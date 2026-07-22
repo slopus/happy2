@@ -35,6 +35,12 @@ describe("main channel onboarding and service messages", () => {
             );
             const happy = welcomeMembers.find((user) => user.username === "happy");
             expect(happy).toBeDefined();
+            const welcomeMemberships = (
+                await ada.client.get(`/v0/chats/${welcome.id}/members`)
+            ).json().memberships as Array<{ role: string; user: { id: string } }>;
+            expect(
+                welcomeMemberships.find((membership) => membership.user.id === happy!.id)?.role,
+            ).toBe("admin");
             expect(welcome.defaultAgentUserId).toBe(happy!.id);
             expect(welcomeMembers.filter((user) => user.kind === "agent")).toEqual([happy]);
             expect(await serviceMessageFor(ada.client, welcome.id, ada.id)).toMatchObject({
@@ -168,7 +174,10 @@ describe("main channel onboarding and service messages", () => {
 
             expect((await ada.client.post(`/v0/chats/${teamId}/setAsMain`)).statusCode).toBe(404);
             expect(chatById(await chats(ada.client), welcome.id).isMain).toBe(true);
-            expect((await bob.client.post(`/v0/chats/${welcome.id}/leave`)).statusCode).toBe(400);
+            expect((await bob.client.post(`/v0/chats/${welcome.id}/leave`)).statusCode).toBe(200);
+            expect(
+                (await chats(bob.client)).find((chat) => chat.id === welcome.id),
+            ).toBeUndefined();
             expect(
                 (
                     await ada.client.post(`/v0/chats/${welcome.id}/updateChannel`, {

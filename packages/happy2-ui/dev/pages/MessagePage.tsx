@@ -564,6 +564,59 @@ export function MessagePage() {
                 )}
                 <DimensionRule label="clickable avatar + name · grouped rows carry no profile affordance" />
             </Specimen>
+
+            <Specimen
+                detail="automated: a plugin/API posted on the author's behalf. The author identity stays; a quiet Automated marker sits after the name (incoming), in the own bubble aside lane, or above own media when there is no text. It is not the agent treatment, and a hand-typed follow-up starts a new group so it never inherits the marker."
+                label="Message — automated attribution"
+                number="14"
+                stage="app"
+            >
+                <div style={column}>
+                    {channelFrame(
+                        <>
+                            <Message
+                                author="Maya Johnson"
+                                automated
+                                body="Standup summary posted: 3 PRs merged, 1 review pending."
+                                time="9:02"
+                                tone="amber"
+                            />
+                            <Message
+                                author="Maya Johnson"
+                                body="I'll take the pending review after lunch."
+                                time="9:05"
+                                tone="amber"
+                            />
+                            <Message
+                                author="Steve"
+                                automated
+                                body="Scheduled release notes published to #announcements."
+                                own
+                                time="9:10"
+                                tone="ocean"
+                            />
+                            <Message
+                                author="Steve"
+                                automated
+                                body=""
+                                images={[
+                                    {
+                                        id: "automated-media",
+                                        alt: "Automated release report",
+                                        height: 320,
+                                        url: demoImage(480, 320, "#a89bff", "#34d399"),
+                                        width: 480,
+                                    },
+                                ]}
+                                own
+                                time="9:11"
+                                tone="ocean"
+                            />
+                        </>,
+                    )}
+                    <DimensionRule label="marker stays visible without hover · manual reply is a separate group" />
+                </div>
+            </Specimen>
         </ComponentPage>
     );
 }

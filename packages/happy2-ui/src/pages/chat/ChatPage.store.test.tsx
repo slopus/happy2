@@ -64,6 +64,7 @@ function messageItem(id: string, text: string): ChatMessageItem {
             sequence: id,
             changePts: "1",
             kind: "user",
+            automated: false,
             audience: "people",
             agentUserIds: [],
             text,
@@ -679,6 +680,118 @@ it("creates a direct message from the directory and does not hijack later naviga
     await nextFrame();
     expect(chatSelect).toHaveBeenLastCalledWith("chat-2", "channel", false);
     expect(chatSelect.mock.calls.filter(([chatId]) => chatId === "dm-grace")).toHaveLength(1);
+});
+
+it("joins an eligible private child explicitly and removes it reactively from the directory", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+    });
+    const publicRejoin: ChatSummary = {
+        ...chat,
+        id: "alumni",
+        name: "Alumni",
+        slug: "alumni",
+        membershipRole: undefined,
+    };
+    const privateParent: ChatSummary = {
+        ...chat,
+        id: "founders",
+        kind: "private_channel",
+        name: "Founders",
+        slug: "founders",
+        membershipRole: undefined,
+    };
+    const privateChild: ChatSummary = {
+        ...privateParent,
+        id: "hiring",
+        name: "Hiring plan",
+        slug: "hiring",
+        parentChatId: privateParent.id,
+    };
+    directory.input({
+        type: "directoryLoaded",
+        users: [],
+        channels: [publicRejoin, privateParent, privateChild],
+    });
+    sidebar.input({
+        type: "sidebarLoaded",
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        projects: [testProject],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    let settleJoin: () => void = () => undefined;
+    const chatJoin = vi.fn(
+        () =>
+            new Promise<void>((resolve) => {
+                settleJoin = resolve;
+            }),
+    );
+    const view = createRenderer();
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate({ chatJoin })}
+                directory={directory.store}
+                navigation={{ chatId: chat.id }}
+                rail={<div>Rail</div>}
+                sidebarSearch=""
+                sidebar={sidebar.store}
+                windowControls={false}
+                user={{ id: "user-1", firstName: "Ada" }}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+
+    view.container
+        .querySelector<HTMLButtonElement>(
+            '[data-section-id="browse"] [aria-label="Browse channels"]',
+        )!
+        .click();
+    await nextFrame();
+    const alumniRow = view.container.querySelector('[data-channel-id="alumni"]')!;
+    expect(view.container.querySelector('[data-channel-id="hiring"]')?.textContent).toContain(
+        "Product · Private · Inherits #Founders",
+    );
+    view.container.querySelector<HTMLButtonElement>('[aria-label="Join Hiring plan"]')!.click();
+    await nextFrame();
+    expect(chatJoin).toHaveBeenCalledExactlyOnceWith("hiring");
+    expect(view.container.querySelector('[aria-label="Join Hiring plan"]')?.textContent).toContain(
+        "Joining…",
+    );
+    expect(
+        view.container.querySelector<HTMLButtonElement>('[aria-label="Join Alumni"]')!.disabled,
+    ).toBe(true);
+
+    settleJoin();
+    await Promise.resolve();
+    await nextFrame();
+    sidebar.input({
+        type: "chatSummariesReconciled",
+        changedChats: [
+            {
+                chat: { ...privateChild, membershipRole: "member" },
+                id: privateChild.id,
+                displayName: privateChild.name!,
+                participants: [],
+            },
+        ],
+        removedChatIds: [],
+        sync: { protocolVersion: 1, generation: "test", sequence: "1" },
+    });
+    directory.input({
+        type: "directoryLoaded",
+        users: [],
+        channels: [publicRejoin, privateParent],
+    });
+    await nextFrame();
+    expect(view.container.querySelector('[data-channel-id="hiring"]')).toBeNull();
+    expect(view.container.querySelector('[data-channel-id="alumni"]')).toBe(alumniRow);
+    expect(view.container.querySelector('[data-item-id="hiring"]')).not.toBeNull();
 });
 
 it("replaces the channel default agent from the info panel", async () => {

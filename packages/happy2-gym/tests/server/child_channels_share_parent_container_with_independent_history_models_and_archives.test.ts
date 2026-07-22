@@ -3,7 +3,7 @@ import { createMockRigDaemon, MockAgentSandboxRuntime, type MockRigDaemon } from
 import { createGymServer, type GymRequestClient } from "../../sources/index.js";
 
 describe("child channel runtime and lifecycle", () => {
-    it("shares the parent container and memberships while isolating history, model, workspace, and archive choices", async () => {
+    it("shares the parent container and eligibility while child members independently join and leave", async () => {
         await using rig = await createMockRigDaemon();
         const docker = new MockAgentSandboxRuntime();
         await using server = await agentServer(rig, docker);
@@ -66,6 +66,7 @@ describe("child channel runtime and lifecycle", () => {
                 })
             ).statusCode,
         ).toBe(403);
+        const directoryBaseline = (await asMember.get("/v0/sync/state")).json().state;
         const childResponse = await asOwner.post(`/v0/chats/${parentChatId}/createChildChannel`, {
             name: "Parallel investigation",
             slug: "parallel-investigation",
@@ -85,6 +86,26 @@ describe("child channel runtime and lifecycle", () => {
             lastMessageSequence: "0",
         });
         expect((await server.as(outsider).get(`/v0/chats/${childChatId}`)).statusCode).toBe(404);
+        expect((await asMember.get(`/v0/chats/${childChatId}`)).statusCode).toBe(404);
+        expect(
+            (
+                await asMember.post("/v0/sync/getDifference", {
+                    state: directoryBaseline,
+                })
+            ).json().areas,
+        ).toContain("directories");
+        expect((await asMember.get("/v0/directory/channels")).json().channels).toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: childChatId })]),
+        );
+        expect(
+            (await server.as(outsider).get("/v0/directory/channels")).json().channels,
+        ).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: childChatId })]));
+        expect((await asMember.post(`/v0/chats/${childChatId}/join`)).statusCode).toBe(200);
+        expect((await asMember.post(`/v0/chats/${childChatId}/leave`)).statusCode).toBe(200);
+        expect((await asMember.get("/v0/directory/channels")).json().channels).toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: childChatId })]),
+        );
+        expect((await asMember.post(`/v0/chats/${childChatId}/join`)).statusCode).toBe(200);
         expect((await asOwner.get("/v0/chats")).json().chats).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ id: parentChatId }),
@@ -267,14 +288,17 @@ describe("child channel runtime and lifecycle", () => {
             (await asOwner.post(`/v0/chats/${parentChatId}/addMember`, { userId: lateMember.id }))
                 .statusCode,
         ).toBe(200);
-        expect((await server.as(lateMember).get(`/v0/chats/${childChatId}`)).statusCode).toBe(200);
+        expect((await server.as(lateMember).get(`/v0/chats/${childChatId}`)).statusCode).toBe(404);
+        expect((await server.as(lateMember).post(`/v0/chats/${childChatId}/join`)).statusCode).toBe(
+            200,
+        );
         expect(
             (
                 await asOwner.post(`/v0/chats/${childChatId}/addMember`, {
                     userId: outsider.id,
                 })
             ).statusCode,
-        ).toBe(400);
+        ).toBe(404);
 
         expect(
             (
@@ -342,7 +366,7 @@ describe("child channel runtime and lifecycle", () => {
         );
     });
 
-    it("inherits future memberships when a manager creates a child beneath a public parent", async () => {
+    it("matches public parent visibility while requiring independent parent-scoped membership", async () => {
         await using rig = await createMockRigDaemon();
         await using server = await agentServer(rig, new MockAgentSandboxRuntime());
         const owner = await server.createUser({ username: "public_child_owner" });
@@ -355,22 +379,154 @@ describe("child channel runtime and lifecycle", () => {
         });
         expect(parent.statusCode).toBe(201);
         const parentChatId = parent.json().chat.id as string;
+        expect(parent.json().chat).toMatchObject({
+            kind: "public_channel",
+            createdByUserId: owner.id,
+            membershipRole: "admin",
+        });
+        expect(parent.json().chat.ownerUserId).toBeUndefined();
         const child = await asOwner.post(`/v0/chats/${parentChatId}/createChildChannel`, {
             name: "Inherited public child",
             slug: "inherited-public-child",
         });
         expect(child.statusCode).toBe(201);
         const childChatId = child.json().chat.id as string;
+        expect(child.json().chat).toMatchObject({
+            kind: "public_channel",
+            parentChatId,
+            createdByUserId: owner.id,
+            membershipRole: "admin",
+        });
+        expect(child.json().chat.ownerUserId).toBeUndefined();
         const asJoiner = server.as(joiner);
-        expect((await asJoiner.get(`/v0/chats/${childChatId}`)).statusCode).toBe(404);
+        expect((await asJoiner.get(`/v0/chats/${childChatId}`)).statusCode).toBe(200);
+        expect((await asJoiner.get("/v0/directory/channels")).json().channels).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: childChatId })]),
+        );
+        expect((await asJoiner.post(`/v0/chats/${childChatId}/join`)).statusCode).toBe(404);
         expect((await asJoiner.post(`/v0/chats/${parentChatId}/join`)).statusCode).toBe(200);
         expect((await asJoiner.get(`/v0/chats/${childChatId}`)).statusCode).toBe(200);
+        expect((await asJoiner.get("/v0/directory/channels")).json().channels).toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: childChatId })]),
+        );
+        const parentOnlyBaseline = (await asJoiner.get("/v0/sync/state")).json().state;
+        expect((await asJoiner.post(`/v0/chats/${parentChatId}/leave`)).statusCode).toBe(200);
+        expect((await asJoiner.get("/v0/directory/channels")).json().channels).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: childChatId })]),
+        );
+        const parentOnlyDifference = await asJoiner.post("/v0/sync/getDifference", {
+            state: parentOnlyBaseline,
+        });
+        expect(parentOnlyDifference.statusCode).toBe(200);
+        expect([
+            ...parentOnlyDifference.json().changedChats.map((chat: { id: string }) => chat.id),
+            ...parentOnlyDifference.json().removedChatIds,
+        ]).not.toContain(childChatId);
+        expect((await asJoiner.post(`/v0/chats/${parentChatId}/join`)).statusCode).toBe(200);
+        const childJoined = await asJoiner.post(`/v0/chats/${childChatId}/join`);
+        expect(childJoined.statusCode).toBe(200);
+        expect(childJoined.json().chat.membershipRole).toBe("member");
+        expect((await asJoiner.post(`/v0/chats/${childChatId}/leave`)).statusCode).toBe(200);
+        expect((await asJoiner.get(`/v0/chats/${childChatId}`)).json().chat.membershipRole).toBe(
+            undefined,
+        );
+        expect((await asJoiner.post(`/v0/chats/${childChatId}/join`)).statusCode).toBe(200);
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${childChatId}/removeMember`, {
+                    userId: joiner.id,
+                })
+            ).statusCode,
+        ).toBe(200);
+        expect((await asJoiner.get("/v0/directory/channels")).json().channels).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: childChatId })]),
+        );
+        expect((await asJoiner.post(`/v0/chats/${childChatId}/join`)).statusCode).toBe(404);
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${childChatId}/addMember`, {
+                    userId: joiner.id,
+                })
+            ).statusCode,
+        ).toBe(200);
         expect((await asJoiner.get("/v0/chats")).json().chats).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ id: parentChatId }),
                 expect.objectContaining({ id: childChatId, parentChatId }),
             ]),
         );
+
+        const madePrivate = await asOwner.post(`/v0/chats/${parentChatId}/updateChannel`, {
+            kind: "private_channel",
+        });
+        expect(madePrivate.statusCode).toBe(200);
+        expect(madePrivate.json().sync.chats).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ chatId: parentChatId }),
+                expect.objectContaining({ chatId: childChatId }),
+            ]),
+        );
+        expect(madePrivate.json().chat).toMatchObject({
+            kind: "private_channel",
+            ownerUserId: owner.id,
+            membershipRole: "owner",
+        });
+        expect((await asOwner.get(`/v0/chats/${childChatId}`)).json().chat).toMatchObject({
+            kind: "private_channel",
+            ownerUserId: owner.id,
+            membershipRole: "owner",
+        });
+        const childBeforeOwnerTransfer = (await asJoiner.get(`/v0/chats/${childChatId}`)).json()
+            .chat;
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${parentChatId}/setMemberRole`, {
+                    userId: joiner.id,
+                    role: "owner",
+                })
+            ).statusCode,
+        ).toBe(200);
+        expect((await asJoiner.get(`/v0/chats/${childChatId}`)).json().chat).toMatchObject({
+            ownerUserId: owner.id,
+            membershipRole: "member",
+            membershipEpoch: childBeforeOwnerTransfer.membershipEpoch,
+        });
+        expect((await asOwner.post(`/v0/chats/${parentChatId}/leave`)).statusCode).toBe(200);
+        expect((await asJoiner.get(`/v0/chats/${childChatId}`)).json().chat).toMatchObject({
+            ownerUserId: owner.id,
+            membershipRole: "member",
+            membershipEpoch: childBeforeOwnerTransfer.membershipEpoch,
+        });
+        expect((await asOwner.get(`/v0/chats/${childChatId}`)).json().chat.membershipRole).toBe(
+            undefined,
+        );
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${parentChatId}/createChildChannel`, {
+                    name: "Departed manager child",
+                    slug: "departed-manager-child",
+                })
+            ).statusCode,
+        ).toBe(404);
+        expect(
+            (
+                await asOwner.post(`/v0/chats/${childChatId}/updateChannel`, {
+                    topic: "Departed parent managers cannot mutate children",
+                })
+            ).statusCode,
+        ).toBe(404);
+        const madePublic = await asJoiner.post(`/v0/chats/${parentChatId}/updateChannel`, {
+            kind: "public_channel",
+        });
+        expect(madePublic.statusCode).toBe(200);
+        expect(madePublic.json().chat).toMatchObject({
+            kind: "public_channel",
+            membershipRole: "admin",
+        });
+        expect(madePublic.json().chat.ownerUserId).toBeUndefined();
+        const publicChild = (await asJoiner.get(`/v0/chats/${childChatId}`)).json().chat;
+        expect(publicChild).toMatchObject({ kind: "public_channel", membershipRole: "member" });
+        expect(publicChild.ownerUserId).toBeUndefined();
     });
 });
 

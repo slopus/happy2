@@ -4,7 +4,7 @@ import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
 import { and, eq, sql } from "drizzle-orm";
 import { chatHint } from "./chatHint.js";
-import { chatMembers } from "../schema.js";
+import { chatMembers, chats } from "../schema.js";
 import { createId } from "@paralleldrive/cuid2";
 
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
@@ -14,10 +14,11 @@ import { requireActiveIdentityDb } from "./impl/requireActiveIdentityDb.js";
 import { chatRequireManager } from "./chatRequireManager.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 import { areaHint } from "./areaHint.js";
+import { childMemberRequireParent } from "./impl/childMemberRequireParent.js";
 
 /**
- * Adds or restores an active identity in chatMembers after checking the actor's management rights and the target's eligibility.
- * A fresh membership epoch, service event, and attachment-gated documents hint make the new access grant unambiguous to history and the affected user's clients.
+ * Adds or restores an eligible identity in chatMembers and updates chats to atomically transfer private ownership when requested.
+ * A fresh membership epoch, service event, and attachment-gated documents hint make the independent access grant unambiguous to clients.
  */
 export async function channelMemberAdd(
     executor: DrizzleExecutor,
@@ -33,10 +34,10 @@ export async function channelMemberAdd(
 }> {
     return withTransaction(executor, async (tx) => {
         const access = await chatRequireManager(tx, input.actorUserId, input.chatId);
-        if (access.parentChatId)
-            throw new CollaborationError("invalid", "Nested chat membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "Direct-message membership is fixed");
+        if (access.kind === "public_channel" && input.role === "owner")
+            throw new CollaborationError("invalid", "Public channels do not have owners");
         if (
             input.role === "owner" &&
             !access.isServerAdmin &&
@@ -45,6 +46,7 @@ export async function channelMemberAdd(
         )
             throw new CollaborationError("forbidden", "Only an owner can assign ownership");
         const identityKind = await requireActiveIdentityDb(tx, input.userId);
+        await childMemberRequireParent(tx, access.parentChatId, input.userId);
         if (identityKind === "agent") {
             if (input.role && input.role !== "member")
                 throw new CollaborationError("invalid", "Agents cannot have channel roles");
@@ -68,6 +70,20 @@ export async function channelMemberAdd(
             input.userId,
             input.userId,
         );
+        if (input.role === "owner") {
+            await tx
+                .update(chatMembers)
+                .set({
+                    role: "admin",
+                    syncSequence: sequence,
+                    updatedAt: sql`CURRENT_TIMESTAMP`,
+                })
+                .where(and(eq(chatMembers.chatId, input.chatId), eq(chatMembers.role, "owner")));
+            await tx
+                .update(chats)
+                .set({ ownerUserId: input.userId, updatedAt: sql`CURRENT_TIMESTAMP` })
+                .where(eq(chats.id, input.chatId));
+        }
         await tx
             .insert(chatMembers)
             .values({
@@ -94,7 +110,6 @@ export async function channelMemberAdd(
             actorUserId: input.actorUserId,
             sequence,
             kind: "joined",
-            role: input.role ?? "member",
         });
         const service = await createChannelServiceMessageDb(tx, {
             sequence,

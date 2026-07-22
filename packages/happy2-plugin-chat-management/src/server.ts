@@ -10,7 +10,7 @@ import {
 import { z } from "zod/v4";
 
 const USERS_META_KEY = "happy2/users";
-const server = new McpServer({ name: "happy2-chat-management", version: "1.3.0" });
+const server = new McpServer({ name: "happy2-chat-management", version: "1.5.0" });
 
 const chatUpdateSchema = z
     .strictObject({
@@ -49,6 +49,32 @@ server.registerTool(
                 input,
             );
             return success(`Updated chat ${String(result.chat.id)}.`, { chat: result.chat });
+        }),
+);
+
+const messageSendSchema = z.strictObject({
+    text: z.string().min(1).max(40_000).describe("The message to post to the current chat."),
+    audience: z
+        .enum(["agents", "people"])
+        .describe("agents starts the current agent; people posts without inference."),
+});
+
+server.registerTool(
+    "message_send",
+    {
+        title: "Send a message",
+        description:
+            "Posts an automated message to the current chat on behalf of the user who triggered this turn. An agents message starts the current agent working; a people message only shares context and does not trigger inference.",
+        inputSchema: messageSendSchema,
+    },
+    (input, extra) =>
+        safeTool(async () => {
+            const chat = requireChat(happyCallContext(extra));
+            const result = await callHost<{ message: JsonObject }>("/messages/send", chat.token, {
+                ...input,
+                idempotencyKey: randomUUID(),
+            });
+            return success(`Sent message ${String(result.message.id)}.`, result);
         }),
 );
 
@@ -122,7 +148,7 @@ server.registerTool(
     {
         title: "Create a channel",
         description:
-            "Creates a public channel by default, or a private channel when requested, owned by the user who triggered this turn. It adds selected referenced users and can post an initial message. An agents message starts the current agent working; a people message only shares context and does not trigger inference.",
+            "Creates a public channel by default with the triggering user as its creator and administrator, or a private channel owned by that user. It adds selected referenced users and can post an initial message. An agents message starts the current agent working; a people message only shares context and does not trigger inference.",
         inputSchema: channelCreateSchema,
     },
     (input, extra) =>
@@ -142,6 +168,66 @@ server.registerTool(
         }),
 );
 
+const projectChannelSchema = z.strictObject({
+    name: z.string().min(1).max(100).describe("Channel title."),
+    description: z.string().min(1).max(500).optional().describe("Channel description."),
+    visibility: z
+        .enum(["public", "private"])
+        .default("public")
+        .describe("Channel visibility. Defaults to public."),
+});
+const projectCreateSchema = z.strictObject({
+    name: z.string().min(1).max(100).describe("Project name."),
+    description: z.string().min(1).max(500).optional().describe("Project description."),
+    owner: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+            "Referenced username to credit as project steward, public-channel creator, and private-channel owner. Defaults to the triggering user.",
+        ),
+    people: usernameList
+        .optional()
+        .describe("Referenced usernames to add to every initial channel."),
+    channels: z
+        .array(projectChannelSchema)
+        .min(1)
+        .max(20)
+        .describe("The project's initial public and private channels."),
+});
+
+server.registerTool(
+    "project_create",
+    {
+        title: "Create a project",
+        description:
+            "Creates a project with 1-20 initial channels. The selected owner is credited as project steward and becomes creator/admin of public channels and owner of private channels; public channels never receive an owner. Selected people join every initial channel. Project visibility continues to derive from those channels.",
+        inputSchema: projectCreateSchema,
+    },
+    (input, extra) =>
+        safeTool(async () => {
+            const chat = requireChat(happyCallContext(extra));
+            const users = referencedUsers(extra._meta?.[USERS_META_KEY]);
+            const owner = input.owner ? resolveUsers([input.owner], users, "owner")[0] : undefined;
+            const people = resolveUsers(input.people ?? [], users, "people");
+            const result = await callHost<{
+                project: JsonObject;
+                channels: { chat: JsonObject; token: string }[];
+            }>("/projects/createProject", chat.token, {
+                name: input.name,
+                ...(input.description ? { description: input.description } : {}),
+                ...(owner ? { owner } : {}),
+                people,
+                channels: input.channels,
+                idempotencyKey: randomUUID(),
+            });
+            return success(
+                `Created project ${String(result.project.id)} with ${result.channels.length} channels.`,
+                result,
+            );
+        }),
+);
+
 const childCreateSchema = z.strictObject({
     name: z.string().min(1).max(100).describe("Child channel title."),
     description: z
@@ -156,6 +242,7 @@ const childCreateSchema = z.strictObject({
         .max(128)
         .optional()
         .describe("Optional available agent model ID for this child's independent session."),
+    initialMessage: initialMessageSchema.optional(),
 });
 
 server.registerTool(
@@ -163,18 +250,21 @@ server.registerTool(
     {
         title: "Create a child channel",
         description:
-            "Creates a private child channel under the current top-level channel. The child inherits the parent members and workspace while keeping an independent conversation and agent session.",
+            "Creates a child channel under the current top-level channel and can post an initial message. It matches the parent's visibility and shares its workspace while keeping independent membership, conversation history, and agent session. Parent members can join or leave it separately.",
         inputSchema: childCreateSchema,
     },
     (input, extra) =>
         safeTool(async () => {
             const chat = requireChat(happyCallContext(extra));
-            const result = await callHost<{ chat: JsonObject }>(
+            const result = await callHost<{ chat: JsonObject; initialMessage?: JsonObject }>(
                 "/channels/createChildChannel",
                 chat.token,
                 input,
             );
-            return success(`Created child channel ${String(result.chat.id)}.`, result);
+            return success(
+                `Created child channel ${String(result.chat.id)}${result.initialMessage ? " and posted its initial message" : ""}.`,
+                result,
+            );
         }),
 );
 

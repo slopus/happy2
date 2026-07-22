@@ -17,6 +17,7 @@ function createFakeServer() {
 describe("sync module", () => {
     it("routes every durable area to exactly one owner and exposes malformed/unknown areas", () => {
         const context: AreaReconcileContext = {
+            directoryReconcile: vi.fn(),
             chatReconcile: vi.fn(),
             workspaceReconcile: vi.fn(),
             callsReconcile: vi.fn(),
@@ -35,6 +36,7 @@ describe("sync module", () => {
             unknownArea: vi.fn(),
         };
         for (const area of [
+            "directories",
             "chat:chat-1",
             "workspace:chat-1",
             "calls",
@@ -57,6 +59,7 @@ describe("sync module", () => {
             "unknown",
         ])
             areaReconcile(context, area);
+        expect(context.directoryReconcile).toHaveBeenCalledOnce();
         expect(context.chatReconcile).toHaveBeenCalledWith("chat-1");
         expect(context.workspaceReconcile).toHaveBeenCalledWith("chat-1");
         expect(context.callsReconcile).toHaveBeenCalledTimes(2);

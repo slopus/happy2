@@ -127,3 +127,26 @@ it("omits management actions when the viewer cannot edit", () => {
     });
     expect(labels(model)).toEqual(["Leave channel"]);
 });
+
+it("keeps Leave available on the main channel while withholding management actions", () => {
+    const leave = vi.fn(async () => undefined);
+    const model = build({
+        active: chat({ id: "main", isMain: true, membershipRole: "admin" }),
+        actions: { chatLeave: leave },
+    });
+    expect(labels(model)).toEqual(["Leave channel"]);
+    model.menuSelect("leave");
+    expect(leave).toHaveBeenCalledWith("main");
+});
+
+it("keeps Leave available on a child channel for a non-managing member", () => {
+    const leave = vi.fn(async () => undefined);
+    const model = build({
+        active: chat({ id: "child", parentChatId: "parent", membershipRole: "member" }),
+        canEdit: false,
+        actions: { chatLeave: leave },
+    });
+    expect(labels(model)).toEqual(["Leave channel"]);
+    model.menuSelect("leave");
+    expect(leave).toHaveBeenCalledWith("child");
+});

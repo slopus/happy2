@@ -60,6 +60,7 @@ export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
             agent={entry.agent}
             audienceLabel={props.audienceLabel}
             author={entry.author}
+            automated={entry.automated}
             body={entry.body}
             contributions={props.menuContributions}
             deliveryState={entry.delivery ?? (entry.id.startsWith("local:") ? "sending" : "sent")}

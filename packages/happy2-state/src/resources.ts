@@ -304,6 +304,7 @@ export interface PluginVariableDefinition {
 
 /** The closed set of host API capabilities a plugin may be granted against this server. */
 export type PluginHostPermission =
+    | "projects:create"
     | "channels:create"
     | "chats:members:add"
     | "chats:members:remove"
@@ -344,6 +345,7 @@ export interface PluginApiPermissionDefinition {
  */
 export interface PluginApiPermissionSection {
     readonly id:
+        | "projects"
         | "channels"
         | "chats"
         | "messages"

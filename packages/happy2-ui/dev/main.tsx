@@ -14,6 +14,9 @@ import { AgentSecretPanelPage } from "./pages/AgentSecretPanelPage";
 import { ApprovalCardPage } from "./pages/ApprovalCardPage";
 import { AppShellPage } from "./pages/AppShellPage";
 import { AutomationCardPage } from "./pages/AutomationCardPage";
+import { AutomatedTagPage } from "./pages/AutomatedTagPage";
+import { ChannelAccessSummaryPage } from "./pages/ChannelAccessSummaryPage";
+import { ChannelDirectoryListPage } from "./pages/ChannelDirectoryListPage";
 import { AuthScreenPage } from "./pages/AuthScreenPage";
 import { AvatarPage } from "./pages/AvatarPage";
 import { BadgePage } from "./pages/BadgePage";
@@ -125,6 +128,19 @@ const components: BlueprintPage[] = [
     { id: "button", label: "Button", number: "C-003", page: ButtonPage },
     { id: "avatar", label: "Avatar", number: "C-004", page: AvatarPage },
     { id: "badge", label: "Badge", number: "C-005", page: BadgePage },
+    { id: "automated-tag", label: "Automated tag", number: "C-142", page: AutomatedTagPage },
+    {
+        id: "channel-access-summary",
+        label: "Channel access summary",
+        number: "C-143",
+        page: ChannelAccessSummaryPage,
+    },
+    {
+        id: "channel-directory-list",
+        label: "Channel directory list",
+        number: "C-144",
+        page: ChannelDirectoryListPage,
+    },
     { id: "diff-snippet", label: "Diff snippet", number: "C-006", page: DiffSnippetPage },
     { id: "title-bar", label: "Title bar", number: "C-007", page: TitleBarPage },
     { id: "rail", label: "Rail", number: "C-008", page: RailPage },

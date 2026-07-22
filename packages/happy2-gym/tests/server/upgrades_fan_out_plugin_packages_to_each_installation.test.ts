@@ -171,6 +171,7 @@ describe("server upgrades with shared plugin packages", () => {
             await client.migrate([
                 "DROP TABLE plugin_resource_links",
                 "ALTER TABLE port_shares DROP COLUMN audience",
+                "ALTER TABLE messages DROP COLUMN automated",
                 "DROP TRIGGER chats_channel_project_required_insert",
                 "DROP TRIGGER chats_channel_project_required_update",
                 "DROP TRIGGER chats_dm_project_forbidden_insert",

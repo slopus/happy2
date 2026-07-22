@@ -4,6 +4,9 @@
 @import "./styles/button.css";
 @import "./styles/avatar.css";
 @import "./styles/badge.css";
+@import "./styles/automated-tag.css";
+@import "./styles/channel-access-summary.css";
+@import "./styles/channel-directory-list.css";
 @import "./styles/diff-snippet.css";
 @import "./styles/title-bar.css";
 @import "./styles/rail.css";

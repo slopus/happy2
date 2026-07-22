@@ -22,6 +22,7 @@ import { channelCreateChild } from "../chat/channelCreateChild.js";
 import { channelCreateWithMembers } from "../chat/channelCreateWithMembers.js";
 import { chatGetAccess } from "../chat/chatGetAccess.js";
 import { projectDefaultRequire } from "../project/projectDefaultRequire.js";
+import { projectCreateWithChannels } from "../project/projectCreateWithChannels.js";
 import { channelMembersUpdate } from "../chat/channelMembersUpdate.js";
 import { channelSetArchived } from "../chat/channelSetArchived.js";
 import { messageSend } from "../message/messageSend.js";
@@ -2310,6 +2311,7 @@ export class PluginService {
             chatId: claims.chatId,
             text: input.text,
             audience: input.audience,
+            automated: true,
             agentTurns,
             clientMutationId: input.idempotencyKey
                 ? `${claims.installationId}:${input.idempotencyKey}`
@@ -2522,6 +2524,67 @@ export class PluginService {
         };
     }
 
+    async projectCreate(
+        runtimeToken: string,
+        chatToken: string,
+        input: {
+            name: string;
+            description?: string;
+            owner?: PluginUserCapability;
+            people: readonly PluginUserCapability[];
+            channels: readonly {
+                visibility: "public" | "private";
+                name: string;
+                description?: string;
+            }[];
+            idempotencyKey?: string;
+        },
+    ) {
+        const claims = await this.authorizeChat(runtimeToken, chatToken, "projects:create");
+        const [ownerUserIds, memberUserIds] = await Promise.all([
+            this.authorizeUsers(claims.installationId, input.owner ? [input.owner] : []),
+            this.authorizeUsers(claims.installationId, input.people),
+        ]);
+        const stewardUserId = ownerUserIds[0] ?? claims.actorUserId;
+        const clientMutationId = input.idempotencyKey
+            ? `${claims.installationId}:${input.idempotencyKey}`
+            : undefined;
+        const created = await projectCreateWithChannels(this.executor, {
+            actorUserId: claims.actorUserId,
+            stewardUserId,
+            name: input.name,
+            description: input.description,
+            memberUserIds,
+            channels: input.channels.map((channel) => ({
+                kind: channel.visibility === "public" ? "public_channel" : "private_channel",
+                name: channel.name,
+                slug: pluginChannelSlug(channel.name),
+                topic: channel.description,
+            })),
+            clientMutationId,
+        });
+        await this.publishHints(created.hints, [
+            claims.actorUserId,
+            stewardUserId,
+            ...memberUserIds,
+        ]);
+        return {
+            project: created.project,
+            channels: await Promise.all(
+                created.chats.map(async (chat) => ({
+                    chat,
+                    token: await this.tokens.issuePluginChatToken({
+                        installationId: claims.installationId,
+                        chatId: chat.id,
+                        actorUserId: claims.actorUserId,
+                        agentUserId: claims.agentUserId,
+                    }),
+                })),
+            ),
+            sync: created.hints,
+        };
+    }
+
     async channelCreate(
         runtimeToken: string,
         chatToken: string,
@@ -2578,6 +2641,7 @@ export class PluginService {
                 chatId: created.chat.id,
                 text: input.initialMessage.text,
                 audience: input.initialMessage.audience,
+                automated: true,
                 agentTurns,
                 clientMutationId,
             });
@@ -2606,10 +2670,13 @@ export class PluginService {
             name: string;
             description?: string;
             agentModelId?: string;
+            initialMessage?: { audience: "agents" | "people"; text: string };
         },
         agents?: PluginAgentRuntime,
     ) {
         const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:create-child");
+        if (input.initialMessage?.audience === "agents" && !agents)
+            throw new PluginError("not_ready", "AI agents are not enabled on this server");
         if (input.agentModelId) {
             if (!agents)
                 throw new PluginError("not_ready", "AI agents are not enabled on this server");
@@ -2623,7 +2690,30 @@ export class PluginService {
             topic: input.description,
             agentModelId: input.agentModelId,
         });
-        await this.publishHints([created.hint], created.memberUserIds);
+        const hints = [created.hint];
+        let initialMessage;
+        if (input.initialMessage) {
+            const agentTurns =
+                input.initialMessage.audience === "agents"
+                    ? await agents!.prepareTurns({
+                          actorUserId: claims.actorUserId,
+                          agentUserIds: [],
+                          chatId: created.chat.id,
+                      })
+                    : [];
+            const sent = await messageSend(this.executor, {
+                actorUserId: claims.actorUserId,
+                chatId: created.chat.id,
+                text: input.initialMessage.text,
+                audience: input.initialMessage.audience,
+                automated: true,
+                agentTurns,
+            });
+            initialMessage = sent.message;
+            hints.push(sent.hint);
+            if (agentTurns.length) agents!.startTurn(created.chat.id);
+        }
+        await this.publishHints(hints, created.notifiedUserIds);
         return {
             chat: created.chat,
             token: await this.tokens.issuePluginChatToken({
@@ -2632,7 +2722,8 @@ export class PluginService {
                 actorUserId: claims.actorUserId,
                 agentUserId: claims.agentUserId,
             }),
-            sync: created.hint,
+            ...(initialMessage ? { initialMessage } : {}),
+            sync: hints,
         };
     }
 

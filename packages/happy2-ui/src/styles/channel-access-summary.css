@@ -1,0 +1,52 @@
+/*
+ * ChannelAccessSummary — a read-only account of a channel's access model. A
+ * heading row (a small glyph beside the visibility name) over one or more muted
+ * body lines: the access rule, an optional inheritance note, and the credited
+ * person. It carries no fill or border; the composing surface owns the framing.
+ */
+
+.happy2-channel-access {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.happy2-channel-access__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 20px;
+}
+
+.happy2-channel-access__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    color: var(--text-secondary);
+}
+
+.happy2-channel-access__title {
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--text);
+}
+
+.happy2-channel-access__line {
+    margin: 0;
+    font-family: var(--happy2-font-ui);
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--text-secondary);
+}
+
+/* The credited person's name reads at the primary weight so the attribution is
+   scannable, while the "Created by" / "Owned by" lead stays muted. */
+.happy2-channel-access__steward-name {
+    color: var(--text);
+    font-weight: 600;
+}

@@ -3,18 +3,19 @@ import { CollaborationError, type ChatRole, type ChatSummary, type MutationHint 
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
 import { chatHint } from "./chatHint.js";
-import { chatMembers } from "../schema.js";
+import { chatMembers, chats } from "../schema.js";
 import { createId } from "@paralleldrive/cuid2";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
 import { chatGetAccess } from "./chatGetAccess.js";
 import { createChannelServiceMessageDb } from "./impl/createChannelServiceMessageDb.js";
 import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { chatDescendantMembershipSync } from "./impl/chatDescendantMembershipSync.js";
 import { areaHint } from "./areaHint.js";
+import { childMemberRequireParent } from "./impl/childMemberRequireParent.js";
 
 /**
- * Joins a discoverable public channel or a voluntarily departed private-channel membership by reactivating chatMembers with a fresh membership epoch.
+ * Joins a discoverable public channel, a voluntarily departed channel, or a child for an active parent member by reactivating chatMembers with a fresh membership epoch.
  * The transaction advances chats history, preserves the previous role, and rejects private memberships that a manager explicitly revoked.
  */
 export async function channelJoin(
@@ -27,21 +28,27 @@ export async function channelJoin(
     documentsHint?: MutationHint;
 }> {
     return withTransaction(executor, async (tx) => {
+        const [target] = await tx
+            .select({
+                parentChatId: chats.parentChatId,
+                archivedAt: chats.archivedAt,
+            })
+            .from(chats)
+            .where(and(eq(chats.id, chatId), isNull(chats.deletedAt)))
+            .limit(1);
+        if (!target) throw new CollaborationError("not_found", "Joinable channel was not found");
+        await childMemberRequireParent(tx, target.parentChatId ?? undefined, actorUserId);
         const access = await chatGetAccess(tx, actorUserId, chatId, false);
         if (
-            !access ||
-            (access.kind !== "public_channel" &&
-                !(access.kind === "private_channel" && access.isRecoverableMember))
+            !target.parentChatId &&
+            (!access ||
+                (access.kind !== "public_channel" &&
+                    !(access.kind === "private_channel" && access.isRecoverableMember)))
         )
             throw new CollaborationError("not_found", "Joinable channel was not found");
-        if (access.archivedAt)
+        if (access?.archivedAt ?? target.archivedAt)
             throw new CollaborationError("conflict", "Unarchive the channel before joining");
-        if (access.parentChatId)
-            throw new CollaborationError(
-                "invalid",
-                "Join the parent channel to access its nested chats",
-            );
-        if (access.membershipRole)
+        if (access?.membershipRole)
             throw new CollaborationError("conflict", "Already joined this channel");
         const [previous] = await tx
             .select({
@@ -54,7 +61,10 @@ export async function channelJoin(
         if (previous?.removedByUserId)
             throw new CollaborationError("not_found", "Joinable channel was not found");
         const previousRole = previous?.role as ChatRole | undefined;
-        const role: ChatRole = previousRole ?? "member";
+        const role: ChatRole =
+            access?.kind === "public_channel" && previousRole === "owner"
+                ? "admin"
+                : (previousRole ?? "member");
         const sequence = await syncSequenceNext(tx);
         await chatAdvanceWithSequence(
             tx,
@@ -92,7 +102,6 @@ export async function channelJoin(
             actorUserId,
             sequence,
             kind: "joined",
-            role,
         });
         const service = await createChannelServiceMessageDb(tx, {
             sequence,

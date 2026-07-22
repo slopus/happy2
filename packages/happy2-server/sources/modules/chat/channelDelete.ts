@@ -10,8 +10,8 @@ import { chatRequireManager } from "./chatRequireManager.js";
 import { chatDescendantIds } from "./impl/chatDescendantIds.js";
 
 /**
- * Soft-deletes a non-main, non-DM channel and every child channel after confirming owner or server-administrator authority and that its project retains another live channel.
- * Advancing each chats and chatUpdates row at one global sequence gives every current member terminal sync evidence for the complete tree without allowing a project to become empty.
+ * Soft-deletes the chats rows for a non-main, non-DM channel tree after confirming private ownership, public creator authority, or server administration and preserving one live channel in its project.
+ * Advancing every affected chats and chatUpdates row at one global sequence gives current members terminal sync evidence for the complete tree.
  */
 export async function channelDelete(
     executor: DrizzleExecutor,
@@ -32,10 +32,16 @@ export async function channelDelete(
             throw new CollaborationError("invalid", "The main channel cannot be deleted");
         if (
             !access.isServerAdmin &&
-            access.membershipRole !== "owner" &&
-            access.recoverableMembershipRole !== "owner"
+            (access.kind === "public_channel"
+                ? access.createdByUserId !== input.actorUserId
+                : access.membershipRole !== "owner" && access.recoverableMembershipRole !== "owner")
         )
-            throw new CollaborationError("forbidden", "Only an owner can delete a channel");
+            throw new CollaborationError(
+                "forbidden",
+                access.kind === "public_channel"
+                    ? "Only the channel creator can delete a public channel"
+                    : "Only an owner can delete a private channel",
+            );
         const descendantIds = await chatDescendantIds(tx, input.chatId);
         const deletedChatIds = [input.chatId, ...descendantIds];
         if (!access.projectId) throw new Error("Channel project is missing");

@@ -40,6 +40,7 @@ describe("chat actions module", () => {
                 background,
             } as unknown as StateRuntime,
             sidebar,
+            directoryReconcile: async () => undefined,
             chatGet: () => ({ getState: () => ({ chatInput }) }) as never,
             sidebarChatProject: async (value: typeof summary) => ({
                 chat: value,
@@ -89,6 +90,100 @@ describe("chat actions module", () => {
         expect(sidebar.getState().chats).toEqual([]);
     });
 
+    it("reconciles the retained directory before join and leave actions resolve", async () => {
+        const joined = chat({ id: "rejoinable", name: "Alumni", membershipRole: "member" });
+        const untouched = chat({ id: "untouched", name: "Engineering", membershipRole: "member" });
+        const sidebar = sidebarStoreCreate();
+        const untouchedProjection = {
+            chat: untouched,
+            id: untouched.id,
+            displayName: untouched.name!,
+            participants: [],
+        };
+        sidebar.getState().sidebarInput({
+            type: "sidebarLoaded",
+            chats: [untouchedProjection],
+            projects: [],
+            sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+        });
+        const directoryResolves: (() => void)[] = [];
+        const directoryReconcile = vi.fn(
+            () => new Promise<void>((resolve) => directoryResolves.push(resolve)),
+        );
+        const context = {
+            runtime: {
+                operation: async (name: string) => {
+                    if (name === "joinChat") return { chat: joined };
+                    if (name === "leaveChat") return {};
+                    throw new Error(`Unexpected operation ${name}`);
+                },
+            } as unknown as StateRuntime,
+            sidebar,
+            directoryReconcile,
+            chatGet: () => undefined,
+            sidebarChatProject: async (value: ChatSummary) => ({
+                chat: value,
+                id: value.id,
+                displayName: value.name ?? value.id,
+                participants: [],
+            }),
+        } satisfies ChatActionContext;
+
+        let joinResolved = false;
+        const joining = chatJoin(context, joined.id).then(() => {
+            joinResolved = true;
+        });
+        await vi.waitFor(() => expect(directoryReconcile).toHaveBeenCalledOnce());
+        expect(joinResolved).toBe(false);
+        expect(sidebar.getState().chats.map((entry) => entry.id)).toEqual([
+            untouched.id,
+            joined.id,
+        ]);
+        expect(sidebar.getState().chats[0]).toBe(untouchedProjection);
+        directoryResolves.shift()?.();
+        await joining;
+
+        let leaveResolved = false;
+        const leaving = chatLeave(context, joined.id).then(() => {
+            leaveResolved = true;
+        });
+        await vi.waitFor(() => expect(directoryReconcile).toHaveBeenCalledTimes(2));
+        expect(leaveResolved).toBe(false);
+        expect(sidebar.getState().chats).toEqual([untouchedProjection]);
+        directoryResolves.shift()?.();
+        await leaving;
+    });
+
+    it("keeps successful join and leave mutations resolved when directory reconciliation rejects", async () => {
+        const joined = chat({ id: "rejoinable", name: "Alumni", membershipRole: "member" });
+        const sidebar = sidebarStoreCreate();
+        const context = {
+            runtime: {
+                operation: async (name: string) => {
+                    if (name === "joinChat") return { chat: joined };
+                    if (name === "leaveChat") return {};
+                    throw new Error(`Unexpected operation ${name}`);
+                },
+            } as unknown as StateRuntime,
+            sidebar,
+            directoryReconcile: vi.fn().mockRejectedValue(new Error("directory unavailable")),
+            chatGet: () => undefined,
+            sidebarChatProject: async (value: ChatSummary) => ({
+                chat: value,
+                id: value.id,
+                displayName: value.name ?? value.id,
+                participants: [],
+            }),
+        } satisfies ChatActionContext;
+
+        await expect(chatJoin(context, joined.id)).resolves.toBeUndefined();
+        expect(sidebar.getState().chats.map((entry) => entry.id)).toEqual([joined.id]);
+
+        await expect(chatLeave(context, joined.id)).resolves.toBeUndefined();
+        expect(sidebar.getState().chats).toEqual([]);
+        expect(context.directoryReconcile).toHaveBeenCalledTimes(2);
+    });
+
     it("maps child-channel creation and archive toggles onto their authoritative operations", async () => {
         const parent = chat({ id: "parent-1", name: "Parent", slug: "parent" });
         const child = chat({
@@ -108,6 +203,7 @@ describe("chat actions module", () => {
             sidebar: {
                 getState: () => ({ sidebarInput: (event: unknown) => upserts.push(event) }),
             } as never,
+            directoryReconcile: async () => undefined,
             chatGet: () => undefined,
             sidebarChatProject: async (value: ChatSummary) => ({
                 chat: value,
@@ -161,6 +257,7 @@ describe("chat actions module", () => {
         const context = {
             runtime: { operation } as unknown as StateRuntime,
             sidebar,
+            directoryReconcile: async () => undefined,
             chatGet: () => undefined,
             sidebarChatProject: async (value: ChatSummary) => ({
                 id: value.id,

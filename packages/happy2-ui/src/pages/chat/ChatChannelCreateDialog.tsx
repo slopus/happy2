@@ -14,6 +14,15 @@ const kinds: SelectOption[] = [
     { value: "public_channel", label: "Public channel" },
     { value: "private_channel", label: "Private channel" },
 ];
+/* Accurate to the server contract: a public channel is discoverable and freely
+   joinable and is creator/admin-managed with no owner; a private channel is
+   invite/prior-membership constrained and has a single owner (the creator). */
+const visibilityCopy: Record<"public_channel" | "private_channel", string> = {
+    public_channel:
+        "Anyone can find this channel in the directory and join it themselves. It has a creator and admins — public channels have no owner, and you’ll manage it as an admin.",
+    private_channel:
+        "Only people who are invited, or who were members before, can find and join it. It has a single owner, and you’ll own it.",
+};
 const stackStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "8px" };
 const actionsStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "8px" };
 export interface ChatChannelCreateDialogProps {
@@ -122,6 +131,7 @@ export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
                                 value={kind}
                             />
                         }
+                        description={visibilityCopy[kind]}
                         label="Visibility"
                         layout="stacked"
                     />

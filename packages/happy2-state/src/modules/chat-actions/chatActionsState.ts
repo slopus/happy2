@@ -164,6 +164,12 @@ export async function channelUpdate(
 export interface ChatActionContext {
     readonly runtime: StateRuntime;
     readonly sidebar: SidebarStore;
+    /**
+     * Reconciles the already-materialized directory after membership changes;
+     * never constructs it. Callers await its normal completion but do not let an
+     * unexpected reload failure overturn a completed durable mutation.
+     */
+    directoryReconcile(): Promise<void>;
     chatGet(chatId: string): ChatStore | undefined;
     sidebarChatProject(chat: ChatSummary): Promise<SidebarChatProjection>;
 }
@@ -184,12 +190,14 @@ export async function chatResultApply(
 export async function chatJoin(context: ChatActionContext, chatId: string): Promise<void> {
     const result = await context.runtime.operation("joinChat", { chatId });
     await chatResultApply(context, result.chat);
+    await context.directoryReconcile().catch(() => undefined);
 }
 
 /** Leaves a chat durably and removes its sidebar projection without constructing another store. */
 export async function chatLeave(context: ChatActionContext, chatId: string): Promise<void> {
     await context.runtime.operation("leaveChat", { chatId });
     context.sidebar.getState().sidebarInput({ type: "chatSummaryRemoved", chatId });
+    await context.directoryReconcile().catch(() => undefined);
 }
 
 /** Marks a chat read through a displayably fallible awaited action and reconciles retained surfaces. */

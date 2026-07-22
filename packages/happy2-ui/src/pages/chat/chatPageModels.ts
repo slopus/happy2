@@ -36,6 +36,12 @@ export type Conversation = {
 type ChatMessage = {
     kind: "message";
     agent?: boolean;
+    /**
+     * The message is user-attributed but was posted through automation (a
+     * plugin/API acting on the author's behalf). Drives the restrained
+     * "Automated" marker; independent of `agent` (agent/system authorship).
+     */
+    automated?: boolean;
     author: string;
     body: string;
     conversationId: string;
@@ -102,8 +108,14 @@ export function messagesGrouped(
     const previousMessage = previous as LiveChatMessage;
     const ownRun = previousMessage.own && message.own;
     const sameAuthor = ownRun || previousMessage.author === message.author;
+    /* Automation attribution is part of the message identity: a hand-typed and an
+       automated message from the same author must not merge into one turn, or the
+       automated follow-up would lose its "Automated" marker (only a group's lead
+       row renders the meta row) and read as manually typed. */
+    const sameAutomation = Boolean(previousMessage.automated) === Boolean(message.automated);
     return (
         sameAuthor &&
+        sameAutomation &&
         (ownRun ||
             ((previousMessage.serverMessage?.audience ?? "people") ===
                 (message.serverMessage?.audience ?? "people") &&
@@ -185,6 +197,7 @@ function messageEntry(item: DeepReadonly<ChatMessageItem>): LiveChatMessage {
         photoFileId: sender?.photoFileId ?? message.senderBot?.photoFileId,
         tone: sender ? toneFor(sender.id) : "brand",
         agent: message.kind === "automated",
+        automated: message.automated,
         generationStatus: deleted ? undefined : message.generationStatus,
         agentTrace: deleted ? undefined : message.agentTrace,
         time: messageTime(message.createdAt),

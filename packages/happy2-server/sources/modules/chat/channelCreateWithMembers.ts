@@ -18,6 +18,7 @@ export async function channelCreateWithMembers(
     executor: DrizzleExecutor,
     input: {
         actorUserId: string;
+        stewardUserId?: string;
         projectId?: string;
         kind: "public_channel" | "private_channel";
         name: string;
@@ -62,6 +63,7 @@ export async function channelCreateWithMembers(
         }
         const created = await channelCreate(tx, {
             actorUserId: input.actorUserId,
+            stewardUserId: input.stewardUserId,
             projectId: input.projectId,
             kind: input.kind,
             name: input.name,
@@ -71,6 +73,7 @@ export async function channelCreateWithMembers(
         const hints = [created.hint];
         const initialMembers = new Set(input.memberUserIds);
         initialMembers.delete(input.actorUserId);
+        if (input.stewardUserId) initialMembers.delete(input.stewardUserId);
         if (created.chat.defaultAgentUserId) initialMembers.delete(created.chat.defaultAgentUserId);
         if (input.defaultAgentUserId) initialMembers.delete(input.defaultAgentUserId);
         for (const userId of initialMembers) {

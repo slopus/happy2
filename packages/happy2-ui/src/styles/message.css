@@ -277,6 +277,22 @@
     transition: opacity 100ms ease;
 }
 
+/* The automation marker is durable identity metadata, not a hover affordance, so
+   it stays visible with the author name while the time/accessory reveal on hover. */
+.happy2-message__automated {
+    display: flex;
+    flex: none;
+    align-items: center;
+    height: 16px;
+}
+
+/* On an own message there is no meta row, so the marker rides the bottom-aligned
+   bubble line beside the hover time. It sits on the same baseline the aside time
+   occupies (line-height 22px, 10px bottom offset) so the two read as one row. */
+.happy2-message__automated--own {
+    margin-bottom: 13px;
+}
+
 .happy2-message:hover .happy2-message__time,
 .happy2-message:focus-within .happy2-message__time,
 .happy2-message[data-actions-visible] .happy2-message__time {

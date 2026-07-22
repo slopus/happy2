@@ -18,13 +18,14 @@ import { projectRequire } from "../project/projectRequire.js";
 import { projectDirectoryList } from "../project/projectDirectoryList.js";
 
 /**
- * Creates a chats channel in the selected visible project with its owner and the sole default agent after validating the creator and channel policy.
- * The transaction exposes a channel only after chatMembers and initial sync history are complete, so no client can discover an unusable room or attach work to undiscoverable project metadata.
+ * Creates one chats row in the selected visible project, with an administrative creator for public channels or an owner for private channels, plus the sole default agent.
+ * A delegated steward may be credited and granted control while the initiating actor remains an administrator, letting capability-authorized provisioning preserve both product ownership and audit identity.
  */
 export async function channelCreate(
     executor: DrizzleExecutor,
     input: {
         actorUserId: string;
+        stewardUserId?: string;
         projectId?: string;
         kind: "public_channel" | "private_channel";
         name: string;
@@ -38,6 +39,8 @@ export async function channelCreate(
 }> {
     return withTransaction(executor, async (tx) => {
         await userRequireActive(tx, input.actorUserId);
+        const stewardUserId = input.stewardUserId ?? input.actorUserId;
+        if (stewardUserId !== input.actorUserId) await userRequireActive(tx, stewardUserId);
         if (input.autoJoin) await userRequireServerAdmin(tx, input.actorUserId);
         const project = input.projectId
             ? await projectRequire(tx, input.projectId)
@@ -62,9 +65,9 @@ export async function channelCreate(
                 name: input.name,
                 slug: input.slug,
                 topic: input.topic,
-                createdByUserId: input.actorUserId,
+                createdByUserId: stewardUserId,
                 pts: 1,
-                ownerUserId: input.actorUserId,
+                ownerUserId: input.kind === "private_channel" ? stewardUserId : null,
                 visibility: input.kind === "public_channel" ? "public" : "private",
                 autoJoin: input.autoJoin ? 1 : 0,
                 defaultAgentUserId,
@@ -77,11 +80,19 @@ export async function channelCreate(
         }
         await tx.insert(chatMembers).values({
             chatId: id,
-            userId: input.actorUserId,
-            role: "owner",
+            userId: stewardUserId,
+            role: input.kind === "private_channel" ? "owner" : "admin",
             membershipEpoch,
             syncSequence: sequence,
         });
+        if (stewardUserId !== input.actorUserId)
+            await tx.insert(chatMembers).values({
+                chatId: id,
+                userId: input.actorUserId,
+                role: "admin",
+                membershipEpoch: createId(),
+                syncSequence: sequence,
+            });
         await tx.insert(chatMembers).values({
             chatId: id,
             userId: defaultAgentUserId,

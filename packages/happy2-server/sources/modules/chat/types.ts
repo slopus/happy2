@@ -142,6 +142,7 @@ export interface MessageSummary {
     sender?: UserSummary;
     senderBot?: { id: string; name: string; username: string; photoFileId?: string };
     kind: "user" | "automated";
+    automated: boolean;
     audience: "people" | "agents";
     agentUserIds: string[];
     text: string;

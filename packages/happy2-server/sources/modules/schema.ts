@@ -1502,6 +1502,7 @@ export const messages = sqliteTable("messages", {
     changePts: integer("change_pts").notNull(),
     senderUserId: text("sender_user_id"),
     kind: text("kind").notNull().default("user"),
+    automated: integer("automated", { mode: "boolean" }).notNull().default(false),
     text: text("text").notNull().default(""),
     quotedMessageId: text("quoted_message_id"),
     forwardedFromMessageId: text("forwarded_from_message_id"),

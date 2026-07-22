@@ -68,6 +68,7 @@ import { useChatInfoModel } from "./chatInfoModel.js";
 import { chatMessageActionsModelCreate } from "./chatMessageActionsModel.js";
 import { chatCreationModelCreate, useChatCreateRequest } from "./chatCreationModel.js";
 import { chatChannelModelCreate } from "./chatChannelModel.js";
+import { chatChannelAccessProject } from "./chatChannelAccessModel.js";
 import {
     useAvatarImages,
     usePluginRequestImages,
@@ -289,6 +290,8 @@ export function ChatPage(props: ChatPageProps) {
     const [childCreateParentId, setChildCreateParentId] = useState<string | undefined>(undefined);
     const [agentCreateOpen, setAgentCreateOpen] = useState(false);
     const [directoryOpen, setDirectoryOpen] = useState(false);
+    const [directoryJoinBusyId, setDirectoryJoinBusyId] = useState<string | undefined>(undefined);
+    const [directoryJoinError, setDirectoryJoinError] = useState<string | undefined>(undefined);
     const [composeOpen, setComposeOpen] = useState(false);
     const [directMessageOpen, setDirectMessageOpen] = useState(false);
     // Whether the trace inspector is expanded to overlay the whole content region.
@@ -390,7 +393,7 @@ export function ChatPage(props: ChatPageProps) {
     // Durable shared MCP links from the active chat's message snapshot, projected
     // into a sidebar section from the one coarse chat subscription (no per-link work).
     const sharedLinksSection = () => chatSharedLinksSectionCreate(chatSnapshot()?.messages ?? []);
-    const directoryItems = sidebarModel.directoryItems;
+    const directoryChannels = sidebarModel.directoryChannels;
     const isServerAdmin = sidebarModel.isServerAdmin;
     const infoModel = useChatInfoModel({
         activeChat,
@@ -414,6 +417,14 @@ export function ChatPage(props: ChatPageProps) {
     };
     const displayedProfile = () =>
         activePanel()?.kind === "profile" ? routedProfile() : infoModel.profile();
+    const channelAccess = () => {
+        const chat = activeChat();
+        const parent = chat?.parentChatId
+            ? (sidebarChats().find((projection) => projection.id === chat.parentChatId)?.chat ??
+              directorySnapshot().channels.find((candidate) => candidate.id === chat.parentChatId))
+            : undefined;
+        return chatChannelAccessProject({ chat, directoryUsers: directoryUsers(), parent });
+    };
     const messageActions = chatMessageActionsModelCreate({
         userId: () => user().id,
         actions: props.actions,
@@ -885,9 +896,22 @@ export function ChatPage(props: ChatPageProps) {
         if (members?.type !== "ready") return undefined;
         return members.value.find((member) => member.id === userId)?.displayName;
     }
-    function previewDirectoryChannel(id: string) {
-        setDirectoryOpen(false);
-        selectConversation(id);
+    async function directoryJoin(id: string) {
+        if (directoryJoinBusyId) return;
+        setDirectoryJoinBusyId(id);
+        setDirectoryJoinError(undefined);
+        startBusy();
+        try {
+            await props.actions.chatJoin(id);
+            setStatusHint("Joined channel.");
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Could not join this channel.";
+            setDirectoryJoinError(message);
+            showError(error);
+        } finally {
+            finishBusy();
+            setDirectoryJoinBusyId(undefined);
+        }
     }
     const typingChatId = props.navigation.chatId;
     useLayoutEffect(
@@ -984,6 +1008,7 @@ export function ChatPage(props: ChatPageProps) {
                     ) : panelMode() === "info" ? (
                         <ChatInfoPanel
                             about={conversation.topic}
+                            access={channelAccess()}
                             autoJoin={infoModel.autoJoin}
                             busy={busy()}
                             canChangeEffort={infoModel.canChangeEffort()}
@@ -1234,13 +1259,18 @@ export function ChatPage(props: ChatPageProps) {
             ) : null}
             {directoryOpen ? (
                 <ChatDirectoryDialog
-                    items={directoryItems}
+                    channels={directoryChannels()}
+                    error={directoryJoinError}
+                    joiningId={directoryJoinBusyId}
                     onChannelCreate={() => {
                         setDirectoryOpen(false);
                         channelCreateOpen();
                     }}
-                    onClose={() => setDirectoryOpen(false)}
-                    onSelect={previewDirectoryChannel}
+                    onClose={() => {
+                        setDirectoryOpen(false);
+                        setDirectoryJoinError(undefined);
+                    }}
+                    onJoin={(id) => void directoryJoin(id)}
                 />
             ) : null}
             {directMessageOpen ? (
@@ -1296,28 +1326,34 @@ export function ChatPage(props: ChatPageProps) {
                     onCreate={(input) => void createProject(input)}
                 />
             ) : null}
-            {childCreateParentId ? (
-                <ChatChildChannelCreateDialog
-                    busy={busy()}
-                    defaultModelId={agentModelsState?.defaultModelId}
-                    models={(agentModelsState?.models ?? []).map((model) => ({
-                        value: model.id,
-                        label: model.name,
-                    }))}
-                    modelsError={
-                        agentModelsState?.status.type === "error"
-                            ? agentModelsState.status.error.message
-                            : undefined
-                    }
-                    modelsLoading={agentModelsState?.status.type === "loading"}
-                    onClose={() => setChildCreateParentId(undefined)}
-                    onCreate={(input) => void childCreate(input)}
-                    parentName={
-                        sidebarChats().find((projection) => projection.id === childCreateParentId)
-                            ?.displayName
-                    }
-                />
-            ) : null}
+            {childCreateParentId
+                ? ((parent) => (
+                      <ChatChildChannelCreateDialog
+                          busy={busy()}
+                          defaultModelId={agentModelsState?.defaultModelId}
+                          models={(agentModelsState?.models ?? []).map((model) => ({
+                              value: model.id,
+                              label: model.name,
+                          }))}
+                          modelsError={
+                              agentModelsState?.status.type === "error"
+                                  ? agentModelsState.status.error.message
+                                  : undefined
+                          }
+                          modelsLoading={agentModelsState?.status.type === "loading"}
+                          onClose={() => setChildCreateParentId(undefined)}
+                          onCreate={(input) => void childCreate(input)}
+                          parentName={parent?.displayName}
+                          parentVisibility={
+                              parent?.chat.kind === "public_channel"
+                                  ? "public"
+                                  : parent?.chat.kind === "private_channel"
+                                    ? "private"
+                                    : undefined
+                          }
+                      />
+                  ))(sidebarChats().find((projection) => projection.id === childCreateParentId))
+                : null}
             {mediaModel.lightbox
                 ? ((image) => (
                       <ModalOverlay onDismiss={mediaModel.closeLightbox}>

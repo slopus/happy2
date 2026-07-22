@@ -163,7 +163,7 @@ each configured process, not persisted in the image or container definition.
 
 `container.permissions` declares the exact host API capabilities a package may
 request. Permissions are grouped for presentation by API section:
-`channels:create`, `channels:create-child`, `chats:members:add`,
+`projects:create`, `channels:create`, `channels:create-child`, `chats:members:add`,
 `chats:members:remove`, `chats:update`, and `chats:archive` independently grant
 their named mutations. Messages split
 send, delete, history, and single-message reads; reactions split add and remove;
@@ -524,20 +524,36 @@ Remote endpoints are rechecked.
 - `POST /channels/createChannel` requires `channels:create`. It creates a
   public channel by default; `visibility: "private"` creates a private channel.
   It accepts signed initial members, an optional people or agent opening
-  message, and an optional `idempotencyKey`. The response includes a signed
-  chat token for the new channel.
+  message, and an optional `idempotencyKey`. Opening messages are user-attributed
+  with `automated: true`. The response includes a signed chat token for the new
+  channel.
+- `POST /projects/createProject` requires `projects:create`. It atomically
+  creates a project with 1–20 initial public or private channels, optional
+  signed people who join every channel, and an optional signed steward. The
+  steward is credited as project and public-channel creator and owns every
+  private channel; when omitted, the triggering human is the steward. Public
+  channels never receive an owner. The triggering human retains administrative
+  membership so the capability-scoped operation remains usable. Project
+  visibility continues to derive from channel visibility and membership rather
+  than a second project ACL. An optional `idempotencyKey` replays the same
+  project and ordered channels, and each returned channel includes a signed chat
+  token.
 - `POST /channels/createChildChannel` requires `channels:create-child` and a
-  chat capability for the parent. It creates a private child with inherited
-  memberships and workspace access, an independent history and agent session,
-  and an optional validated `agentModelId`. The triggering human must still be
-  a manager of the top-level parent. The response includes a signed chat token
-  for the child.
+  chat capability for the parent. It creates a child with the parent's
+  visibility and workspace access, independent opt-in membership, history, and
+  agent session, plus an optional validated `agentModelId`. The triggering
+  human must still be a manager of the top-level parent. Other active parent
+  members may join or leave the child separately. It accepts the same optional
+  automated opening message as top-level channel creation. The response
+  includes a signed chat token for the child.
 - `POST /chats/archiveChat` requires `chats:archive` and archives the channel
   selected by `X-Happy2-Chat-Token`, including the current channel when its
   current-call token is used. Normal manager, main-channel, and DM rules apply.
 - `POST /messages/send` requires `messages:send`, sends as the human bound to
-  the chat token, and returns a signed message token. `GET /messages/history`
-  requires `messages:history` and deliberately returns no entity tokens.
+  the chat token with `automated: true`, and returns a signed message token.
+  `audience: "agents"` starts agent inference while `audience: "people"` does
+  not. `GET /messages/history` requires `messages:history` and deliberately
+  returns no entity tokens.
   `GET /messages/:messageId` and `POST /messages/:messageId/deleteMessage`
   require a CUID2 path ID, the matching `X-Happy2-Message-Token`, and their
   separate `messages:read` or `messages:delete` grant.

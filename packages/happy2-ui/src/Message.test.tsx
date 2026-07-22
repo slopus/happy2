@@ -139,6 +139,185 @@ it("does not render audience routing labels in the message header", async () => 
     ).toBeNull();
     await view.screenshot("Message.audience.test");
 });
+it("marks user-attributed automation while keeping the author identity", async () => {
+    const view = createRenderer().render(
+        () =>
+            stage(
+                "s",
+                <>
+                    <Message
+                        author="Maya Johnson"
+                        automated
+                        body="Standup summary posted for the team."
+                        initials="MJ"
+                        time="9:02"
+                        tone="amber"
+                        {...{ "data-testid": "incoming-auto" }}
+                    />
+                    <Message
+                        author="Maya Johnson"
+                        body="A hand-typed reply."
+                        initials="MJ"
+                        time="9:05"
+                        tone="amber"
+                        {...{ "data-testid": "incoming-plain" }}
+                    />
+                    <Message
+                        author="Steve"
+                        automated
+                        body="Scheduled release notes published."
+                        own
+                        time="9:10"
+                        tone="ocean"
+                        {...{ "data-testid": "own-auto" }}
+                    />
+                    <Message
+                        author="Steve"
+                        body="A hand-typed own reply."
+                        own
+                        time="9:12"
+                        tone="ocean"
+                        {...{ "data-testid": "own-plain" }}
+                    />
+                    <Message
+                        agent
+                        author="Codex"
+                        body="Agent authorship is a separate concept."
+                        initials="CX"
+                        time="9:13"
+                        tone="mint"
+                        {...{ "data-testid": "agent" }}
+                    />
+                </>,
+            ),
+        { width: 620, height: 360 },
+    );
+    await view.ready();
+    /* Incoming automation: the marker sits inside the meta row, after the author
+       name — the human identity is retained, not replaced. */
+    const incomingMarker = view.$(
+        '[data-testid="incoming-auto"] [data-happy2-ui="message-automated"]',
+    );
+    expect(incomingMarker.element.querySelector('[data-happy2-ui="automated-tag"]')).not.toBeNull();
+    expect(
+        view.$('[data-testid="incoming-auto"] [data-happy2-ui="message-author"]').element
+            .textContent,
+    ).toBe("Maya Johnson");
+    expect(
+        view.container.querySelector(
+            '[data-testid="incoming-auto"] [data-happy2-ui="message-meta"] [data-happy2-ui="message-automated"]',
+        ),
+        "incoming marker lives in the meta row",
+    ).not.toBeNull();
+    /* It is not the agent AGENT badge or a message tag — distinct selectors. */
+    expect(
+        view.container.querySelector('[data-testid="incoming-auto"] [data-happy2-ui="badge"]'),
+    ).toBeNull();
+    expect(
+        view.container.querySelector(
+            '[data-testid="incoming-auto"] [data-happy2-ui="message-tag"]',
+        ),
+    ).toBeNull();
+    /* The marker paints visible ink and stays visible without hover. */
+    const markerMetrics = await incomingMarker.visibleMetrics();
+    expect(markerMetrics.pixelCount, "automated marker ink").toBeGreaterThan(0);
+    /* Own automation: no meta row exists, so the marker rides the bubble line. */
+    expect(
+        view.container.querySelector(
+            '[data-testid="own-auto"] [data-happy2-ui="message-bubble-line"] [data-happy2-ui="message-automated"]',
+        ),
+        "own marker rides the bubble line",
+    ).not.toBeNull();
+    expect(
+        view.container.querySelector('[data-testid="own-auto"] [data-happy2-ui="message-meta"]'),
+        "own message has no meta row",
+    ).toBeNull();
+    /* Ordinary messages carry no marker, own or incoming. */
+    expect(
+        view.container.querySelector(
+            '[data-testid="incoming-plain"] [data-happy2-ui="message-automated"]',
+        ),
+    ).toBeNull();
+    expect(
+        view.container.querySelector(
+            '[data-testid="own-plain"] [data-happy2-ui="message-automated"]',
+        ),
+    ).toBeNull();
+    /* An agent message keeps its agent avatar and shows no automated marker: the
+       two are orthogonal concepts. */
+    expect(
+        view.$('[data-testid="agent"] [data-happy2-ui="avatar"]').element.getAttribute("data-type"),
+    ).toBe("agent");
+    expect(
+        view.container.querySelector('[data-testid="agent"] [data-happy2-ui="message-automated"]'),
+    ).toBeNull();
+    await view.screenshot("Message.automated.test");
+});
+it("keeps automated attribution on own image-only and attachment-only messages", async () => {
+    const view = createRenderer().render(
+        () =>
+            stage(
+                "automated-own-media",
+                <>
+                    <Message
+                        author="Steve"
+                        automated
+                        body=""
+                        images={[
+                            { id: "release-report", alt: "Automated release report", url: "" },
+                        ]}
+                        own
+                        time="9:11"
+                        tone="ocean"
+                        {...{ "data-testid": "image-only" }}
+                    />
+                    <Message
+                        author="Steve"
+                        automated
+                        body=""
+                        own
+                        time="9:12"
+                        tone="ocean"
+                        {...{ "data-testid": "attachment-only" }}
+                    >
+                        <FileAttachment name="release-notes.pdf" size="280 KB" variant="chat" />
+                    </Message>
+                </>,
+            ),
+        { width: 620, height: 400 },
+    );
+    await view.ready();
+    for (const testId of ["image-only", "attachment-only"]) {
+        const marker = view.$(
+            `[data-testid="${testId}"] [data-happy2-ui="message-bubble-line"] [data-happy2-ui="message-automated"]`,
+        );
+        expect(
+            view.container.querySelectorAll(
+                `[data-testid="${testId}"] [data-happy2-ui="message-automated"]`,
+            ),
+            `${testId} has exactly one marker`,
+        ).toHaveLength(1);
+        expect(
+            view.container.querySelector(
+                `[data-testid="${testId}"] [data-happy2-ui="message-body"]`,
+            ),
+            `${testId} does not fabricate a text bubble`,
+        ).toBeNull();
+        expect(
+            (await marker.visibleMetrics()).pixelCount,
+            `${testId} marker paints`,
+        ).toBeGreaterThan(0);
+    }
+    expect(
+        view.container.querySelector('[data-testid="image-only"] [data-happy2-ui="message-media"]'),
+    ).not.toBeNull();
+    expect(
+        view.container.querySelector(
+            '[data-testid="attachment-only"] [data-happy2-ui="message-attachments"]',
+        ),
+    ).not.toBeNull();
+    await view.screenshot("Message.automated-own-media.test");
+});
 it("holds Message anatomy, segment styling, and affordances", async () => {
     const view = createRenderer();
     const selectedEmoji: string[] = [];

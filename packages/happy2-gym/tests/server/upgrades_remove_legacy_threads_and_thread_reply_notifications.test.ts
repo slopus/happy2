@@ -30,6 +30,7 @@ describe("server upgrades after thread removal", () => {
             ]);
             await client.migrate([
                 "ALTER TABLE port_shares DROP COLUMN audience",
+                "ALTER TABLE messages DROP COLUMN automated",
                 "DROP TRIGGER chats_channel_project_required_insert",
                 "DROP TRIGGER chats_channel_project_required_update",
                 "DROP TRIGGER chats_dm_project_forbidden_insert",

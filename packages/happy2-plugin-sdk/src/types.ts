@@ -191,6 +191,7 @@ export interface PluginVariableDefinition {
 
 /** Capability-only Happy host APIs that a local plugin package may request. */
 export const pluginHostPermissions = [
+    "projects:create",
     "channels:create",
     "channels:create-child",
     "chats:members:add",

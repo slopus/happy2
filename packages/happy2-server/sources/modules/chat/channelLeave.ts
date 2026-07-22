@@ -27,13 +27,8 @@ export async function channelLeave(
     return withTransaction(executor, async (tx) => {
         const access = await chatGetAccess(tx, actorUserId, chatId, true);
         if (!access) throw new CollaborationError("not_found", "Chat was not found");
-        if (access.parentChatId)
-            throw new CollaborationError("invalid", "Nested chat membership is inherited");
         if (access.kind === "dm")
             throw new CollaborationError("invalid", "This chat's membership is fixed");
-        if (access.isMain)
-            throw new CollaborationError("invalid", "Members cannot leave the main channel");
-        let replacementOwnerUserId: string | undefined;
         if (access.membershipRole === "owner") {
             const [otherOwner] = await tx
                 .select({
@@ -57,7 +52,6 @@ export async function channelLeave(
                         ownerUserId: otherOwner.userId,
                     })
                     .where(and(eq(chats.id, chatId), eq(chats.ownerUserId, actorUserId)));
-                replacementOwnerUserId = otherOwner.userId;
             }
         }
         const sequence = await syncSequenceNext(tx);
@@ -90,7 +84,6 @@ export async function channelLeave(
             actorUserId,
             sequence,
             kind: "left",
-            replacementOwnerUserId,
         });
         const service = await createChannelServiceMessageDb(tx, {
             sequence,

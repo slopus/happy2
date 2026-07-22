@@ -1,0 +1,52 @@
+/*
+ * AutomatedTag — a restrained inline marker for a user-attributed message that
+ * was posted through automation (a plugin/API acting on the author's behalf).
+ *
+ * Contract: a 16px-high inline row of a 12px chip glyph + a muted mono uppercase
+ * "Automated" caption in the secondary text color, with no fill or border so it
+ * reads as author metadata beside the name rather than a loud status pill. It
+ * declares no external margin; the composing meta row owns the surrounding gap.
+ *
+ * Unlike Badge, this tag has no enclosing box to center ink within, so it carries
+ * no per-engine centroid corrections. The glyph and caption share one optical row
+ * through flex centering plus a matched 16px line box; AutomatedTag.test.tsx
+ * measures the icon and label ink in Chromium, Firefox, and WebKit at 2x and
+ * asserts they share that row within tolerance with no translate applied.
+ */
+
+.happy2-automated-tag,
+.happy2-automated-tag * {
+    box-sizing: border-box;
+}
+
+.happy2-automated-tag {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: 4px;
+    height: 16px;
+    color: var(--text-secondary);
+    font-family: var(--happy2-font-mono);
+    font-synthesis: none;
+    white-space: nowrap;
+}
+
+.happy2-automated-tag__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.happy2-automated-tag__label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    /* letter-spacing also trails the last glyph, widening the caption's advance
+       box past its ink. Trimming that trailing space keeps the tag's right edge
+       tight to the word — a structural correction, not an engine-specific one. */
+    margin-right: -0.06em;
+}

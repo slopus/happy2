@@ -46,6 +46,7 @@ export async function ensureDefaultAgentChannelsDb(
                     kind: "public_channel",
                     projectId: defaultProject.id,
                     visibility: "public",
+                    ownerUserId: null,
                     isListed: 1,
                     archivedAt: null,
                     isMain: 1,
@@ -55,6 +56,10 @@ export async function ensureDefaultAgentChannelsDb(
                     updatedAt: sql`CURRENT_TIMESTAMP`,
                 })
                 .where(eq(chats.id, welcome.id));
+            await executor
+                .update(chatMembers)
+                .set({ role: "admin", updatedAt: sql`CURRENT_TIMESTAMP` })
+                .where(and(eq(chatMembers.chatId, welcome.id), eq(chatMembers.role, "owner")));
             await channelAdvance(executor, {
                 sequence,
                 chatId: welcome.id,
@@ -74,7 +79,7 @@ export async function ensureDefaultAgentChannelsDb(
                 name: "Welcome",
                 slug: "welcome",
                 createdByUserId: defaultAgentUserId,
-                ownerUserId: defaultAgentUserId,
+                ownerUserId: null,
                 visibility: "public",
                 isListed: 1,
                 isMain: 1,
@@ -86,7 +91,7 @@ export async function ensureDefaultAgentChannelsDb(
             await executor.insert(chatMembers).values({
                 chatId: id,
                 userId: defaultAgentUserId,
-                role: "owner",
+                role: "admin",
                 membershipEpoch: createId(),
                 syncSequence: sequence,
             });
@@ -150,7 +155,7 @@ export async function ensureDefaultAgentChannelsDb(
                     userId: participant.id,
                     role:
                         participant.id === defaultAgentUserId && channel.id === main.id
-                            ? "owner"
+                            ? "admin"
                             : "member",
                     membershipEpoch: createId(),
                     syncSequence: sequence,
@@ -158,7 +163,7 @@ export async function ensureDefaultAgentChannelsDb(
                 .onConflictDoUpdate({
                     target: [chatMembers.chatId, chatMembers.userId],
                     set: {
-                        role: channel.id === main.id ? "owner" : "member",
+                        role: channel.id === main.id ? "admin" : "member",
                         membershipEpoch: sql`excluded.membership_epoch`,
                         syncSequence: sequence,
                         joinedAt: sql`CURRENT_TIMESTAMP`,

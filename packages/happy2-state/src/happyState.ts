@@ -337,6 +337,8 @@ export class HappyState implements AsyncDisposable, Disposable {
     private filesBinding?: FilesStore;
     private searchBinding?: SearchStore;
     private directoryBinding?: DirectoryStore;
+    private directoryReconcilePromise?: Promise<void>;
+    private directoryReconcilePending = false;
     private agentModelsBinding?: AgentModelsStore;
     private adminBinding?: AdminStore;
     private readonly adminSections = new Set<AdminSection>();
@@ -609,14 +611,7 @@ export class HappyState implements AsyncDisposable, Disposable {
     directory(): DirectoryStore {
         if (!this.directoryBinding) {
             this.directoryBinding = directoryStoreCreate();
-            if (this.runtime.connected)
-                this.runtime.background(
-                    directoryLoad({
-                        runtime: this.runtime,
-                        identities: this.identities,
-                        directory: this.directoryBinding,
-                    }),
-                );
+            if (this.runtime.connected) this.runtime.background(this.directoryReconcile());
         }
         return this.directoryBinding;
     }
@@ -1772,6 +1767,9 @@ export class HappyState implements AsyncDisposable, Disposable {
                     this.agentTracesReload();
                     this.mcpAppsReload();
                 },
+                directoryReconcile: () => {
+                    if (this.directoryBinding) this.runtime.background(this.directoryReconcile());
+                },
                 workspaceReconcile: (chatId) => this.workspaceReconcile(chatId),
                 callsReconcile: () => {
                     if (this.callsBinding)
@@ -1837,13 +1835,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                             chatsGet: () => this.chatEntries(),
                             directoryReconcile: () => {
                                 if (this.directoryBinding)
-                                    this.runtime.background(
-                                        directoryLoad({
-                                            runtime: this.runtime,
-                                            identities: this.identities,
-                                            directory: this.directoryBinding,
-                                        }),
-                                    );
+                                    this.runtime.background(this.directoryReconcile());
                             },
                             agentSecretsReconcile: () => {
                                 if (this.agentSecretsBinding)
@@ -1906,14 +1898,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                     query,
                 ),
             );
-        if (this.directoryBinding)
-            this.runtime.background(
-                directoryLoad({
-                    runtime: this.runtime,
-                    identities: this.identities,
-                    directory: this.directoryBinding,
-                }),
-            );
+        if (this.directoryBinding) this.runtime.background(this.directoryReconcile());
         if (this.adminBinding && this.adminSections.size)
             this.runtime.background(
                 adminLoad({ runtime: this.runtime, admin: this.adminBinding }, [
@@ -2006,9 +1991,35 @@ export class HappyState implements AsyncDisposable, Disposable {
         return {
             runtime: this.runtime,
             sidebar: this.sidebarBinding,
+            directoryReconcile: () => this.directoryReconcile(),
             chatGet: (chatId) => this.chats.get(chatId),
             sidebarChatProject: (chat) => this.sidebarChats.projectOne(chat),
         };
+    }
+
+    /** Serializes reloads of the existing directory, coalescing overlap into one trailing refresh. */
+    private async directoryReconcile(): Promise<void> {
+        if (!this.directoryBinding) return;
+        if (this.directoryReconcilePromise) {
+            this.directoryReconcilePending = true;
+            return this.directoryReconcilePromise;
+        }
+        const reconcile = async () => {
+            do {
+                this.directoryReconcilePending = false;
+                const directory = this.directoryBinding;
+                if (!directory) return;
+                await directoryLoad({
+                    runtime: this.runtime,
+                    identities: this.identities,
+                    directory,
+                });
+            } while (this.directoryReconcilePending);
+        };
+        this.directoryReconcilePromise = reconcile().finally(() => {
+            this.directoryReconcilePromise = undefined;
+        });
+        return this.directoryReconcilePromise;
     }
 
     private *chatEntries(): IterableIterator<readonly [string, ChatStore]> {

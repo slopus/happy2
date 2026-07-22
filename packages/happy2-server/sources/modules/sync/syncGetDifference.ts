@@ -111,6 +111,8 @@ export async function syncGetDifference(
         const kind = text(event.kind);
         const chatId = optionalText(event.chat_id);
         if (targetUserId && targetUserId !== input.userId) continue;
+        if (kind.startsWith("chat.") || kind.startsWith("channel.") || kind.startsWith("member."))
+            areas.add("directories");
         if (
             chatId &&
             targetUserId === input.userId &&

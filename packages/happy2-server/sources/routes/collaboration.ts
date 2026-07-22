@@ -382,7 +382,7 @@ export function registerCollaborationRoutes(
                 agentModelId,
             });
             await publishHints(request, pubsub, [result.hint], {
-                userIds: result.memberUserIds,
+                userIds: result.notifiedUserIds,
             });
             return reply.code(201).send({ chat: result.chat, sync: result.hint });
         }),
