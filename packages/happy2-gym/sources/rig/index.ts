@@ -218,6 +218,7 @@ export class MockRigDaemon implements AsyncDisposable {
     globalStreamRequestCount = 0;
     sessionEventRequestCount = 0;
     terminalAttachmentCount = 0;
+    private nextSessionCreationFailure?: string;
     terminalAttachmentDisconnectCount = 0;
     sessionStreamRequestCount = 0;
     submissionAttemptCount = 0;
@@ -588,6 +589,10 @@ export class MockRigDaemon implements AsyncDisposable {
         this.runStreams.delete(runId);
     }
 
+    failNextSessionCreation(message = "Mock Rig session creation failed"): void {
+        this.nextSessionCreationFailure = message;
+    }
+
     emitGlobalUpdates(count: number): void {
         const session = this.sessions.values().next().value as MockSession | undefined;
         if (!session) throw new Error("Create a mock Rig session before emitting updates");
@@ -812,6 +817,11 @@ export class MockRigDaemon implements AsyncDisposable {
         if (request.method === "POST" && url.pathname === "/events/trim")
             return this.trimGlobalEvents(request, response);
         if (request.method === "POST" && url.pathname === "/sessions") {
+            if (this.nextSessionCreationFailure) {
+                const error = this.nextSessionCreationFailure;
+                this.nextSessionCreationFailure = undefined;
+                return sendJson(response, 503, { error });
+            }
             const body = await jsonBody(request);
             const effort = typeof body.effort === "string" ? body.effort : "high";
             const modelId = typeof body.modelId === "string" ? body.modelId : MOCK_MODEL_ID;

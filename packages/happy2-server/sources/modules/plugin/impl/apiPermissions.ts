@@ -17,7 +17,7 @@ const definitions = {
         id: "channels:create-child",
         displayName: "Create child channels",
         description:
-            "Create a private child channel under the current channel with inherited access and an independent agent session.",
+            "Create a private child channel under the current channel with inherited access and an independent agent session. Posting an initial message also requires Send messages permission.",
         section: "channels",
         access: "mutations",
     },

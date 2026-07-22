@@ -2,7 +2,7 @@ import { definePluginConfig } from "happy2-plugin-sdk/build";
 
 export default definePluginConfig({
     manifest: {
-        version: "1.3.0",
+        version: "1.3.1",
         displayName: "Chat Management",
         shortName: "chat-management",
         description:
@@ -13,6 +13,7 @@ export default definePluginConfig({
             "chats:members:add",
             "chats:members:remove",
             "chats:update",
+            "messages:send",
         ],
     },
 });
