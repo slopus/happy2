@@ -10,6 +10,7 @@ import { createFakeServer, jsonResponse } from "../../testing/index.js";
 import { IdentityCatalog } from "../identity/identityState.js";
 import { composerStoreCreate } from "../composer/composerState.js";
 import { StateRuntime } from "../runtime/runtimeState.js";
+import { chatLoad } from "./chatState.js";
 import { chatMembersLoad } from "./chatState.js";
 import { chatPluginRequestDecide, chatPluginRequestsLoad } from "./chatState.js";
 import { chatDocumentWriteRequestDecide, chatDocumentWriteRequestsLoad } from "./chatState.js";
@@ -23,6 +24,82 @@ import { chatStoreCreate } from "./chatState.js";
 import { messageItemProject } from "./chatState.js";
 
 describe("chat module", () => {
+    it("hydrates chat effort on load and follows retained effort service messages", async () => {
+        const output = vi.fn();
+        const binding = chatStoreCreate("chat-1", output);
+        const identities = new IdentityCatalog();
+        const summary = chat({ defaultAgentUserId: "agent-1" });
+        const initialNotice = message({
+            id: "effort-high",
+            sequence: "1",
+            kind: "automated",
+            text: "@agent's reasoning effort changed to high",
+            service: { type: "agent_effort_changed", agentUserId: "agent-1", effort: "high" },
+        });
+        const runtime = {
+            active: true,
+            connected: true,
+            operation: vi.fn(async (name: string) => {
+                if (name === "getChat") return { chat: summary };
+                if (name === "getMessages") return { messages: [initialNotice], hasMore: false };
+                throw new Error(`Unexpected operation: ${name}`);
+            }),
+        } as unknown as StateRuntime;
+
+        await chatLoad(
+            {
+                runtime,
+                identities,
+                chatGet: () => binding,
+                agentUserIds: (loaded) => [loaded.defaultAgentUserId!],
+            },
+            summary.id,
+        );
+
+        expect(output).toHaveBeenCalledWith({
+            type: "agentEffortRetained",
+            chatId: summary.id,
+            agentUserId: "agent-1",
+        });
+        expect(binding.getState().agentEffort["agent-1"]).toEqual({ type: "loading" });
+
+        // A notice that arrived before the effort HTTP request settled wins over
+        // that stale request result, then later service messages keep it synced.
+        binding.getState().chatInput({
+            type: "agentEffortLoaded",
+            value: {
+                agentUserId: "agent-1",
+                effort: "low",
+                options: ["low", "high", "xhigh"],
+            },
+        });
+        expect(binding.getState().agentEffort["agent-1"]).toMatchObject({
+            type: "ready",
+            value: { effort: "high" },
+        });
+        binding.getState().chatInput({
+            type: "messageUpserted",
+            item: messageItemProject(
+                identities,
+                message({
+                    id: "effort-xhigh",
+                    sequence: "2",
+                    kind: "automated",
+                    text: "@agent's reasoning effort changed to xhigh",
+                    service: {
+                        type: "agent_effort_changed",
+                        agentUserId: "agent-1",
+                        effort: "xhigh",
+                    },
+                }),
+            ),
+        });
+        expect(binding.getState().agentEffort["agent-1"]).toMatchObject({
+            type: "ready",
+            value: { effort: "xhigh" },
+        });
+    });
+
     it("owns every retained conversation resource in one coarse store", () => {
         const output = vi.fn();
         const binding = chatStoreCreate("chat-1", output);

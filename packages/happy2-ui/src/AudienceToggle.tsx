@@ -1,5 +1,4 @@
 import { type CSSProperties } from "react";
-import { Icon } from "./Icon";
 
 export type AudienceValue = "people" | "agents";
 export type AudienceToggleProps = {
@@ -11,14 +10,16 @@ export type AudienceToggleProps = {
     value: AudienceValue;
 };
 /**
- * C-065 AudienceToggle — a compact current-destination toggle. It exposes one
- * icon-and-label control, so the composer stays quiet while Shift+Tab and a
- * click still switch the host-owned audience.
+ * C-065 AudienceToggle — a compact current-destination text control. It keeps
+ * the composer quiet beneath the input while click and Shift+Tab switch the
+ * host-owned audience.
  */
 export function AudienceToggle(props: AudienceToggleProps) {
     return (
         <button
-            aria-label={props.value === "people" ? "Switch to Agents" : "Switch to People"}
+            aria-label={
+                props.value === "people" ? "Switch to talk to agents" : "Switch to talk to people"
+            }
             aria-pressed={props.value === "people"}
             className={["happy2-audience-toggle", props.className].filter(Boolean).join(" ")}
             data-happy2-ui="audience-toggle"
@@ -27,10 +28,10 @@ export function AudienceToggle(props: AudienceToggleProps) {
             disabled={props.disabled}
             onClick={() => props.onChange?.(props.value === "people" ? "agents" : "people")}
             style={props.style}
+            title={`Shift+Tab switches to talk to ${props.value === "people" ? "agents" : "people"}`}
             type="button"
         >
-            <Icon name={props.value === "people" ? "users" : "spark"} size={16} />
-            <span>{props.value === "people" ? "People" : "Agents"}</span>
+            <span>{props.value === "people" ? "Talk to people" : "Talk to agents"}</span>
         </button>
     );
 }

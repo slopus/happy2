@@ -6,6 +6,7 @@ import { chat } from "../../../tests/fixtures.js";
 import { agentCreate } from "./chatActionsState.js";
 import { agentEffortChange } from "./chatActionsState.js";
 import { agentEffortLoad } from "./chatActionsState.js";
+import { chatModelChange } from "./chatActionsState.js";
 import { channelArchive } from "./chatActionsState.js";
 import { channelCreate } from "./chatActionsState.js";
 import { channelCreateChild } from "./chatActionsState.js";
@@ -54,6 +55,7 @@ describe("chat actions module", () => {
         await directMessageCreate(context, "user-2");
         await groupDirectMessageCreate(context, ["user-2", "user-3"], "Group");
         await agentCreate(context, { name: "Agent", username: "agent" });
+        await chatModelChange(context, summary.id, "model-1");
         await chatJoin(context, summary.id);
         await chatReadMark(context, summary.id, "message-1");
         await chatStarSet(context, summary.id, true);
@@ -67,6 +69,7 @@ describe("chat actions module", () => {
             "createDirectMessage",
             "createGroupDirectMessage",
             "createAgent",
+            "changeChatModel",
             "joinChat",
             "markChatRead",
             "setChatStar",

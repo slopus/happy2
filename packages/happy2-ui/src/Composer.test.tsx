@@ -277,12 +277,14 @@ it("holds Composer geometry, colors, and typography", async () => {
             { width: 600, height: 260, padding: 20 },
         );
     await view.ready();
-    // Container: solid inset card, no resting hairline (transparent 1px
-    // border), radius 16, single-line total 115px.
+    // The outer composer includes its 20px audience text below the 115px
+    // solid inset card, which keeps its own no-resting-hairline geometry.
     const root = view.$('[data-testid="composer-default"]');
-    expect(root.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 115 });
+    const surface = view.$('[data-testid="composer-default"] [data-happy2-ui="composer-surface"]');
+    expect(root.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 139 });
+    expect(surface.bounds()).toEqual({ x: 20, y: 20, width: 560, height: 115 });
     expect(
-        root.computedStyles([
+        surface.computedStyles([
             "background-color",
             "border-radius",
             "border-top-color",
@@ -366,24 +368,12 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(Math.abs(draftDrift - 0.8)).toBeLessThanOrEqual(0.4);
     expect(Math.abs(ghostDrift - 0.8)).toBeLessThanOrEqual(0.4);
     expect(Math.abs(draftDrift - ghostDrift)).toBeLessThanOrEqual(0.25);
-    // Toolbar: a 32px lane plus an 8px bottom inset. Its destination toggle
-    // begins at the matching 16px left inset.
+    // Toolbar: the attachment sits on the left; audience text is below the
+    // whole composer surface instead of competing with toolbar controls.
     const toolbar = view.$('[data-testid="composer-default"] [data-happy2-ui="composer-toolbar"]');
     expect(toolbar.bounds()).toEqual({ x: 21, y: 87, width: 558, height: 40 });
-    const rootRect = root.element.getBoundingClientRect();
-    const actionButtons = Array.from(
-        view.container.querySelectorAll(
-            '[data-testid="composer-default"] [data-happy2-ui="composer-actions"] > button',
-        ),
-    );
-    expect(actionButtons.length).toBe(1);
-    expect(actionButtons[0]?.getAttribute("aria-label")).toBe("Switch to Agents");
-    actionButtons.forEach((button, index) => {
-        const rect = button.getBoundingClientRect();
-        expect(rect.x - rootRect.x).toBeCloseTo(16 + index * 40, 1);
-        expect(rect.y - rootRect.y).toBeCloseTo(67, 1);
-        expect(rect.height).toBeCloseTo(32, 1);
-    });
+    const audience = view.$('[data-testid="composer-default"] [data-happy2-ui="audience-toggle"]');
+    expect(audience.element.textContent).toBe("Talk to people");
     // Send: primary 32px circle, inset 16px from the composer's bottom-right
     // edge, disabled while empty.
     const send = view.$('[data-testid="composer-default"] .happy2-composer__send');
@@ -406,6 +396,10 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect((send.element as HTMLButtonElement).disabled).toBe(true);
     // Attachment shares the audience and contributed-control hover treatment.
     const attachment = view.$('[data-testid="composer-default"] [aria-label="Attach file"]');
+    expect(attachment.element.getBoundingClientRect().x).toBeCloseTo(
+        audience.element.getBoundingClientRect().x,
+        1,
+    );
     expect(
         attachment.element.querySelector('[data-happy2-ui="icon"]')?.getAttribute("data-name"),
     ).toBe("plus");
@@ -418,8 +412,9 @@ it("holds Composer geometry, colors, and typography", async () => {
     ).toMatchObject({ height: 20, width: 20 });
     await userEvent.hover(attachment.element);
     for (const animation of attachment.element.getAnimations()) animation.finish();
-    expect(attachment.computedStyles(["background-color", "color"])).toEqual({
-        "background-color": "rgb(240, 240, 242)",
+    expect(attachment.computedStyles(["background-color", "border-radius", "color"])).toEqual({
+        "background-color": "rgba(0, 0, 0, 0.08)",
+        "border-radius": "50%",
         color: "rgb(0, 0, 0)",
     });
     // Send glyph: the upward arrow's 16px icon box sits centered in the 32px
@@ -473,14 +468,14 @@ it("holds Composer geometry, colors, and typography", async () => {
     expect(firstChip.bounds().x - chipsRoot.bounds().x).toBe(21);
     expect(firstChip.bounds().y - chipsRoot.bounds().y).toBe(9);
     expect(firstChip.bounds().height).toBe(24);
-    // Focus-within paints the otherwise transparent frame (120ms transition).
+    // The input's focus state does not alter the fixed card geometry or frame.
     const settle = () => new Promise((resolve) => setTimeout(resolve, 250));
     (textarea.element as HTMLTextAreaElement).focus();
     await settle();
-    expect(root.computedStyle("border-top-color")).toBe("rgba(0, 0, 0, 0)");
+    expect(surface.computedStyle("border-top-color")).toBe("rgba(0, 0, 0, 0)");
     (document.activeElement as HTMLElement | null)?.blur();
     await settle();
-    expect(root.computedStyle("border-top-color")).toBe("rgba(0, 0, 0, 0)");
+    expect(surface.computedStyle("border-top-color")).toBe("rgba(0, 0, 0, 0)");
     // Disabled: textarea and controls disabled, muted draft text still paints.
     const disabledArea = view.$(
         '[data-testid="composer-disabled"] [data-happy2-ui="composer-textarea"]',

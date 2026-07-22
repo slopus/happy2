@@ -56,6 +56,32 @@ function chatSummary(id: string) {
     };
 }
 
+it("loads the Rig model catalog at chat-app boot and refreshes it only while the view is mounted", async () => {
+    vi.useFakeTimers();
+    const state = happyStateCreate({ transport: createFakeServer().transport });
+    try {
+        const agentModelsLoad = vi.spyOn(state, "agentModelsLoad").mockResolvedValue();
+        const screen = render(
+            <ChatView
+                adminStartSection="users"
+                canOpenAdmin={false}
+                navigation={navigationStub()}
+                route={chatRoute("chat-1")}
+                state={state}
+            />,
+        );
+        expect(agentModelsLoad).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(agentModelsLoad).toHaveBeenCalledTimes(2);
+        screen.unmount();
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(agentModelsLoad).toHaveBeenCalledTimes(2);
+    } finally {
+        state[Symbol.dispose]();
+        vi.useRealTimers();
+    }
+});
+
 it("acquires and releases exactly one trace lease per routed panel lifetime", async () => {
     const server = createFakeServer();
     for (const chatId of ["chat-1", "chat-2"]) {

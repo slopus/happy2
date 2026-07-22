@@ -359,6 +359,24 @@ export function registerCollaborationRoutes(
         }),
     );
     app.post(
+        "/v0/chats/:chatId/changeModel",
+        authenticated(auth, async (request, reply, userId) => {
+            const body = requestBody(request, ["modelId"]);
+            if (!agents)
+                return reply.code(503).send({
+                    error: "agents_unavailable",
+                    message: "AI agents are not enabled on this Happy (2) server.",
+                });
+            const result = await agents.changeChatModel({
+                actorUserId: userId,
+                chatId: pathId(request, "chatId"),
+                modelId: idField(body, "modelId"),
+            });
+            if (result.sync) await publishHints(request, pubsub, [result.sync]);
+            return result;
+        }),
+    );
+    app.post(
         "/v0/chats/:chatId/createChildChannel",
         authenticated(auth, async (request, reply, userId) => {
             const body = requestBody(request, ["name", "slug", "topic", "agentModelId"]);

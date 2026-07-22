@@ -4,6 +4,7 @@ import {
     AppShell,
     Banner,
     Button,
+    ComposerModelControl,
     DocumentsPanel,
     DocumentWritePermissionCard,
     Lightbox,
@@ -11,6 +12,7 @@ import {
     PluginPermissionCard,
     Sidebar,
     type ContextItem,
+    type ComposerModelChoice,
     type SidebarSection,
 } from "./ChatPageComponents.js";
 import type {
@@ -223,8 +225,8 @@ export interface ChatPageActions {
     channelCreateChild(input: import("happy2-state").CreateChildChannelInput): Promise<void>;
     channelArchive(chatId: string): Promise<void>;
     channelUnarchive(chatId: string): Promise<void>;
-    /** Loads the agent-model catalog before a model picker renders. */
-    agentModelsLoad(): Promise<void>;
+    /** Changes a chat's persisted Rig model and its currently bound agent sessions. */
+    chatModelChange(chatId: string, modelId: string): Promise<void>;
     channelUpdate(chatId: string, input: import("happy2-state").ChannelUpdateInput): Promise<void>;
     channelDefaultAgentUpdate(chatId: string, agentUserId: string): Promise<void>;
     agentCreate(input: import("happy2-state").CreateAgentInput): Promise<void>;
@@ -376,6 +378,44 @@ export function ChatPage(props: ChatPageProps) {
             ? members.value.find((participant) => participant.kind === "agent")
             : activeProjection()?.participants.find((participant) => participant.kind === "agent");
     };
+    const composerModelChoices = (): readonly ComposerModelChoice[] =>
+        (agentModelsState?.models ?? []).map((model) => ({ id: model.id, label: model.name }));
+    const composerModelId = () =>
+        activeChat()?.agentModelId ?? agentModelsState?.defaultModelId ?? "Default model";
+    const composerModel = () =>
+        agentModelsState?.models.find((model) => model.id === composerModelId());
+    const composerEffortChoices = (): readonly ComposerModelChoice[] =>
+        (composerModel()?.thinkingLevels ?? []).map((id) => ({
+            id,
+            label: id.replaceAll(/[-_]/gu, " ").replace(/^./u, (letter) => letter.toUpperCase()),
+        }));
+    const composerEffort = () => {
+        const agent = terminalAgent();
+        const value = agent ? chatSnapshot()?.agentEffort[agent.id] : undefined;
+        return value?.type === "ready"
+            ? value.value.effort
+            : (composerModel()?.defaultThinkingLevel ?? "Default");
+    };
+    function composerModelControl(): ReactNode {
+        const chatId = activeConversationId();
+        if (!chatId) return undefined;
+        return (
+            <ComposerModelControl
+                disabled={busy()}
+                effort={composerEffort()}
+                efforts={composerEffortChoices()}
+                model={composerModelId()}
+                models={composerModelChoices()}
+                onEffortChange={(effort) => {
+                    const agent = terminalAgent();
+                    if (agent) props.chat?.getState().agentEffortChange(agent.id, effort);
+                }}
+                onModelChange={(modelId) =>
+                    void props.actions.chatModelChange(chatId, modelId).catch(showError)
+                }
+            />
+        );
+    }
     const [terminalHeight, setTerminalHeight] = useState(280);
     const draft = () => composerSnapshot()?.text ?? "";
     const pendingAttachments = () => composerSnapshot()?.attachments ?? [];
@@ -487,7 +527,6 @@ export function ChatPage(props: ChatPageProps) {
     }
     function childCreateOpen(parentChatId: string) {
         setChildCreateParentId(parentChatId);
-        void props.actions.agentModelsLoad().catch(showError);
     }
     async function agentCreate(name: string, username: string) {
         if (!(await creationModel.agentCreate(name, username))) return;
@@ -1175,6 +1214,7 @@ export function ChatPage(props: ChatPageProps) {
                                 composerSnapshot()?.submission.status === "pending" || busy()
                             }
                             composerContributions={props.composerContributions}
+                            composerModelControl={composerModelControl()}
                             composerSendEnabled={
                                 draft().trim().length > 0 || pendingAttachments().length > 0
                             }
@@ -1399,6 +1439,7 @@ export function ChatPage(props: ChatPageProps) {
                 }
                 composerCompactHint={liveComposerCompactHint()}
                 composerContributions={props.composerContributions}
+                composerModelControl={composerModelControl()}
                 composerDisabled={!activeConversationId()}
                 composerHint={liveComposerHint()}
                 composerMentions={composerMentionCandidates()}

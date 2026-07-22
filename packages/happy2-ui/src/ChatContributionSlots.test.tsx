@@ -10,7 +10,7 @@ import { Composer } from "./Composer";
 import { Message } from "./Message";
 import { createRenderer } from "./testing";
 
-it("renders composer contribution triggers immediately before the attachment control", async () => {
+it("withholds composer contribution triggers so attachment remains the leftmost control", async () => {
     const view = createRenderer().render(
         () => (
             <Composer
@@ -27,17 +27,11 @@ it("renders composer contribution triggers immediately before the attachment con
         ),
         { width: 640, height: 200, padding: 16 },
     );
-    const slot = view.$('[data-happy2-ui="composer-contributions"]');
-    expect(slot.element).not.toBeNull();
-    const trailing = view.$('[data-happy2-ui="composer-trailing"]').element;
-    expect(trailing.contains(slot.element)).toBe(true);
+    expect(view.container.querySelector('[data-happy2-ui="composer-contributions"]')).toBeNull();
+    expect(view.container.querySelector('[data-testid="composer-trigger"]')).toBeNull();
+    const leading = view.$('[data-happy2-ui="composer-leading"]').element;
     const attachment = view.$('[aria-label="Attach file"]').element;
-    expect(slot.element.nextElementSibling).toBe(attachment);
-    expect(
-        attachment.getBoundingClientRect().x -
-            (slot.element.getBoundingClientRect().x + slot.element.getBoundingClientRect().width),
-    ).toBeCloseTo(8, 1);
-    expect(slot.element.querySelector('[data-testid="composer-trigger"]')).not.toBeNull();
+    expect(leading.firstElementChild).toBe(attachment);
     await view.screenshot("ChatContributionSlots.composer.test");
 }, 120000);
 

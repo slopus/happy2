@@ -14,8 +14,10 @@ export interface ComposerDockProps {
     activityNow: number;
     composerAudience?: AudienceValue;
     composerCompactHint: string;
-    /** Native plugin composer contribution triggers, shown in the composer toolbar. */
+    /** Native plugin composer contribution triggers, temporarily hidden by the composer. */
     composerContributions?: ReactNode;
+    /** Optional model configuration surface kept beside the composer controls. */
+    composerModelControl?: ReactNode;
     composerDisabled: boolean;
     composerHint: string;
     composerMentions: Mentionable[];
@@ -74,6 +76,7 @@ export function ComposerDock(props: ComposerDockProps) {
                 <Composer
                     audience={props.composerAudience}
                     contributions={props.composerContributions}
+                    modelControl={props.composerModelControl}
                     contextItems={props.contextItems}
                     disabled={props.composerDisabled}
                     emoji={emojiItems}

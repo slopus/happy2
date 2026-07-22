@@ -255,6 +255,7 @@ import { callsStoreCreate, type CallsOutput, type CallsStore } from "./modules/c
 import { terminalOpen, type TerminalHandle } from "./modules/terminal/terminalState.js";
 import { agentConversationCreate } from "./modules/chat-actions/chatActionsState.js";
 import { agentCreate } from "./modules/chat-actions/chatActionsState.js";
+import { chatModelChange } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortChange } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortLoad } from "./modules/chat-actions/chatActionsState.js";
 import type { ChatActionContext } from "./modules/chat-actions/chatActionsState.js";
@@ -1038,6 +1039,10 @@ export class HappyState implements AsyncDisposable, Disposable {
         return agentConversationCreate(this.chatActionContext(), agentUserId);
     }
 
+    async chatModelChange(chatId: string, modelId: string): Promise<void> {
+        await chatModelChange(this.chatActionContext(), chatId, modelId);
+    }
+
     async agentEffortChange(chatId: string, agentUserId: string, effort: string): Promise<void> {
         await agentEffortChange(this.chatActionContext(), chatId, agentUserId, effort);
     }
@@ -1463,6 +1468,7 @@ export class HappyState implements AsyncDisposable, Disposable {
                     runtime: this.runtime,
                     identities: this.identities,
                     chatGet: (id) => this.chats.get(id),
+                    agentUserIds: (chat) => this.chatAgentUserIds(chat),
                 },
                 chatId,
             ),
@@ -1479,7 +1485,18 @@ export class HappyState implements AsyncDisposable, Disposable {
             runtime: this.runtime,
             identities: this.identities,
             chatGet: (id: string) => this.chats.get(id),
+            agentUserIds: (chat: ChatSummary) => this.chatAgentUserIds(chat),
         };
+    }
+
+    /** Identifies agents already projected for a chat so effort hydrates with its durable payload. */
+    private chatAgentUserIds(chat: ChatSummary): readonly string[] {
+        const ids = new Set(chat.defaultAgentUserId ? [chat.defaultAgentUserId] : []);
+        const projected = this.sidebarBinding.getState().chats.find(({ id }) => id === chat.id);
+        for (const participant of projected?.participants ?? []) {
+            if (participant.kind === "agent") ids.add(participant.id);
+        }
+        return [...ids];
     }
 
     private chatPortSharesLoad(chatId: string): void {

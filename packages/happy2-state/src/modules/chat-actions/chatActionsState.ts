@@ -28,6 +28,16 @@ export async function agentConversationCreate(
     return result.chat;
 }
 
+/** Persists one chat's Rig model choice and applies its authoritative chat projection. */
+export async function chatModelChange(
+    context: ChatActionContext,
+    chatId: string,
+    modelId: string,
+): Promise<void> {
+    const result = await context.runtime.operation("changeChatModel", { chatId, modelId });
+    await chatResultApply(context, result.chat);
+}
+
 /** Changes one agent binding's durable chat-specific reasoning effort and reconciles the retained chat control. */
 export async function agentEffortChange(
     context: ChatActionContext,

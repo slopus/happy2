@@ -26,6 +26,7 @@ export interface ChatConversationProps {
     headerContributions?: ReactNode;
     /** Native plugin composer contribution triggers, shown in the composer toolbar. */
     composerContributions?: ReactNode;
+    composerModelControl?: ReactNode;
     messageEntries: ReactNode;
     messageListScrollPosition?: MessageListScrollPosition;
     activities: readonly DeepReadonly<AgentActivityState>[];
@@ -153,6 +154,7 @@ export function ChatConversation(props: ChatConversationProps) {
                 composerAudience={props.composerAudience}
                 composerCompactHint={props.composerCompactHint}
                 composerContributions={props.composerContributions}
+                composerModelControl={props.composerModelControl}
                 composerDisabled={props.composerDisabled}
                 composerHint={props.composerHint}
                 composerMentions={props.composerMentions}

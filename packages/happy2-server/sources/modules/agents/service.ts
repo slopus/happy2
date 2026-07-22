@@ -44,6 +44,7 @@ import { agentEffortUpdate } from "../agent/agentEffortUpdate.js";
 import { agentEffortInitialize } from "../agent/agentEffortInitialize.js";
 import { agentEffortGetContext } from "../agent/agentEffortGetContext.js";
 import { agentEffortBindingList } from "../agent/agentEffortBindingList.js";
+import { agentChatBindingList } from "../agent/agentChatBindingList.js";
 import { agentCreate } from "../agent/agentCreate.js";
 import { agentConversationCreate } from "../agent/agentConversationCreate.js";
 import { agentConversationTitleApply } from "../agent/agentConversationTitleApply.js";
@@ -57,6 +58,7 @@ import { agentContainerGetBoundName } from "../agent/agentContainerGetBoundName.
 import { agentContainerListBoundNames } from "../agent/agentContainerListBoundNames.js";
 import { type DrizzleExecutor } from "../drizzle.js";
 import { chatGetAccess } from "../chat/chatGetAccess.js";
+import { chatModelUpdate } from "../chat/chatModelUpdate.js";
 import { createId } from "@paralleldrive/cuid2";
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
@@ -499,6 +501,25 @@ export class AgentService {
         const catalog = await this.modelCatalog();
         if (!catalog.models.some((model) => model.id === modelId))
             throw new CollaborationError("invalid", "Agent model is not available");
+    }
+    async changeChatModel(input: { actorUserId: string; chatId: string; modelId: string }) {
+        return this.serializeAgentConfiguration(`chat:${input.chatId}`, async () => {
+            await this.modelRequireAvailable(input.modelId);
+            const result = await chatModelUpdate(this.executor, input);
+            try {
+                await Promise.all(
+                    (await agentChatBindingList(this.executor, input.chatId)).map(({ sessionId }) =>
+                        this.daemon.changeModel(sessionId, input.modelId, this.shutdown.signal),
+                    ),
+                );
+            } finally {
+                if (result.hint) await this.publishAgentHint(result.hint);
+            }
+            return {
+                chat: result.chat,
+                ...(result.hint ? { sync: result.hint } : {}),
+            };
+        });
     }
     async start(): Promise<void> {
         await agentImageEnsureDefinitions(

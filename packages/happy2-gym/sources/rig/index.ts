@@ -196,6 +196,7 @@ export class MockRigDaemon implements AsyncDisposable {
     readonly createdCwds: string[] = [];
     readonly createdSessions: MockRigSessionRequest[] = [];
     readonly effortChanges: Array<{ effort: string; sessionId: string }> = [];
+    readonly modelChanges: Array<{ modelId: string; sessionId: string }> = [];
     readonly externalToolCalls: MockRigExternalToolCall[] = [];
     readonly submittedRuns: MockRigRun[] = [];
     readonly submittedTexts: string[] = [];
@@ -973,7 +974,7 @@ export class MockRigDaemon implements AsyncDisposable {
             }
         }
         const match = url.pathname.match(
-            /^\/sessions\/([^/]+)(?:\/(messages|events|stream|effort|permissions))?$/u,
+            /^\/sessions\/([^/]+)(?:\/(messages|events|stream|effort|model|permissions))?$/u,
         );
         const session = match ? this.sessions.get(decodeURIComponent(match[1]!)) : undefined;
         if (!match || !session) return sendJson(response, 404, { error: "Session not found" });
@@ -1005,6 +1006,24 @@ export class MockRigDaemon implements AsyncDisposable {
             this.append(session, "effort_changed", {
                 effort: session.effort,
                 modelId: MOCK_MODEL_ID,
+            });
+            return sendJson(response, 200, { session: snapshot(session) });
+        }
+        if (request.method === "PATCH" && action === "model") {
+            const body = await jsonBody(request);
+            if (
+                typeof body.modelId !== "string" ||
+                !MOCK_MODELS.some((model) => model.id === body.modelId)
+            )
+                return sendJson(response, 400, { error: "Unsupported model" });
+            session.modelId = body.modelId;
+            session.effort =
+                MOCK_MODELS.find((model) => model.id === body.modelId)?.defaultThinkingLevel ??
+                session.effort;
+            this.modelChanges.push({ modelId: session.modelId, sessionId: session.id });
+            this.append(session, "model_changed", {
+                effort: session.effort,
+                modelId: session.modelId,
             });
             return sendJson(response, 200, { session: snapshot(session) });
         }

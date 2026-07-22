@@ -235,9 +235,8 @@ export type ComposerProps = {
     /** Short companion for `hint`, shown only when the toolbar needs to compact. */
     compactHint?: string;
     /**
-     * Native plugin composer contribution triggers (icon buttons and menus),
-     * rendered at the end of the toolbar action group. Supplied by the
-     * application; each owns its own invocation state.
+     * Native plugin composer contribution triggers. The composer retains this
+     * integration point while those controls are temporarily withheld.
      */
     contributions?: ReactNode;
     contextItems?: ContextItem[];
@@ -567,131 +566,127 @@ export function Composer(props: ComposerProps) {
             style={props.style}
             ref={composerEl}
         >
-            {(props.contextItems?.length ?? 0) > 0 ? (
-                <div className="happy2-composer__context" data-happy2-ui="composer-context">
-                    <ContextChips
-                        items={props.contextItems ?? []}
-                        onRemove={props.onContextRemove}
-                        readOnly={!props.onContextRemove}
-                    />
-                </div>
-            ) : null}
-            <div className="happy2-composer__input" data-happy2-ui="composer-input">
-                <textarea
-                    className="happy2-composer__textarea"
-                    data-happy2-ui="composer-textarea"
-                    disabled={props.disabled}
-                    readOnly={props.pending}
-                    onBlur={() => {
-                        rememberSelection();
-                        props.onFocusChange?.(false);
-                    }}
-                    onClick={rememberSelection}
-                    onFocus={() => props.onFocusChange?.(true)}
-                    onInput={onInput}
-                    onKeyDown={onKeyDown}
-                    onSelect={rememberSelection}
-                    placeholder={props.placeholder}
-                    ref={textareaEl}
-                    rows={MIN_LINES}
-                    value={props.value}
-                />
-            </div>
-            <div className="happy2-composer__toolbar" data-happy2-ui="composer-toolbar">
-                <div className="happy2-composer__actions" data-happy2-ui="composer-actions">
-                    {audienceEnabled() ? (
-                        <AudienceToggle
-                            disabled={busy}
-                            onChange={(value) => props.onAudienceChange?.(value)}
-                            value={props.audience!}
+            <div className="happy2-composer__surface" data-happy2-ui="composer-surface">
+                {(props.contextItems?.length ?? 0) > 0 ? (
+                    <div className="happy2-composer__context" data-happy2-ui="composer-context">
+                        <ContextChips
+                            items={props.contextItems ?? []}
+                            onRemove={props.onContextRemove}
+                            readOnly={!props.onContextRemove}
                         />
-                    ) : null}
-                </div>
-                {props.modelControl ? (
-                    <div className="happy2-composer__model" data-happy2-ui="composer-model">
-                        {props.modelControl}
                     </div>
                 ) : null}
-                <div className="happy2-composer__trailing" data-happy2-ui="composer-trailing">
-                    {props.contributions ? (
-                        <span
-                            className="happy2-composer__contributions"
-                            data-happy2-ui="composer-contributions"
-                        >
-                            {props.contributions}
-                        </span>
-                    ) : null}
-                    {hasAttachmentAction() ? (
+                <div className="happy2-composer__input" data-happy2-ui="composer-input">
+                    <textarea
+                        className="happy2-composer__textarea"
+                        data-happy2-ui="composer-textarea"
+                        disabled={props.disabled}
+                        readOnly={props.pending}
+                        onBlur={() => {
+                            rememberSelection();
+                            props.onFocusChange?.(false);
+                        }}
+                        onClick={rememberSelection}
+                        onFocus={() => props.onFocusChange?.(true)}
+                        onInput={onInput}
+                        onKeyDown={onKeyDown}
+                        onSelect={rememberSelection}
+                        placeholder={props.placeholder}
+                        ref={textareaEl}
+                        rows={MIN_LINES}
+                        value={props.value}
+                    />
+                </div>
+                <div className="happy2-composer__toolbar" data-happy2-ui="composer-toolbar">
+                    <div className="happy2-composer__leading" data-happy2-ui="composer-leading">
+                        {hasAttachmentAction() ? (
+                            <Button
+                                aria-label="Attach file"
+                                disabled={busy}
+                                icon="plus"
+                                iconOnly
+                                onClick={triggerAttachment}
+                                size="small"
+                                variant="ghost"
+                            />
+                        ) : null}
+                    </div>
+                    <div className="happy2-composer__trailing" data-happy2-ui="composer-trailing">
+                        {props.modelControl ? (
+                            <div className="happy2-composer__model" data-happy2-ui="composer-model">
+                                {props.modelControl}
+                            </div>
+                        ) : null}
                         <Button
-                            aria-label="Attach file"
-                            disabled={busy}
-                            icon="plus"
+                            aria-label="Send message"
+                            className="happy2-composer__send"
+                            disabled={!canSend()}
+                            icon="arrow-up"
                             iconOnly
-                            onClick={triggerAttachment}
+                            onClick={send}
                             size="small"
-                            variant="ghost"
+                            variant="primary"
                         />
-                    ) : null}
-                    <Button
-                        aria-label="Send message"
-                        className="happy2-composer__send"
-                        disabled={!canSend()}
-                        icon="arrow-up"
-                        iconOnly
-                        onClick={send}
-                        size="small"
-                        variant="primary"
-                    />
+                    </div>
                 </div>
+                {mentionOpen() ? (
+                    <div
+                        className="happy2-composer__popover"
+                        data-happy2-ui="composer-popover"
+                        onMouseDown={(event) => event.preventDefault()}
+                    >
+                        <MentionPicker
+                            activeId={activeMention()?.id}
+                            label={props.mentionPickerLabel}
+                            mentions={mentions()}
+                            onSelect={selectMention}
+                            query={mentionQuery}
+                        />
+                    </div>
+                ) : null}
+                {emojiOpen && !busy ? (
+                    <div
+                        aria-label="Choose emoji"
+                        className="happy2-composer__popover happy2-composer__popover--emoji"
+                        data-happy2-ui="composer-emoji-popover"
+                        onKeyDown={(event) => {
+                            if (event.key !== "Escape") return;
+                            event.preventDefault();
+                            closeEmoji();
+                            textareaEl.current?.focus();
+                        }}
+                        role="dialog"
+                    >
+                        <EmojiPicker
+                            emoji={filteredEmoji()}
+                            onQueryChange={setEmojiQuery}
+                            onSelect={selectEmoji}
+                            query={emojiQuery}
+                            recent={props.recentEmoji}
+                        />
+                    </div>
+                ) : null}
+                {props.onAttachmentsSelect && !props.onAttachFile ? (
+                    <input
+                        accept={props.attachmentAccept}
+                        aria-hidden="true"
+                        className="happy2-composer__file-input"
+                        multiple={props.attachmentMultiple}
+                        onChange={selectAttachments}
+                        ref={fileInputEl}
+                        tabIndex={-1}
+                        type="file"
+                    />
+                ) : null}
             </div>
-            {mentionOpen() ? (
-                <div
-                    className="happy2-composer__popover"
-                    data-happy2-ui="composer-popover"
-                    onMouseDown={(event) => event.preventDefault()}
-                >
-                    <MentionPicker
-                        activeId={activeMention()?.id}
-                        label={props.mentionPickerLabel}
-                        mentions={mentions()}
-                        onSelect={selectMention}
-                        query={mentionQuery}
+            {audienceEnabled() ? (
+                <div className="happy2-composer__audience" data-happy2-ui="composer-audience">
+                    <AudienceToggle
+                        disabled={busy}
+                        onChange={(value) => props.onAudienceChange?.(value)}
+                        value={props.audience!}
                     />
                 </div>
-            ) : null}
-            {emojiOpen && !busy ? (
-                <div
-                    aria-label="Choose emoji"
-                    className="happy2-composer__popover happy2-composer__popover--emoji"
-                    data-happy2-ui="composer-emoji-popover"
-                    onKeyDown={(event) => {
-                        if (event.key !== "Escape") return;
-                        event.preventDefault();
-                        closeEmoji();
-                        textareaEl.current?.focus();
-                    }}
-                    role="dialog"
-                >
-                    <EmojiPicker
-                        emoji={filteredEmoji()}
-                        onQueryChange={setEmojiQuery}
-                        onSelect={selectEmoji}
-                        query={emojiQuery}
-                        recent={props.recentEmoji}
-                    />
-                </div>
-            ) : null}
-            {props.onAttachmentsSelect && !props.onAttachFile ? (
-                <input
-                    accept={props.attachmentAccept}
-                    aria-hidden="true"
-                    className="happy2-composer__file-input"
-                    multiple={props.attachmentMultiple}
-                    onChange={selectAttachments}
-                    ref={fileInputEl}
-                    tabIndex={-1}
-                    type="file"
-                />
             ) : null}
         </div>
     );

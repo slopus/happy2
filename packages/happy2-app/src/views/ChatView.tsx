@@ -33,6 +33,7 @@ import {
 } from "./PluginContributionRenderer";
 import { MessageApp } from "./MessageApp";
 import { openExternalLink } from "../externalLink";
+const AGENT_MODEL_CATALOG_POLL_MS = 5_000;
 export type ChatViewProps = {
     platform?: "desktop" | "web";
     session?: AuthSession;
@@ -246,6 +247,23 @@ export function ChatView(props: ChatViewProps) {
         },
         [state],
     );
+    // Rig's catalog can change outside Happy (2). Load it as the desktop app
+    // enters the chat surface, then refresh only while that surface is visible;
+    // picker clicks consume this already-materialized catalog and never fetch.
+    useLayoutEffect(() => {
+        const syncModels = () => {
+            if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+            void state.agentModelsLoad();
+        };
+        syncModels();
+        const timer = setInterval(syncModels, AGENT_MODEL_CATALOG_POLL_MS);
+        const visibilityChange = () => syncModels();
+        document.addEventListener("visibilitychange", visibilityChange);
+        return () => {
+            clearInterval(timer);
+            document.removeEventListener("visibilitychange", visibilityChange);
+        };
+    }, [state]);
     function panelOpen(panel: ChatPagePanel) {
         props.navigation.navigate({ ...props.route, panel, overlay: undefined });
     }
@@ -339,7 +357,7 @@ export function ChatView(props: ChatViewProps) {
         channelCreateChild: (input) => state.channelCreateChild(input),
         channelArchive: (selectedChatId) => state.channelArchive(selectedChatId),
         channelUnarchive: (selectedChatId) => state.channelUnarchive(selectedChatId),
-        agentModelsLoad: () => state.agentModelsLoad(),
+        chatModelChange: (chatId, modelId) => state.chatModelChange(chatId, modelId),
         channelUpdate: (selectedChatId, input) => state.channelUpdate(selectedChatId, input),
         channelDefaultAgentUpdate: (selectedChatId, agentUserId) =>
             state.channelDefaultAgentUpdate(selectedChatId, agentUserId),

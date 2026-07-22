@@ -20,40 +20,31 @@ const EFFORTS: readonly ComposerModelChoice[] = [
     { id: "standard", label: "Standard" },
     { id: "extra-high", label: "Extra High" },
 ];
-const SPEEDS: readonly ComposerModelChoice[] = [
-    { id: "standard", label: "Standard" },
-    { id: "fast", label: "Fast" },
-];
-
 function Fixture() {
     const [model, setModel] = useState("sol");
     const [effort, setEffort] = useState("extra-high");
-    const [speed, setSpeed] = useState("standard");
-    const [advancedValue, setAdvancedValue] = useState(80);
     return (
         <div className="happy2-theme-dark" style={{ marginTop: "280px" }}>
             <Composer
                 data-testid="composer"
                 modelControl={
                     <ComposerModelControl
-                        advancedValue={advancedValue}
                         data-testid="control"
                         effort={effort}
                         efforts={EFFORTS}
                         model={model}
                         models={MODELS}
-                        onAdvancedValueChange={setAdvancedValue}
                         onEffortChange={setEffort}
                         onModelChange={setModel}
-                        onSpeedChange={setSpeed}
-                        speed={speed}
-                        speeds={SPEEDS}
                     />
                 }
                 onSend={() => undefined}
                 onValueChange={() => undefined}
                 value=""
             />
+            <button data-testid="outside" type="button">
+                Outside
+            </button>
         </div>
     );
 }
@@ -70,10 +61,14 @@ it("composes the controlled model picker into the composer and navigates its pan
     const trigger = view.$(
         '[data-testid="control"] [data-happy2-ui="composer-model-control-trigger"]',
     );
+    const send = view.$('[data-testid="composer"] [aria-label="Send message"]');
     expect(slot.element.contains(control.element)).toBe(true);
-    expect(trigger.bounds()).toMatchObject({ height: 32, width: 240 });
+    expect(trigger.bounds().height).toBe(32);
+    expect(trigger.bounds().width).toBeGreaterThanOrEqual(160);
+    expect(trigger.bounds().width).toBeLessThan(240);
+    expect(trigger.bounds().x + trigger.bounds().width).toBeCloseTo(send.bounds().x - 8, 1);
     expect(trigger.computedStyles(["background-color", "border-radius", "color"])).toEqual({
-        "background-color": "rgb(44, 44, 46)",
+        "background-color": "rgba(0, 0, 0, 0)",
         "border-radius": "999px",
         color: "rgb(255, 255, 255)",
     });
@@ -81,24 +76,45 @@ it("composes the controlled model picker into the composer and navigates its pan
     expect(trigger.element.textContent).toContain("Extra High");
     await userEvent.hover(trigger.element);
     for (const animation of trigger.element.getAnimations()) animation.finish();
-    expect(trigger.computedStyle("transform")).toBe("matrix(1, 0, 0, 1, 0, -1)");
+    expect(trigger.computedStyle("background-color")).toBe("rgba(255, 255, 255, 0.08)");
+    expect(trigger.computedStyle("transform")).toBe("none");
+    expect(trigger.computedStyle("box-shadow")).toBe("none");
     await userEvent.unhover(trigger.element);
     for (const animation of trigger.element.getAnimations()) animation.finish();
     await userEvent.click(trigger.element);
+    await userEvent.click(view.$('[data-testid="outside"]').element);
+    expect(
+        view.container.querySelector(
+            '[data-testid="control"] [data-happy2-ui="composer-model-control-menu"]',
+        ),
+    ).toBeNull();
+    await userEvent.click(trigger.element);
     const menu = view.$('[data-testid="control"] [data-happy2-ui="composer-model-control-menu"]');
     expect(menu.bounds().width).toBe(240);
+    expect(menu.computedStyle("box-shadow")).toBe("none");
     expect(trigger.bounds().y - (menu.bounds().y + menu.bounds().height)).toBeCloseTo(8, 1);
     const modelRow = view.$(
         '[data-testid="control"] [data-happy2-ui="composer-model-control-row"]',
     );
     await userEvent.hover(modelRow.element);
     for (const animation of modelRow.element.getAnimations()) animation.finish();
-    expect(modelRow.computedStyle("transform")).toBe("matrix(1, 0, 0, 1, 2, 0)");
+    expect(modelRow.computedStyle("transform")).toBe("none");
     await userEvent.click(modelRow.element);
     const choices = view.$(
         '[data-testid="control"] [data-happy2-ui="composer-model-control-choices"]',
     );
     expect(choices.element.textContent).toContain("5.6 Terra");
+    // The composer places this selector against its right edge. Its nested
+    // choices must therefore open left of the parent menu and remain in-view.
+    const submenuGap = menu.bounds().x - (choices.bounds().x + choices.bounds().width);
+    expect(submenuGap).toBeGreaterThanOrEqual(7);
+    expect(submenuGap).toBeLessThanOrEqual(8);
+    const submenuBottomInset =
+        menu.bounds().y + menu.bounds().height - (choices.bounds().y + choices.bounds().height);
+    expect(submenuBottomInset).toBeGreaterThanOrEqual(0);
+    expect(submenuBottomInset).toBeLessThanOrEqual(1);
+    expect(choices.bounds().x).toBeGreaterThanOrEqual(20);
+    expect(choices.bounds().x + choices.bounds().width).toBeLessThanOrEqual(740);
     const terra = Array.from(
         view.container.querySelectorAll<HTMLButtonElement>(
             '[data-testid="control"] [data-happy2-ui="composer-model-control-choice"]',
@@ -106,17 +122,7 @@ it("composes the controlled model picker into the composer and navigates its pan
     ).find((choice) => choice.textContent === "5.6 Terra");
     await userEvent.click(terra!);
     expect(trigger.element.textContent).toContain("5.6 Terra");
-    await userEvent.click(trigger.element);
-    await userEvent.click(
-        view.$('[data-testid="control"] [data-happy2-ui="composer-model-control-advanced"]')
-            .element,
-    );
-    const slider = view.$('[data-testid="control"] [aria-label="Advanced reasoning budget"]')
-        .element as HTMLInputElement;
-    expect(slider.value).toBe("80");
-    slider.value = "96";
-    slider.dispatchEvent(new Event("input", { bubbles: true }));
-    slider.dispatchEvent(new Event("change", { bubbles: true }));
-    expect(slider.value).toBe("96");
+    expect(view.container.querySelector('[aria-label="Advanced reasoning budget"]')).toBeNull();
+    expect(view.container.textContent).not.toContain("Speed");
     await view.screenshot("ComposerModelControl.test");
 }, 120000);

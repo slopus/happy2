@@ -80,32 +80,19 @@ const EFFORT_OPTIONS: readonly ComposerModelChoice[] = [
     { id: "high", label: "High" },
     { id: "extra-high", label: "Extra High" },
 ];
-const SPEED_OPTIONS: readonly ComposerModelChoice[] = [
-    { id: "fast", label: "Fast" },
-    { id: "standard", label: "Standard" },
-    { id: "deliberate", label: "Deliberate" },
-];
-
 function ModelControlFixture() {
     const [model, setModel] = useState("sol");
     const [effort, setEffort] = useState("extra-high");
-    const [speed, setSpeed] = useState("standard");
-    const [advancedValue, setAdvancedValue] = useState(94);
     return (
         <Composer
             modelControl={
                 <ComposerModelControl
-                    advancedValue={advancedValue}
                     effort={effort}
                     efforts={EFFORT_OPTIONS}
                     model={model}
                     models={MODEL_OPTIONS}
-                    onAdvancedValueChange={setAdvancedValue}
                     onEffortChange={setEffort}
                     onModelChange={setModel}
-                    onSpeedChange={setSpeed}
-                    speed={speed}
-                    speeds={SPEED_OPTIONS}
                 />
             }
             onSend={noop}
@@ -256,7 +243,7 @@ export function ComposerPage() {
         >
             <div className="specimen-grid">
                 <Specimen
-                    detail="Blueprint-only controlled model configuration · model, effort, speed, and advanced slider panels"
+                    detail="Blueprint-only controlled model configuration · model and effort panels"
                     label="Model control"
                     number="CP-10"
                     stage="app"

@@ -166,6 +166,18 @@ describe("child channel runtime and lifecycle", () => {
         expect(rig.submittedRuns[0]!.text).not.toContain("Child-only prompt");
         expect(rig.submittedRuns[1]!.text).toContain("Child-only prompt");
         expect(rig.submittedRuns[1]!.text).not.toContain("Parent-only prompt");
+        const modelChanged = await asMember.post(`/v0/chats/${childChatId}/changeModel`, {
+            modelId: "gym/mock-agent",
+        });
+        expect(modelChanged.statusCode).toBe(200);
+        expect(modelChanged.json().chat).toMatchObject({
+            id: childChatId,
+            agentModelId: "gym/mock-agent",
+        });
+        expect(rig.modelChanges).toEqual([{ modelId: "gym/mock-agent", sessionId: "session-2" }]);
+        expect(
+            (await asOwner.get(`/v0/chats/${parentChatId}`)).json().chat.agentModelId,
+        ).toBeUndefined();
         expect(await nonServiceTexts(asOwner, parentChatId)).toEqual([
             "Parent-only prompt",
             "All tests are passing.",
@@ -191,7 +203,7 @@ describe("child channel runtime and lifecycle", () => {
         );
         expect(new Set(replacementSessions.map(({ docker }) => docker?.container)).size).toBe(1);
         expect(replacementSessions.map(({ modelId }) => modelId).sort()).toEqual([
-            "gym/alternate-agent",
+            "gym/mock-agent",
             undefined,
         ]);
 
@@ -237,7 +249,7 @@ describe("child channel runtime and lifecycle", () => {
         expect(specialistSessions[1]).toMatchObject({
             cwd: specialistSessions[0]!.cwd,
             docker: specialistSessions[0]!.docker,
-            modelId: "gym/alternate-agent",
+            modelId: "gym/mock-agent",
         });
         expect(
             (
@@ -281,7 +293,7 @@ describe("child channel runtime and lifecycle", () => {
         expect(reboundSessions[1]).toMatchObject({
             cwd: reboundSessions[0]!.cwd,
             docker: reboundSessions[0]!.docker,
-            modelId: "gym/alternate-agent",
+            modelId: "gym/mock-agent",
         });
 
         expect(

@@ -33,6 +33,8 @@ export interface ChatLoadContext {
     readonly runtime: StateRuntime;
     readonly identities: IdentityCatalog;
     chatGet(chatId: string): ChatStore | undefined;
+    /** Returns agents already known for this chat without materializing another surface. */
+    agentUserIds?(chat: ChatSummary): readonly string[];
 }
 
 /** Loads one already materialized chat without creating a store for an absent consumer. */
@@ -55,6 +57,8 @@ export async function chatLoad(context: ChatLoadContext, chatId: string): Promis
             ),
             hasMoreMessages: messagesResult.hasMore,
         });
+        for (const agentUserId of new Set(context.agentUserIds?.(chatResult.chat) ?? []))
+            current.getState().agentEffortRetain(agentUserId);
     } catch (error) {
         context
             .chatGet(chatId)
@@ -1117,13 +1121,19 @@ export function chatStoreCreate(
                             },
                         };
                     case "agentEffortLoaded":
-                        return {
-                            ...snapshot,
-                            agentEffort: {
-                                ...snapshot.agentEffort,
-                                [event.value.agentUserId]: { type: "ready", value: event.value },
+                        return agentEffortMessageApply(
+                            {
+                                ...snapshot,
+                                agentEffort: {
+                                    ...snapshot.agentEffort,
+                                    [event.value.agentUserId]: {
+                                        type: "ready",
+                                        value: event.value,
+                                    },
+                                },
                             },
-                        };
+                            latestAgentEffortMessage(snapshot.messages, event.value.agentUserId),
+                        );
                     case "agentEffortFailed":
                         return {
                             ...snapshot,
@@ -1383,7 +1393,8 @@ export type ChatStore = StoreApi<ChatState>;
 
 export interface ChatHandle extends ChatStore, Disposable {}
 
-function agentEffortMessageApply(snapshot: ChatState, item: ChatMessageItem): ChatState {
+function agentEffortMessageApply(snapshot: ChatState, item?: ChatMessageItem): ChatState {
+    if (!item) return snapshot;
     const service = item.message.service;
     if (service?.type !== "agent_effort_changed") return snapshot;
     const current = snapshot.agentEffort[service.agentUserId];
@@ -1406,6 +1417,20 @@ function agentEffortMessageApply(snapshot: ChatState, item: ChatMessageItem): Ch
             },
         },
     };
+}
+
+/** Returns the newest retained effort notice for one agent, if sync history has one. */
+function latestAgentEffortMessage(
+    messages: readonly ChatMessageItem[],
+    agentUserId: string,
+): ChatMessageItem | undefined {
+    return [...messages]
+        .reverse()
+        .find(
+            (item) =>
+                item.message.service?.type === "agent_effort_changed" &&
+                item.message.service.agentUserId === agentUserId,
+        );
 }
 
 export function reactionActorsKey(messageId: string, reactionKey: string): string {

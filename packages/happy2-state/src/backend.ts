@@ -209,6 +209,7 @@ export const backendOperations = {
     createChannel: post("/v0/chats/createChannel"),
     createChildChannel: post("/v0/chats/:chatId/createChildChannel"),
     getAgentModels: get("/v0/agentModels"),
+    changeChatModel: post("/v0/chats/:chatId/changeModel"),
     updateChatTopic: post("/v0/chats/:chatId/updateTopic"),
     updateDefaultAgent: post("/v0/chats/:chatId/updateDefaultAgent"),
     updateChannel: post("/v0/chats/:chatId/updateChannel"),
@@ -1306,6 +1307,7 @@ export interface KnownBackendResults {
     };
     createChildChannel: ChatResult;
     getAgentModels: AgentModelCatalog;
+    changeChatModel: ChatResult;
     createAgent: ChatResult;
     createAgentConversation: ChatResult;
     updateChatTopic: ChatResult;

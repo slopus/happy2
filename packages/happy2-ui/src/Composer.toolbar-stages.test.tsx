@@ -4,9 +4,7 @@ import "./styles/avatar.css";
 import "./styles/badge.css";
 import "./styles/button.css";
 import "./styles/composer.css";
-import "./styles/icon.css";
 import "./styles/menu.css";
-import "./styles/segmented-control.css";
 import "./styles/audience-toggle.css";
 import { Composer, type Mentionable } from "./Composer";
 import { createRenderer } from "./testing";
@@ -164,11 +162,13 @@ it("keeps the send action inside every measured toolbar stage", async () => {
         }
 
         if (stage.audience) {
-            const toggle = view.$(`${rootSelector} [data-happy2-ui="segmented-control"]`);
-            const icon = view.$(`${rootSelector} [data-happy2-ui="segmented-control-icon"]`);
+            const toggle = view.$(`${rootSelector} [data-happy2-ui="audience-toggle"]`);
             expect(composerElement.hasAttribute("data-audience")).toBe(true);
-            expect(toggle.bounds().width).toBe(stage.contentWidth <= 421 ? 120 : 184);
-            expect(icon.computedStyle("display") === "none").toBe(stage.contentWidth <= 421);
+            expect(toggle.bounds().height).toBe(20);
+            expect(toggle.bounds().x).toBeCloseTo(composerBounds.x + 16, 1);
+            expect(toggle.element.getAttribute("title")).toBe(
+                "Shift+Tab switches to talk to agents",
+            );
         } else {
             expect(composerElement.hasAttribute("data-audience")).toBe(false);
         }

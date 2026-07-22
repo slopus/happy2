@@ -232,6 +232,15 @@ export class RigDaemonClient {
         return sessionEffort(response.session);
     }
 
+    async changeModel(sessionId: string, modelId: string, signal?: AbortSignal): Promise<void> {
+        await this.connectedRequest<{ session: ProtocolSession }>(
+            "PATCH",
+            `/sessions/${encodeURIComponent(sessionId)}/model`,
+            { modelId },
+            signal,
+        );
+    }
+
     async ensureFunctionPermission(sessionId: string, signal?: AbortSignal): Promise<void> {
         const current = await this.session(sessionId, signal);
         if (current.permissionMode === "full_access") return;

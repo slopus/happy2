@@ -30,25 +30,25 @@ export function AudienceTogglePage() {
     return (
         <ComponentPage
             number="C-065"
-            summary="People/Agents message-destination switch for the composer. Shift+Tab in the composer flips it; Agents mode tints the whole composer frame with the accent and names the agent in the placeholder."
+            summary="A quiet Talk to people/agents text switch beneath the composer input. Click it to change destination; hover reveals the Shift+Tab shortcut."
             title="Audience toggle"
         >
             <div className="specimen-grid specimen-grid--sizes">
-                <Specimen detail="People selected" label="People" number="AT-01" stage="app">
+                <Specimen detail="People mode" label="Talk to people" number="AT-01" stage="app">
                     <div style={{ display: "grid", gap: "8px" }}>
-                        <DimensionRule label="height 28" />
+                        <DimensionRule label="height 20" />
                         <AudienceToggle onChange={noop} value="people" />
                     </div>
                 </Specimen>
-                <Specimen detail="Agents selected" label="Agents" number="AT-02" stage="app">
+                <Specimen detail="Agents mode" label="Talk to agents" number="AT-02" stage="app">
                     <div style={{ display: "grid", gap: "8px" }}>
-                        <DimensionRule label="height 28" />
+                        <DimensionRule label="height 20" />
                         <AudienceToggle onChange={noop} value="agents" />
                     </div>
                 </Specimen>
                 <Specimen detail="No interaction" label="Disabled" number="AT-03" stage="app">
                     <div style={{ display: "grid", gap: "8px" }}>
-                        <DimensionRule label="height 28" />
+                        <DimensionRule label="height 20" />
                         <AudienceToggle disabled onChange={noop} value="agents" />
                     </div>
                 </Specimen>
@@ -56,7 +56,7 @@ export function AudienceTogglePage() {
 
             <div className="specimen-grid">
                 <Specimen
-                    detail="Click flips People ↔ Agents"
+                    detail="Click flips people ↔ agents; hover raises the quiet text and shows Shift+Tab"
                     label="Live toggle"
                     number="AT-04"
                     stage="surface"
@@ -69,7 +69,7 @@ export function AudienceTogglePage() {
 
             <div className="specimen-grid">
                 <Specimen
-                    detail="Agents mode: default agent chip, additional agents, add-agent picker"
+                    detail="Text destination control beneath the input"
                     label="In the composer"
                     number="AT-05"
                     stage="surface"

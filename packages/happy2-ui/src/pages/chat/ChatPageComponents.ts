@@ -13,6 +13,7 @@ export { ChannelAccessSummary, type ChannelVisibility } from "../../ChannelAcces
 export { ChannelDirectoryList, type ChannelDirectoryItem } from "../../ChannelDirectoryList.js";
 export { ChannelHeader } from "../../ChannelHeader.js";
 export { Composer, type ContextItem, type Mentionable } from "../../Composer.js";
+export { ComposerModelControl, type ComposerModelChoice } from "../../ComposerModelControl.js";
 export { DocumentSurface } from "../../DocumentSurface.js";
 export { DocumentsPanel } from "../../DocumentsPanel.js";
 export { EmptyState } from "../../EmptyState.js";

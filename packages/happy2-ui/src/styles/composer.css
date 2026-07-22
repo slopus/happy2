@@ -23,8 +23,16 @@
 /* ---- Composer --------------------------------------------------------- */
 
 .happy2-composer {
-    position: relative;
     container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-composer__surface {
+    position: relative;
     display: flex;
     flex-direction: column;
     background: var(--input-background);
@@ -37,12 +45,10 @@
     border-radius: 16px;
     /* 8px shell below the action lane (1px transparent border + 7px pad). */
     padding-bottom: 7px;
-    font-family: var(--happy2-font-ui);
-    font-synthesis: none;
     transition: border-color 120ms ease;
 }
 
-.happy2-composer:focus-within {
+.happy2-composer:focus-within .happy2-composer__surface {
     border-color: var(--surface-pressed-overlay);
 }
 
@@ -52,11 +58,11 @@
  * resolves to the full accent while typing. No chips, labels, or extra rows —
  * the mode reads from the frame and the recipient-named placeholder.
  */
-.happy2-composer[data-agents] {
+.happy2-composer[data-agents] .happy2-composer__surface {
     border-color: var(--surface-selected);
 }
 
-.happy2-composer[data-agents]:focus-within {
+.happy2-composer[data-agents]:focus-within .happy2-composer__surface {
     border-color: var(--radio-active);
 }
 
@@ -115,8 +121,8 @@
     cursor: wait;
 }
 
-/* 32px action lane. Controls receive a 16px left and bottom inset; the
- * circular send button keeps the matching 16px right inset. */
+/* 32px action lane. The attachment, model selector, and circular send button
+ * share a 16px card inset on their outer/bottom edges. */
 .happy2-composer__toolbar {
     display: flex;
     align-items: center;
@@ -125,16 +131,23 @@
     padding: 0 15px 8px;
 }
 
-.happy2-composer__actions {
+.happy2-composer__audience {
+    display: flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 0 16px;
+}
+
+.happy2-composer__leading {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
 }
 
 .happy2-composer__model {
     display: flex;
-    flex: 1 1 auto;
-    justify-content: center;
+    flex: 0 1 auto;
     min-width: 0;
 }
 
@@ -142,29 +155,36 @@
  * the composer's unified panel uses 32px controls (matches the original app).
  * Overridden here, not in the Button API, so other Button call sites are
  * unaffected. */
-.happy2-composer__actions .happy2-button[data-size="small"],
 .happy2-composer__send.happy2-button[data-size="small"] {
     height: 32px;
 }
 
-.happy2-composer__actions .happy2-button[data-icon-only][data-size="small"],
+.happy2-composer__leading .happy2-button[data-size="small"] {
+    height: 32px;
+}
+
 .happy2-composer__send.happy2-button[data-icon-only][data-size="small"] {
     width: 32px;
 }
 
-/* Native plugin composer contribution triggers sit immediately before the
- * attachment affordance in the trailing toolbar controls. */
+.happy2-composer__leading .happy2-button[data-icon-only][data-size="small"] {
+    width: 32px;
+    border-radius: 50%;
+}
+
+/* Native plugin composer contribution triggers sit beside the attachment
+ * affordance on the left side of the toolbar. */
 .happy2-composer__contributions {
     display: inline-flex;
     align-items: center;
     gap: 8px;
 }
 
-/* Composer ghost controls share the destination toggle's hover treatment so
- * attachment, native, and contributed controls read as one toolbar. */
+/* Composer ghost controls share one subtle hover treatment. */
 .happy2-composer__contributions .happy2-button[data-variant="ghost"]:hover:not(:disabled),
+.happy2-composer__leading .happy2-button[data-variant="ghost"]:hover:not(:disabled),
 .happy2-composer__trailing .happy2-button[data-variant="ghost"]:hover:not(:disabled) {
-    background: var(--surface-pressed);
+    background: var(--surface-ripple);
     color: var(--text);
 }
 
@@ -204,7 +224,7 @@
 
 /* The attachment plus needs a fuller 20px stroke presence in its 32px target;
  * the directional send glyph remains 16px for its lighter arrow silhouette. */
-.happy2-composer__trailing > .happy2-button[aria-label="Attach file"] .happy2-icon {
+.happy2-composer__leading > .happy2-button[aria-label="Attach file"] .happy2-icon {
     width: 20px !important;
     height: 20px !important;
     font-size: 20px !important;
@@ -234,13 +254,6 @@
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
     white-space: nowrap;
-}
-
-/* Audience controls compact only when a narrow desktop panel requires it. */
-@container (max-width: 423px) {
-    .happy2-composer .happy2-audience-toggle {
-        padding: 0 8px;
-    }
 }
 
 /* ---- ContextChips ------------------------------------------------------ */

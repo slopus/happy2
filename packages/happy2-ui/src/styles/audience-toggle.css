@@ -1,38 +1,35 @@
 /*
  * C-065 AudienceToggle.
  *
- * A compact current-mode toggle in the composer toolbar.
+ * A compact current-mode text control beneath the composer input.
  */
 
 .happy2-audience-toggle {
     display: inline-flex;
     flex: none;
     align-items: center;
-    gap: 8px;
-    height: 32px;
+    height: 20px;
     margin: 0;
-    padding: 0 10px;
+    padding: 0;
     border: 0;
-    border-radius: 8px;
     background: transparent;
     color: var(--text-secondary);
     font-family: var(--happy2-font-ui);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
     line-height: 16px;
+    opacity: 0.5;
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;
-}
-
-.happy2-audience-toggle[data-value="people"] {
-    background: var(--surface-pressed);
-    color: var(--text);
+    transition:
+        color 120ms ease,
+        opacity 120ms ease;
 }
 
 .happy2-audience-toggle:hover:not(:disabled) {
-    background: var(--surface-pressed);
     color: var(--text);
+    opacity: 1;
 }
 
 .happy2-audience-toggle:focus-visible {

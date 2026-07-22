@@ -8,7 +8,6 @@ import "./styles/button.css";
 import "./styles/composer.css";
 import "./styles/icon.css";
 import "./styles/menu.css";
-import "./styles/segmented-control.css";
 import "./styles/audience-toggle.css";
 import { Composer, type Mentionable } from "./Composer";
 import type { AudienceValue } from "./AudienceToggle";
@@ -236,13 +235,12 @@ it("keeps the audience and capability actions inside a panel-constrained compose
     );
     await view.ready();
     const composer = view.$('[data-testid="composer-compact"]');
-    const toggle = view.$('[data-testid="composer-compact"] [data-happy2-ui="segmented-control"]');
-    expect(toggle.bounds().width).toBe(120);
-    expect(
-        view
-            .$('[data-testid="composer-compact"] [data-happy2-ui="segmented-control-icon"]')
-            .computedStyle("display"),
-    ).toBe("none");
+    const surface = view.$('[data-testid="composer-compact"] [data-happy2-ui="composer-surface"]');
+    const toggle = view.$('[data-testid="composer-compact"] [data-happy2-ui="audience-toggle"]');
+    expect(toggle.bounds().height).toBe(20);
+    expect(toggle.bounds().y).toBeCloseTo(surface.bounds().y + surface.bounds().height + 4, 1);
+    expect(toggle.element.textContent).toBe("Talk to people");
+    expect(toggle.element.getAttribute("title")).toBe("Shift+Tab switches to talk to agents");
     expect(
         view.container.querySelector(
             '[data-testid="composer-compact"] [data-happy2-ui="composer-hint"]',
