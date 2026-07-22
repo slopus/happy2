@@ -5,6 +5,7 @@ import { DocumentDeleteDialog } from "./DocumentDeleteDialog";
 import {
     DocumentEditor,
     type DocumentEditorCommentUser,
+    type DocumentEditorFileUpload,
     type DocumentEditorPresence,
     type DocumentEditorPresencePayload,
     type DocumentEditorUser,
@@ -45,6 +46,11 @@ export interface DocumentSurfaceProps {
     readonly commentUsersResolve?: (
         userIds: readonly string[],
     ) => Promise<readonly DocumentEditorCommentUser[]>;
+    readonly onFileUpload?: (file: File) => Promise<DocumentEditorFileUpload>;
+    readonly onFileUrlResolve?: (fileId: string) => Promise<string>;
+    readonly onFileOpen?: (fileId: string) => void;
+    readonly onFileAttach?: (fileId: string) => Promise<void> | void;
+    readonly onFileDetach?: (fileId: string) => Promise<void> | void;
 }
 
 const SAVE_LABELS = {
@@ -82,6 +88,11 @@ export function DocumentSurface(props: DocumentSurfaceProps) {
                 commentUserId={props.commentUserId}
                 commentUsersResolve={props.commentUsersResolve}
                 editable={props.editable}
+                onFileAttach={props.onFileAttach}
+                onFileDetach={props.onFileDetach}
+                onFileOpen={props.onFileOpen}
+                onFileUpload={props.onFileUpload}
+                onFileUrlResolve={props.onFileUrlResolve}
                 onPresence={props.onPresence}
                 presence={props.presence}
                 theme={props.theme}

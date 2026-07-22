@@ -672,6 +672,14 @@ export interface DocumentAttachment {
     readonly attachedAt: string;
 }
 
+/** One durable file related to a document, ordered by the server. */
+export interface DocumentFileAttachment {
+    readonly file: FileSummary;
+    readonly position: number;
+    readonly attachedByUserId: string;
+    readonly createdAt: string;
+}
+
 export interface DocumentSummary {
     readonly id: string;
     readonly ownerUserId: string;
@@ -683,6 +691,8 @@ export interface DocumentSummary {
      * projection rather than the document's complete attachment set.
      */
     readonly channelAttachments: readonly DocumentAttachment[];
+    /** Durable files available to readers of this document. */
+    readonly fileAttachments: readonly DocumentFileAttachment[];
     /** Sequence of the newest accepted update, as an unsigned decimal string. */
     readonly latestSequence: string;
     readonly createdAt: string;

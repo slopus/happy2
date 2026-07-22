@@ -17,6 +17,15 @@ export async function fileUpload(
     return result.file;
 }
 
+/** Resolves one accessible file to a short-lived URL without exposing transport credentials. */
+export async function fileSignedUrlCreate(
+    context: FileUploadContext,
+    fileId: string,
+): Promise<string> {
+    const result = await context.runtime.operation("createFileSignedUrl", { fileId });
+    return result.signedUrl.url;
+}
+
 export interface FilesActionContext {
     readonly runtime: StateRuntime;
     readonly files: FilesStore;

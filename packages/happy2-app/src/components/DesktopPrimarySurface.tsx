@@ -118,6 +118,12 @@ export function DesktopPrimarySurface(props: DesktopPrimarySurfaceProps) {
                 onCloseDetail={() =>
                     props.navigation.navigate({ ...props.route, primary: { kind: "documents" } })
                 }
+                onFileOpen={(fileId) =>
+                    props.navigation.navigate({
+                        ...props.route,
+                        overlay: { kind: "file", fileId },
+                    })
+                }
                 onOpen={(documentId) =>
                     props.navigation.navigate({
                         ...props.route,

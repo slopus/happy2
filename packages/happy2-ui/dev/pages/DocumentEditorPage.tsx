@@ -7,6 +7,8 @@ const emptyDoc = new Y.Doc();
 const richDoc = documentEditorSeedDoc();
 const readOnlyDoc = documentEditorSeedDoc();
 const commentsDoc = documentEditorSeedDoc();
+const dropDoc = documentEditorSeedDoc();
+const errorDoc = documentEditorSeedDoc();
 
 const commentUsers: Record<string, string> = {
     "user-ada": "Ada Lovelace",
@@ -32,6 +34,39 @@ export function DocumentEditorPage() {
                             data-testid="document-editor-empty"
                             user={{ name: "Ada", color: "#2baccc" }}
                             ydoc={emptyDoc}
+                        />
+                    </div>
+                </Specimen>
+                <Specimen
+                    detail="Native BlockNote drop target; MIME type selects image, video, audio, or file blocks"
+                    label="File drop"
+                    number="C-080-E"
+                >
+                    <div style={{ display: "flex", width: 520, height: 260 }}>
+                        <DocumentEditor
+                            fileDropActive
+                            onFileUpload={async (file) => ({
+                                id: "file-blueprint",
+                                name: file.name,
+                            })}
+                            onFileUrlResolve={async () =>
+                                "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+                            }
+                            user={{ name: "Ada", color: "#2baccc" }}
+                            ydoc={dropDoc}
+                        />
+                    </div>
+                </Specimen>
+                <Specimen
+                    detail="Upload or attachment failure stays visible without replacing the editor"
+                    label="File error"
+                    number="C-080-F"
+                >
+                    <div style={{ display: "flex", width: 520, height: 260 }}>
+                        <DocumentEditor
+                            fileError="Diagram.png could not be attached."
+                            user={{ name: "Ada", color: "#2baccc" }}
+                            ydoc={errorDoc}
                         />
                     </div>
                 </Specimen>

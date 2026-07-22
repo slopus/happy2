@@ -336,6 +336,22 @@ export function ChatView(props: ChatViewProps) {
         documentAttach: (documentId, chatId) => state.documentAttach(documentId, chatId),
         documentDetach: (documentId, chatId) => state.documentDetach(documentId, chatId),
         documentDelete: (documentId) => state.documentDelete(documentId),
+        async documentFileUpload(documentId, file) {
+            const body = new FormData();
+            body.set("file", file, file.name);
+            const uploaded = await state.fileUpload(body);
+            const attachment = await state.documentFileAttach(documentId, uploaded.id);
+            return {
+                id: attachment.file.id,
+                name: attachment.file.originalName ?? file.name,
+            };
+        },
+        documentFileAttach: (documentId, fileId) =>
+            state.documentFileAttach(documentId, fileId).then(() => undefined),
+        documentFileDetach: (documentId, fileId) => state.documentFileDetach(documentId, fileId),
+        fileSignedUrlCreate: (fileId) => state.fileSignedUrlCreate(fileId),
+        fileOpen: (fileId) =>
+            props.navigation.navigate({ ...props.route, overlay: { kind: "file", fileId } }),
         fileUpload: (body) => state.fileUpload(body),
         fileDownload: (fileId) => state.fileDownload(fileId),
         filePreviewDownload: (fileId) => state.filePreviewDownload(fileId),

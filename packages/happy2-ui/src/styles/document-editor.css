@@ -6,12 +6,36 @@
  * product colors of its own.
  */
 .happy2-document-editor {
+    position: relative;
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
     width: 100%;
     background: var(--surface);
+}
+
+.happy2-document-editor__file-error {
+    position: absolute;
+    z-index: 1;
+    top: 8px;
+    right: 48px;
+    left: 48px;
+}
+
+.happy2-document-editor__drop-target {
+    position: absolute;
+    z-index: 1;
+    inset: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--text-link);
+    border-radius: var(--happy2-radius-lg);
+    background: var(--surface-high);
+    color: var(--text-link);
+    font: 600 15px/1.4 var(--happy2-font-ui);
+    pointer-events: none;
 }
 
 .happy2-document-editor .bn-container {
@@ -49,4 +73,16 @@
 .happy2-document-editor .bn-editor > .bn-block-group {
     padding-inline: 48px;
     padding-block: 24px;
+}
+
+.happy2-document-editor [data-content-type="file"] .bn-file-name-with-icon[role="button"] {
+    border-radius: var(--happy2-radius-sm);
+    cursor: pointer;
+}
+
+.happy2-document-editor
+    [data-content-type="file"]
+    .bn-file-name-with-icon[role="button"]:focus-visible {
+    outline: 2px solid var(--text-link);
+    outline-offset: 2px;
 }

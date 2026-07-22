@@ -3,7 +3,7 @@ import type { FileSummary } from "../../types.js";
 import { createFakeServer, jsonResponse } from "../../testing/index.js";
 import type { ClientTransport, HttpRequest, HttpResponse } from "../../transport.js";
 import { StateRuntime } from "../runtime/runtimeState.js";
-import { filesLoad } from "./filesState.js";
+import { fileSignedUrlCreate, filesLoad } from "./filesState.js";
 import { fileUpload } from "./filesState.js";
 import { filesStoreCreate } from "./filesState.js";
 
@@ -36,6 +36,29 @@ describe("files module", () => {
 
         await expect(fileUpload({ runtime }, body)).resolves.toEqual(uploaded);
         expect(requests).toEqual([{ method: "POST", path: "/v0/files/upload", body }]);
+        runtime.stop();
+    });
+
+    it("creates a short-lived URL for an accessible file", async () => {
+        const server = createFakeServer();
+        server.respond(
+            "POST",
+            "/v0/files/file-1/createSignedUrl",
+            jsonResponse(200, {
+                signedUrl: {
+                    url: "https://files.test/v0/files/file-1?token=signed",
+                    expiresAt: "2026-07-21T01:00:00.000Z",
+                },
+            }),
+        );
+        const runtime = new StateRuntime({ transport: server.transport });
+        await expect(fileSignedUrlCreate({ runtime }, "file-1")).resolves.toBe(
+            "https://files.test/v0/files/file-1?token=signed",
+        );
+        expect(server.requests.at(-1)).toMatchObject({
+            method: "POST",
+            path: "/v0/files/file-1/createSignedUrl",
+        });
         runtime.stop();
     });
 

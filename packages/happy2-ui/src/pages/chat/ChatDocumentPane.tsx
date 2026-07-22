@@ -1,4 +1,5 @@
 import type { DocumentStore } from "happy2-state";
+import type { DocumentEditorFileUpload } from "../../DocumentEditor.js";
 import { DocumentSurface } from "./ChatPageComponents.js";
 import { useStoreSnapshot } from "./chatStoreBindings.js";
 import type { ChatPageUser } from "./ChatPage.js";
@@ -18,6 +19,11 @@ export interface ChatDocumentPaneProps {
     onClose(): void;
     onDelete?(): void;
     onRename(title: string): void;
+    onFileUpload?(file: File): Promise<DocumentEditorFileUpload>;
+    onFileUrlResolve?(fileId: string): Promise<string>;
+    onFileOpen?(fileId: string): void;
+    onFileAttach?(fileId: string): Promise<void> | void;
+    onFileDetach?(fileId: string): Promise<void> | void;
 }
 
 /**
@@ -62,6 +68,11 @@ export function ChatDocumentPane(props: ChatDocumentPaneProps) {
             loading={snapshot.document.type === "loading" || snapshot.document.type === "unloaded"}
             onClose={props.onClose}
             onDelete={props.onDelete}
+            onFileAttach={props.onFileAttach}
+            onFileDetach={props.onFileDetach}
+            onFileOpen={props.onFileOpen}
+            onFileUpload={props.onFileUpload}
+            onFileUrlResolve={props.onFileUrlResolve}
             onPresence={(payload) =>
                 props.document.getState().documentPresenceUpdate(payload, true)
             }

@@ -70,6 +70,47 @@ describe("the document collection across the real server boundary", () => {
             readyDocuments(teammateCollection)[0]!.channelAttachments.map((one) => one.chatId),
         ).toEqual([planningId]);
 
+        // Generic upload plus the typed document-file action reconciles durable
+        // attachment metadata to another signed-in client without replacing the
+        // document collection surface.
+        const uploadBody = new FormData();
+        uploadBody.set(
+            "file",
+            new Blob(["roadmap attachment"], { type: "text/plain" }),
+            "roadmap.txt",
+        );
+        const uploaded = await ownerState.fileUpload(uploadBody);
+        await ownerState.documentFileAttach(planningDoc.id, uploaded.id);
+        await waitFor(
+            () =>
+                readyDocuments(teammateCollection).find((one) => one.id === planningDoc.id)
+                    ?.fileAttachments[0]?.file.id === uploaded.id,
+            "teammate reconciles the attached file",
+        );
+        expect(
+            readyDocuments(teammateCollection).find((one) => one.id === planningDoc.id)!
+                .fileAttachments[0],
+        ).toMatchObject({
+            file: { id: uploaded.id, originalName: "roadmap.txt", contentType: "text/plain" },
+            position: 0,
+            attachedByUserId: owner.id,
+        });
+        const signedUrl = new URL(await teammateState.fileSignedUrlCreate(uploaded.id));
+        const signedDownload = await server.get(`${signedUrl.pathname}${signedUrl.search}`);
+        expect(signedDownload.statusCode).toBe(200);
+        expect(signedDownload.body).toBe("roadmap attachment");
+
+        await ownerState.documentFileDetach(planningDoc.id, uploaded.id);
+        await waitFor(
+            () =>
+                readyDocuments(teammateCollection).find((one) => one.id === planningDoc.id)
+                    ?.fileAttachments.length === 0,
+            "teammate reconciles the detached file",
+        );
+        await expect(teammateState.fileSignedUrlCreate(uploaded.id)).rejects.toMatchObject({
+            code: "not_found",
+        });
+
         // Attaching the research document to planning reconciles the teammate's
         // collection live, without them joining the research channel.
         await asOwner.post(`/v0/documents/${researchDoc.id}/attach`, { chatId: planningId });

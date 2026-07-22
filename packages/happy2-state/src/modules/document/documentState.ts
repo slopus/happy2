@@ -1,6 +1,11 @@
 import * as Y from "yjs";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { UserError, type DocumentPresenceEntry, type DocumentSummary } from "../../types.js";
+import {
+    UserError,
+    type DocumentFileAttachment,
+    type DocumentPresenceEntry,
+    type DocumentSummary,
+} from "../../types.js";
 import { type Loadable } from "../chat/chatState.js";
 import { type StateRuntime, userError } from "../runtime/runtimeState.js";
 
@@ -394,6 +399,43 @@ export async function documentDetach(
 }
 
 /**
+ * Attaches one already-uploaded durable file to the document and applies the
+ * authoritative response summary to an open session. The returned relation is
+ * the stable reference BlockNote stores.
+ */
+export async function documentFileAttach(
+    context: DocumentActionContext,
+    documentId: string,
+    fileId: string,
+): Promise<DocumentFileAttachment> {
+    const result = await context.runtime.operation("attachDocumentFile", {
+        documentId,
+        fileId,
+    });
+    context
+        .documentGet(documentId)
+        ?.getState()
+        .documentInput({ type: "documentFileAttached", document: result.document });
+    return result.attachment;
+}
+
+/**
+ * Detaches one durable file relation without deleting the underlying file and
+ * applies the server summary to an open document session immediately.
+ */
+export async function documentFileDetach(
+    context: DocumentActionContext,
+    documentId: string,
+    fileId: string,
+): Promise<void> {
+    const result = await context.runtime.operation("detachDocumentFile", { documentId, fileId });
+    context
+        .documentGet(documentId)
+        ?.getState()
+        .documentInput({ type: "documentFileDetached", document: result.document });
+}
+
+/**
  * Renames one document and applies the authoritative summary to its open
  * session immediately; list surfaces reconcile through the documents-area
  * sync hint.
@@ -626,6 +668,10 @@ function documentInputReduce(
         }
         case "documentRenamed":
             return { ...snapshot, document: { type: "ready", value: event.document } };
+        case "documentFileAttached":
+            return { ...snapshot, document: { type: "ready", value: event.document } };
+        case "documentFileDetached":
+            return { ...snapshot, document: { type: "ready", value: event.document } };
         default: {
             const exhaustive: never = event;
             throw new Error(`Unhandled document input: ${String(exhaustive)}`);
@@ -722,7 +768,9 @@ export type DocumentInput =
           readonly type: "documentPresenceListed";
           readonly presence: readonly DocumentPresenceEntry[];
       }
-    | { readonly type: "documentRenamed"; readonly document: DocumentSummary };
+    | { readonly type: "documentRenamed"; readonly document: DocumentSummary }
+    | { readonly type: "documentFileAttached"; readonly document: DocumentSummary }
+    | { readonly type: "documentFileDetached"; readonly document: DocumentSummary };
 
 export interface DocumentSessionState extends DocumentSessionSnapshot {
     documentEditCaptured(update: Uint8Array): void;

@@ -23,6 +23,8 @@ import {
     documentCreate,
     documentDelete,
     documentDetach,
+    documentFileAttach,
+    documentFileDetach,
     documentFlushSchedule,
     documentLeaveAnnounce,
     documentLoad,
@@ -101,7 +103,7 @@ import { reactionAdd } from "./modules/reaction/reactionState.js";
 import { reactionRemove } from "./modules/reaction/reactionState.js";
 import type { ReactionSelector } from "./modules/reaction/reactionState.js";
 import { filesLoad } from "./modules/files/filesState.js";
-import { fileUpload } from "./modules/files/filesState.js";
+import { fileSignedUrlCreate, fileUpload } from "./modules/files/filesState.js";
 import { filesStoreCreate, type FilesOutput, type FilesStore } from "./modules/files/filesState.js";
 import { StateRuntime, type StateRuntimeOptions } from "./modules/runtime/runtimeState.js";
 import { sidebarStoreCreate } from "./modules/sidebar/sidebarState.js";
@@ -152,6 +154,7 @@ import type {
     CreateChannelInput,
     CreateChildChannelInput,
     CreateProjectInput,
+    DocumentFileAttachment,
     DocumentSummary,
     MessageAudience,
     MessageSummary,
@@ -589,6 +592,21 @@ export class HappyState implements AsyncDisposable, Disposable {
         );
     }
 
+    /** Attaches one uploaded durable file and reconciles every document projection. */
+    documentFileAttach(documentId: string, fileId: string): Promise<DocumentFileAttachment> {
+        return documentFileAttach(this.documentContext(), documentId, fileId).then((attachment) => {
+            this.documentsReconcile();
+            return attachment;
+        });
+    }
+
+    /** Detaches one document file relation without deleting the durable file. */
+    documentFileDetach(documentId: string, fileId: string): Promise<void> {
+        return documentFileDetach(this.documentContext(), documentId, fileId).then(() =>
+            this.documentsReconcile(),
+        );
+    }
+
     sidebar(): SidebarStore {
         return this.sidebarBinding;
     }
@@ -878,6 +896,11 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     async fileUpload(body: FormData): Promise<import("./resources.js").UploadedFile> {
         return fileUpload({ runtime: this.runtime }, body);
+    }
+
+    /** Resolves an accessible file to a short-lived download URL. */
+    async fileSignedUrlCreate(fileId: string): Promise<string> {
+        return fileSignedUrlCreate({ runtime: this.runtime }, fileId);
     }
 
     async fileThumbnailDownload(fileId: string): Promise<ArrayBuffer> {

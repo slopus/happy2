@@ -17,6 +17,7 @@ function summary(id: string, title: string, attachments: number): DocumentSummar
             attachedByUserId: "user-1",
             attachedAt: "2026-07-20T09:00:00.000Z",
         })),
+        fileAttachments: [],
         latestSequence: "4",
         createdAt: "2026-07-19T09:00:00.000Z",
         updatedAt: "2026-07-20T12:00:00.000Z",

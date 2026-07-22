@@ -4,6 +4,8 @@ import { createFakeServer, jsonResponse } from "../../testing/index.js";
 import { StateRuntime } from "../runtime/runtimeState.js";
 import {
     documentAttach,
+    documentFileAttach,
+    documentFileDetach,
     documentFlush,
     documentLoad,
     documentPresenceSend,
@@ -24,6 +26,7 @@ const summary = (latestSequence: string) => ({
     channelAttachments: [
         { chatId: "chat-1", attachedByUserId: "user-1", attachedAt: "2026-07-19T00:00:00.000Z" },
     ],
+    fileAttachments: [],
     latestSequence,
     createdAt: "2026-07-19T00:00:00.000Z",
     updatedAt: "2026-07-19T00:00:00.000Z",
@@ -258,5 +261,77 @@ it("treats an already-attached conflict as success and surfaces other attach fai
     await expect(documentAttach({ runtime }, "doc-2", "chat-1")).rejects.toMatchObject({
         code: "not_found",
     });
+    runtime.stop();
+});
+
+it("applies authoritative document file attach and detach responses without replacing the Y.Doc", async () => {
+    const store = documentStoreCreate("doc-1", undefined, { clientId: "client-a" });
+    const ydoc = store.getState().ydoc;
+    store.getState().documentInput({
+        type: "documentLoaded",
+        document: summary("0"),
+        snapshotUpdate: Y.encodeStateAsUpdate(new Y.Doc()),
+        sequence: 0,
+    });
+    const attachment = {
+        file: {
+            id: "file-1",
+            kind: "photo" as const,
+            originalName: "diagram.png",
+            contentType: "image/png",
+            size: 7,
+            width: 32,
+            height: 24,
+            uploadedByUserId: "user-1",
+            createdAt: "2026-07-21T00:00:00.000Z",
+        },
+        position: 0,
+        attachedByUserId: "user-1",
+        createdAt: "2026-07-21T00:00:00.000Z",
+    };
+    const server = createFakeServer();
+    server.respond(
+        "POST",
+        "/v0/documents/doc-1/attachFile",
+        jsonResponse(201, {
+            attachment,
+            document: { ...summary("0"), fileAttachments: [attachment] },
+            sync: { sequence: "2", chats: [], areas: ["documents"] },
+        }),
+    );
+    server.respond(
+        "POST",
+        "/v0/documents/doc-1/detachFile",
+        jsonResponse(200, {
+            document: summary("0"),
+            fileId: "file-1",
+            sync: { sequence: "3", chats: [], areas: ["documents"] },
+        }),
+    );
+    const runtime = new StateRuntime({ transport: server.transport });
+    const actions = context(runtime, store);
+
+    await expect(documentFileAttach(actions, "doc-1", "file-1")).resolves.toEqual(attachment);
+    expect(server.requests.at(-1)).toMatchObject({
+        path: "/v0/documents/doc-1/attachFile",
+        body: { fileId: "file-1" },
+    });
+    expect(store.getState().document).toMatchObject({
+        type: "ready",
+        value: { fileAttachments: [attachment] },
+    });
+    expect(store.getState().ydoc).toBe(ydoc);
+
+    await documentFileDetach(actions, "doc-1", "file-1");
+    expect(server.requests.at(-1)).toMatchObject({
+        path: "/v0/documents/doc-1/detachFile",
+        body: { fileId: "file-1" },
+    });
+    expect(store.getState().document).toMatchObject({
+        type: "ready",
+        value: { fileAttachments: [] },
+    });
+    expect(store.getState().ydoc).toBe(ydoc);
+    documentSessionStop(store);
     runtime.stop();
 });

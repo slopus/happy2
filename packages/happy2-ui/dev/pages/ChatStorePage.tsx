@@ -65,6 +65,14 @@ const passiveActions: ChatPageActions = {
     documentAttach: async () => undefined,
     documentDetach: async () => undefined,
     documentDelete: async () => undefined,
+    documentFileUpload: async (_documentId, file) => ({
+        id: "file-blueprint",
+        name: file.name,
+    }),
+    documentFileAttach: async () => undefined,
+    documentFileDetach: async () => undefined,
+    fileSignedUrlCreate: async (fileId) => `https://files.test/${fileId}`,
+    fileOpen: () => undefined,
     fileUpload: async () => ({
         id: "file-blueprint",
         kind: "file",

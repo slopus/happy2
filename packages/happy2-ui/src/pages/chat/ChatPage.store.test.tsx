@@ -102,6 +102,11 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         documentAttach: async () => undefined,
         documentDetach: async () => undefined,
         documentDelete: async () => undefined,
+        documentFileUpload: async (_documentId, file) => ({ id: "file-1", name: file.name }),
+        documentFileAttach: async () => undefined,
+        documentFileDetach: async () => undefined,
+        fileSignedUrlCreate: async (fileId) => `https://files.test/${fileId}`,
+        fileOpen: () => undefined,
         fileUpload: async () => ({
             id: "file-1",
             kind: "file",

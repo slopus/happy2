@@ -9,6 +9,7 @@ export interface DocumentsViewProps {
     user: { readonly id: string; readonly firstName: string };
     onOpen: (documentId: string) => void;
     onCloseDetail: () => void;
+    onFileOpen: (fileId: string) => void;
 }
 
 type DocumentsResources = {
@@ -54,6 +55,22 @@ export function DocumentsView(props: DocumentsViewProps) {
                         .then(() => props.onCloseDetail())
                         .catch(() => undefined);
                 }}
+                onFileAttach={(fileId) =>
+                    state.documentFileAttach(nextDocumentId, fileId).then(() => undefined)
+                }
+                onFileDetach={(fileId) => state.documentFileDetach(nextDocumentId, fileId)}
+                onFileOpen={props.onFileOpen}
+                onFileUpload={async (file) => {
+                    const body = new FormData();
+                    body.set("file", file, file.name);
+                    const uploaded = await state.fileUpload(body);
+                    const attachment = await state.documentFileAttach(nextDocumentId, uploaded.id);
+                    return {
+                        id: attachment.file.id,
+                        name: attachment.file.originalName ?? file.name,
+                    };
+                }}
+                onFileUrlResolve={(fileId) => state.fileSignedUrlCreate(fileId)}
                 onRename={(title) => void state.documentRename(nextDocumentId, title)}
                 user={props.user}
             />

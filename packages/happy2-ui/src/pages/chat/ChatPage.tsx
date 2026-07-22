@@ -208,6 +208,14 @@ export interface ChatPageActions {
     documentAttach(documentId: string, chatId: string): Promise<void>;
     documentDetach(documentId: string, chatId: string): Promise<void>;
     documentDelete(documentId: string): Promise<void>;
+    documentFileUpload(
+        documentId: string,
+        file: File,
+    ): Promise<{ readonly id: string; readonly name: string }>;
+    documentFileAttach(documentId: string, fileId: string): Promise<void>;
+    documentFileDetach(documentId: string, fileId: string): Promise<void>;
+    fileSignedUrlCreate(fileId: string): Promise<string>;
+    fileOpen(fileId: string): void;
     fileUpload(body: FormData): Promise<import("happy2-state").UploadedFile>;
     fileDownload(fileId: string): Promise<ArrayBuffer>;
     filePreviewDownload(fileId: string): Promise<ArrayBuffer>;
@@ -1190,6 +1198,26 @@ export function ChatPage(props: ChatPageProps) {
                                 .then(() => props.actions.documentClose())
                                 .catch(showError);
                         }}
+                        onFileAttach={(fileId) => {
+                            const documentId = props.navigation.documentId;
+                            return documentId
+                                ? props.actions.documentFileAttach(documentId, fileId)
+                                : undefined;
+                        }}
+                        onFileDetach={(fileId) => {
+                            const documentId = props.navigation.documentId;
+                            return documentId
+                                ? props.actions.documentFileDetach(documentId, fileId)
+                                : undefined;
+                        }}
+                        onFileOpen={(fileId) => props.actions.fileOpen(fileId)}
+                        onFileUpload={(file) => {
+                            const documentId = props.navigation.documentId;
+                            if (!documentId)
+                                return Promise.reject(new Error("No document is open."));
+                            return props.actions.documentFileUpload(documentId, file);
+                        }}
+                        onFileUrlResolve={(fileId) => props.actions.fileSignedUrlCreate(fileId)}
                         onRename={(title) => {
                             const documentId = props.navigation.documentId;
                             if (documentId) void props.actions.documentRename(documentId, title);

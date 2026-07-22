@@ -251,6 +251,7 @@ export {
     documentFragmentName,
     documentThreadsName,
     type DocumentEditorCommentUser,
+    type DocumentEditorFileUpload,
     type DocumentEditorPresence,
     type DocumentEditorPresencePayload,
     type DocumentEditorProps,

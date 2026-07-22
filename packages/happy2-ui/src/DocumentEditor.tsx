@@ -5,7 +5,16 @@ import {
     DefaultThreadStoreAuth,
     YjsThreadStore,
 } from "@blocknote/core/comments";
-import { useEffectEvent, useLayoutEffect, useMemo, useRef } from "react";
+import {
+    useEffectEvent,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+    type DragEvent as ReactDragEvent,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type MouseEvent as ReactMouseEvent,
+} from "react";
 import {
     Awareness,
     applyAwarenessUpdate,
@@ -13,6 +22,7 @@ import {
     removeAwarenessStates,
 } from "y-protocols/awareness";
 import * as Y from "yjs";
+import { Banner } from "./Banner";
 
 /** Shared type name of the BlockNote fragment inside a collaborative document Y.Doc. */
 export const documentFragmentName = "document";
@@ -21,6 +31,12 @@ export const documentFragmentName = "document";
 export const documentThreadsName = "threads";
 
 const remotePresenceOrigin = "happy2-remote-presence";
+const documentFileReferencePrefix = "/v0/files/";
+
+export interface DocumentEditorFileUpload {
+    readonly id: string;
+    readonly name: string;
+}
 
 export interface DocumentEditorUser {
     readonly name: string;
@@ -72,6 +88,21 @@ export interface DocumentEditorProps {
     commentUsersResolve?: (
         userIds: readonly string[],
     ) => Promise<readonly DocumentEditorCommentUser[]>;
+    /** Uploads and durably attaches one file before its BlockNote block is finalized. */
+    onFileUpload?: (file: File) => Promise<DocumentEditorFileUpload>;
+    /** Resolves a durable file to a short-lived URL for visual media rendering. */
+    onFileUrlResolve?: (fileId: string) => Promise<string>;
+    /** Opens a durable generic-file reference in the host's file surface. */
+    onFileOpen?: (fileId: string) => void;
+    /** Reattaches a durable reference restored or pasted by a local editor action. */
+    onFileAttach?: (fileId: string) => Promise<void> | void;
+    /** Detaches a durable relation after its local BlockNote block is removed. */
+    onFileDetach?: (fileId: string) => Promise<void> | void;
+    /** Controlled visual state for deterministic hosts and Blueprint fixtures. */
+    fileDropActive?: boolean;
+    /** Controlled attachment error; internal upload errors use the same banner. */
+    fileError?: string;
+    onFileErrorDismiss?: () => void;
     "data-testid"?: string;
 }
 
@@ -82,6 +113,19 @@ export interface DocumentEditorProps {
  * editor internals.
  */
 export function DocumentEditor(props: DocumentEditorProps) {
+    const [fileError, setFileError] = useState<string>();
+    const [dragActive, setDragActive] = useState(false);
+    const dragDepth = useRef(0);
+    const knownFileIds = useRef(new Set<string>());
+    const fileLifecycle = useRef({ active: false, generation: 0, pending: new Set<string>() });
+    const fileDetachRef = useRef(props.onFileDetach);
+    const fileUploadRef = useRef(props.onFileUpload);
+    const fileUrlResolveRef = useRef(props.onFileUrlResolve);
+    useLayoutEffect(() => {
+        fileDetachRef.current = props.onFileDetach;
+        fileUploadRef.current = props.onFileUpload;
+        fileUrlResolveRef.current = props.onFileUrlResolve;
+    });
     // Identity contract: the Awareness instance and editor must be recreated
     // exactly when the underlying Y.Doc changes, never on ordinary re-renders,
     // or cursors and undo history would reset while typing.
@@ -111,11 +155,69 @@ export function DocumentEditor(props: DocumentEditorProps) {
                           props.ydoc.getMap(documentThreadsName),
                           new DefaultThreadStoreAuth(commentUserId, "editor"),
                       ),
+                      // Existing BlockNote integration: this callback is invoked
+                      // by the extension after render, never while constructing it.
+                      // eslint-disable-next-line react-hooks/rules-of-hooks
                       resolveUsers: (userIds) => commentUsersResolve(userIds),
                   })
                 : undefined,
-        [props.ydoc, commentUserId],
+        // The effect event is stable and intentionally keeps changing directory
+        // projections out of the editor's identity boundary.
+        // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/rules-of-hooks
+        [props.ydoc, commentUserId, commentUsersResolve],
     );
+    const fileUpload = async (file: File) => {
+        const generation = fileLifecycle.current.generation;
+        const fileDetach = fileDetachRef.current;
+        try {
+            const uploaded = await fileUploadRef.current?.(file);
+            if (!uploaded) throw new Error("File uploads are unavailable for this document.");
+            const lifecycle = fileLifecycle.current;
+            if (!lifecycle.active || lifecycle.generation !== generation) {
+                try {
+                    await fileDetach?.(uploaded.id);
+                } catch {
+                    // The editor is gone, so there is no surface on which to
+                    // report a best-effort relation cleanup failure.
+                }
+                return { props: { caption: "", name: uploaded.name || file.name, url: "" } };
+            }
+            lifecycle.pending.add(uploaded.id);
+            setFileError(undefined);
+            return {
+                props: {
+                    caption: "",
+                    name: uploaded.name || file.name,
+                    url: documentFileReference(uploaded.id),
+                },
+            };
+        } catch (error) {
+            const lifecycle = fileLifecycle.current;
+            if (lifecycle.active && lifecycle.generation === generation)
+                setFileError(displayError(error, "The file could not be added to this document."));
+            // Keep BlockNote's empty file block as a native retry affordance.
+            return { props: { caption: "Upload failed", name: file.name, url: "" } };
+        }
+    };
+    const fileResolve = async (reference: string) => {
+        const generation = fileLifecycle.current.generation;
+        const fileUrlResolve = fileUrlResolveRef.current;
+        const fileId = documentFileReferenceParse(reference);
+        if (!fileId) return reference;
+        try {
+            const resolved = await fileUrlResolve?.(fileId);
+            if (!resolved) throw new Error("File previews are unavailable for this document.");
+            return resolved;
+        } catch (error) {
+            const lifecycle = fileLifecycle.current;
+            if (lifecycle.active && lifecycle.generation === generation)
+                setFileError(displayError(error, "The file preview could not be loaded."));
+            // BlockNote does not catch resolver rejections; returning the stable
+            // locator leaves a harmless broken preview while the banner explains
+            // the authenticated load failure.
+            return reference;
+        }
+    };
     const editor = useCreateBlockNote(
         {
             collaboration: {
@@ -125,9 +227,141 @@ export function DocumentEditor(props: DocumentEditorProps) {
                 showCursorLabels: "activity",
             },
             ...(comments ? { extensions: [comments] } : {}),
+            ...(props.onFileUpload ? { uploadFile: (file: File) => fileUpload(file) } : {}),
+            ...(props.onFileUrlResolve
+                ? { resolveFileUrl: (url: string) => fileResolve(url) }
+                : {}),
         },
-        [props.ydoc, awareness, comments],
+        [
+            props.ydoc,
+            awareness,
+            comments,
+            Boolean(props.onFileUpload),
+            Boolean(props.onFileUrlResolve),
+        ],
     );
+
+    const relationOperations = useRef(new Map<string, Promise<void>>());
+    const fileRelationChange = useEffectEvent((fileId: string, kind: "attach" | "detach") => {
+        const generation = fileLifecycle.current.generation;
+        let failureKind = kind;
+        const previous = relationOperations.current.get(fileId) ?? Promise.resolve();
+        const operation = previous
+            .catch(() => undefined)
+            .then(async () => {
+                if (kind === "attach") await props.onFileAttach?.(fileId);
+                else {
+                    await props.onFileDetach?.(fileId);
+                    if (documentFileIds(editor.document).has(fileId)) {
+                        failureKind = "attach";
+                        await props.onFileAttach?.(fileId);
+                        if (fileLifecycle.current.generation === generation)
+                            knownFileIds.current.add(fileId);
+                    }
+                }
+            });
+        relationOperations.current.set(fileId, operation);
+        void operation
+            .catch((error) => {
+                const lifecycle = fileLifecycle.current;
+                if (!lifecycle.active || lifecycle.generation !== generation) return;
+                if (failureKind === "attach") knownFileIds.current.delete(fileId);
+                else knownFileIds.current.add(fileId);
+                setFileError(
+                    displayError(
+                        error,
+                        failureKind === "attach"
+                            ? "The file could not be reattached to this document."
+                            : "The file could not be detached from this document.",
+                    ),
+                );
+            })
+            .finally(() => {
+                if (relationOperations.current.get(fileId) === operation)
+                    relationOperations.current.delete(fileId);
+            });
+    });
+    useLayoutEffect(() => {
+        const lifecycle = fileLifecycle.current;
+        const generation = lifecycle.generation + 1;
+        lifecycle.active = true;
+        lifecycle.generation = generation;
+        relationOperations.current.clear();
+        knownFileIds.current = documentFileIds(editor.document);
+        const fileDetach = fileDetachRef.current;
+        const unsubscribe = editor.onChange((current) => {
+            const next = documentFileIds(current.document);
+            for (const fileId of knownFileIds.current) {
+                if (next.has(fileId)) continue;
+                lifecycle.pending.delete(fileId);
+                fileRelationChange(fileId, "detach");
+            }
+            for (const fileId of next) {
+                if (knownFileIds.current.has(fileId)) continue;
+                if (!lifecycle.pending.delete(fileId) && !relationOperations.current.has(fileId))
+                    fileRelationChange(fileId, "attach");
+            }
+            knownFileIds.current = next;
+        }, false); // Remote collaboration transactions must not repeat relation mutations.
+        return () => {
+            unsubscribe();
+            if (lifecycle.generation !== generation) return;
+            lifecycle.active = false;
+            const stored = documentFileIds(editor.document);
+            for (const fileId of lifecycle.pending) {
+                if (stored.has(fileId)) continue;
+                void Promise.resolve(fileDetach?.(fileId)).catch(() => undefined);
+            }
+            lifecycle.pending.clear();
+        };
+    }, [editor]);
+
+    const fileBlockOpen = (
+        event: ReactMouseEvent<HTMLDivElement> | ReactKeyboardEvent<HTMLDivElement>,
+    ) => {
+        if ("key" in event && event.key !== "Enter" && event.key !== " ") return;
+        const fileId = documentFileIdFromTarget(event.target, editor);
+        if (!fileId || !props.onFileOpen) return;
+        event.preventDefault();
+        if ("key" in event) event.stopPropagation();
+        props.onFileOpen(fileId);
+    };
+    const fileOpenEnabled = props.onFileOpen !== undefined;
+
+    useLayoutEffect(() => {
+        const root = editor.domElement;
+        if (!root) return;
+        const decorate = () => {
+            for (const element of root.querySelectorAll<HTMLElement>(
+                '[data-content-type="file"] .bn-file-name-with-icon',
+            )) {
+                const fileId = documentFileIdFromTarget(element, editor);
+                if (!fileId || !fileOpenEnabled) {
+                    element.removeAttribute("role");
+                    element.removeAttribute("tabindex");
+                    element.removeAttribute("aria-label");
+                    continue;
+                }
+                element.setAttribute("role", "button");
+                element.setAttribute("tabindex", "0");
+                element.setAttribute("aria-label", `Open ${element.textContent || "file"}`);
+            }
+        };
+        decorate();
+        const observer = new MutationObserver(decorate);
+        observer.observe(root, { childList: true, subtree: true });
+        return () => observer.disconnect();
+    }, [editor, fileOpenEnabled]);
+
+    const fileDrag = (event: ReactDragEvent<HTMLDivElement>, phase: "enter" | "leave" | "drop") => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        if (phase === "enter") dragDepth.current += 1;
+        else if (phase === "leave") dragDepth.current = Math.max(0, dragDepth.current - 1);
+        else dragDepth.current = 0;
+        setDragActive(dragDepth.current > 0);
+    };
+    const dropTargetVisible = props.fileDropActive ?? dragActive;
+    const displayedFileError = props.fileError ?? fileError;
 
     const presenceEmit = useEffectEvent((payload: DocumentEditorPresencePayload) =>
         props.onPresence?.(payload),
@@ -186,15 +420,99 @@ export function DocumentEditor(props: DocumentEditorProps) {
     }, [awareness, props.presence]);
 
     return (
-        <div className="happy2-document-editor" data-happy2-ui="document-editor">
+        <div
+            className="happy2-document-editor"
+            data-drag-active={dropTargetVisible ? "" : undefined}
+            data-happy2-ui="document-editor"
+            onClick={fileBlockOpen}
+            onDragEnter={(event) => fileDrag(event, "enter")}
+            onDragLeave={(event) => fileDrag(event, "leave")}
+            onDrop={(event) => fileDrag(event, "drop")}
+            onKeyDown={fileBlockOpen}
+            onKeyDownCapture={fileBlockOpen}
+        >
+            {displayedFileError ? (
+                <Banner
+                    className="happy2-document-editor__file-error"
+                    onDismiss={() => {
+                        setFileError(undefined);
+                        props.onFileErrorDismiss?.();
+                    }}
+                    tone="danger"
+                    title="File attachment failed"
+                >
+                    {displayedFileError}
+                </Banner>
+            ) : null}
             <BlockNoteView
                 data-testid={props["data-testid"]}
                 editable={props.editable ?? true}
                 editor={editor}
                 theme={props.theme ?? "light"}
             />
+            {dropTargetVisible ? (
+                <div className="happy2-document-editor__drop-target" role="status">
+                    Drop files into the document
+                </div>
+            ) : null}
         </div>
     );
+}
+
+/** Encodes one durable file id into the opaque reference stored by BlockNote. */
+export function documentFileReference(fileId: string): string {
+    return `${documentFileReferencePrefix}${encodeURIComponent(fileId)}`;
+}
+
+/** Decodes one Happy file reference, rejecting ordinary external URLs. */
+export function documentFileReferenceParse(reference: string): string | undefined {
+    if (!reference.startsWith(documentFileReferencePrefix)) return undefined;
+    if (reference.includes("?", documentFileReferencePrefix.length)) return undefined;
+    if (reference.includes("#", documentFileReferencePrefix.length)) return undefined;
+    if (reference.includes("/", documentFileReferencePrefix.length)) return undefined;
+    try {
+        const fileId = decodeURIComponent(reference.slice(documentFileReferencePrefix.length));
+        return fileId && !/[/?#]/.test(fileId) ? fileId : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function documentFileIds(blocks: readonly unknown[]): Set<string> {
+    const fileIds = new Set<string>();
+    const visit = (entries: readonly unknown[]) => {
+        for (const entry of entries) {
+            if (!entry || typeof entry !== "object") continue;
+            const block = entry as {
+                readonly props?: { readonly url?: unknown };
+                readonly children?: readonly unknown[];
+            };
+            if (typeof block.props?.url === "string") {
+                const fileId = documentFileReferenceParse(block.props.url);
+                if (fileId) fileIds.add(fileId);
+            }
+            if (Array.isArray(block.children)) visit(block.children);
+        }
+    };
+    visit(blocks);
+    return fileIds;
+}
+
+function documentFileIdFromTarget(
+    target: EventTarget | null,
+    editor: ReturnType<typeof useCreateBlockNote>,
+): string | undefined {
+    if (!(target instanceof Element)) return undefined;
+    const contentElement = target.closest<HTMLElement>('[data-content-type="file"]');
+    const blockId = contentElement?.closest<HTMLElement>("[data-id]")?.dataset.id;
+    if (!blockId) return undefined;
+    const block = editor.getBlock(blockId);
+    const reference = (block?.props as { readonly url?: unknown } | undefined)?.url;
+    return typeof reference === "string" ? documentFileReferenceParse(reference) : undefined;
+}
+
+function displayError(error: unknown, fallback: string): string {
+    return error instanceof Error && error.message ? error.message : fallback;
 }
 
 function base64Encode(bytes: Uint8Array): string {

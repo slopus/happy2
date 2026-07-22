@@ -234,6 +234,8 @@ export const backendOperations = {
     createStandaloneDocument: post("/v0/documents/create"),
     attachDocument: post("/v0/documents/:documentId/attach"),
     detachDocument: post("/v0/documents/:documentId/detach"),
+    attachDocumentFile: post("/v0/documents/:documentId/attachFile"),
+    detachDocumentFile: post("/v0/documents/:documentId/detachFile"),
     getDocument: get("/v0/documents/:documentId"),
     applyDocumentUpdates: post("/v0/documents/:documentId/applyUpdates"),
     getDocumentDifference: post("/v0/documents/:documentId/getDifference"),
@@ -502,6 +504,8 @@ export interface KnownBackendInputs {
     approveDocumentWrite: { readonly chatId: string; readonly requestId: string };
     denyDocumentWrite: { readonly chatId: string; readonly requestId: string };
     detachDocument: { readonly documentId: string; readonly chatId: string };
+    attachDocumentFile: { readonly documentId: string; readonly fileId: string };
+    detachDocumentFile: { readonly documentId: string; readonly fileId: string };
     applyDocumentUpdates: {
         readonly documentId: string;
         readonly clientUpdateId: string;
@@ -1096,6 +1100,16 @@ export interface KnownBackendResults {
     detachDocument: {
         readonly documentId: string;
         readonly chatId: string;
+        readonly sync: unknown;
+    };
+    attachDocumentFile: {
+        readonly attachment: import("./types.js").DocumentFileAttachment;
+        readonly document: DocumentSummary;
+        readonly sync?: unknown;
+    };
+    detachDocumentFile: {
+        readonly document: DocumentSummary;
+        readonly fileId: string;
         readonly sync: unknown;
     };
     getDocument: {
