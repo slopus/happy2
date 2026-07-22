@@ -1,10 +1,13 @@
 import { createServer, request as httpRequest } from "node:http";
 import { cp, mkdtemp, rm } from "node:fs/promises";
+import { connect as connectTcp } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Duplex } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
 import {
+    HttpRateLimiter,
     pluginCatalogLoad,
     type PluginLocalOpenInput,
     type PluginLocalPrepareInput,
@@ -22,7 +25,19 @@ describe("agent port sharing audiences", () => {
             path?: string;
             userId?: string;
         }> = [];
+        let spoofedHttpHeaders:
+            | { forwarded?: string; forwardedPort?: string; userId?: string }
+            | undefined;
+        let spoofedWebSocketHeaders:
+            | { forwarded?: string; forwardedPort?: string; userId?: string }
+            | undefined;
         const upstream = createServer((request, response) => {
+            if (request.url === "/spoofed-headers")
+                spoofedHttpHeaders = {
+                    forwarded: request.headers.forwarded,
+                    forwardedPort: request.headers["x-forwarded-port"] as string | undefined,
+                    userId: request.headers["x-happy2-user-id"] as string | undefined,
+                };
             upstreamRequests.push({
                 authorization: request.headers.authorization,
                 cookie: request.headers.cookie,
@@ -35,16 +50,77 @@ describe("agent port sharing audiences", () => {
         const upstreamWebSocketRequests: Array<{
             authorization?: string;
             cookie?: string;
+            forwardedProtocol?: string;
             userId?: string;
         }> = [];
-        const upstreamWebSockets = new WebSocketServer({ server: upstream });
+        const upstreamPingPayloads: string[] = [];
+        const hangingUpgradeSockets = new Set<Duplex>();
+        const streamingRejectionSockets = new Set<Duplex>();
+        const activeUpstreamWebSockets = new Set<WebSocket>();
+        const upstreamWebSockets = new WebSocketServer({ noServer: true });
+        upstream.on("upgrade", (request, socket, head) => {
+            if (request.url === "/hang") {
+                hangingUpgradeSockets.add(socket);
+                socket.on("error", () => undefined);
+                socket.once("close", () => hangingUpgradeSockets.delete(socket));
+                socket.once("end", () => socket.destroy());
+                return;
+            }
+            if (request.url === "/reject") {
+                socket.end(
+                    "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+                );
+                return;
+            }
+            if (request.url === "/reject-stream") {
+                streamingRejectionSockets.add(socket);
+                socket.on("error", () => undefined);
+                socket.once("close", () => streamingRejectionSockets.delete(socket));
+                socket.write(
+                    "HTTP/1.1 503 Service Unavailable\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n\r\n5\r\nhello\r\n",
+                );
+                return;
+            }
+            upstreamWebSockets.handleUpgrade(request, socket, head, (webSocket) => {
+                upstreamWebSockets.emit("connection", webSocket, request);
+            });
+        });
         upstreamWebSockets.on("connection", (socket, request) => {
+            activeUpstreamWebSockets.add(socket);
+            socket.on("error", () => undefined);
+            socket.once("close", () => activeUpstreamWebSockets.delete(socket));
+            if (request.url === "/spoofed-headers")
+                spoofedWebSocketHeaders = {
+                    forwarded: request.headers.forwarded,
+                    forwardedPort: request.headers["x-forwarded-port"] as string | undefined,
+                    userId: request.headers["x-happy2-user-id"] as string | undefined,
+                };
             upstreamWebSocketRequests.push({
                 authorization: request.headers.authorization,
                 cookie: request.headers.cookie,
+                forwardedProtocol: request.headers["x-forwarded-proto"] as string | undefined,
                 userId: request.headers["x-happy2-user-id"] as string | undefined,
             });
-            socket.on("message", (message) => socket.send(`agent websocket ${message.toString()}`));
+            socket.on("ping", (payload) => upstreamPingPayloads.push(payload.toString()));
+            socket.on("message", (message, binary) => {
+                if (message.toString() === "close-with-code") {
+                    socket.close(4_001, "preview complete");
+                    return;
+                }
+                if (message.toString() === "close-without-code") {
+                    socket.close();
+                    return;
+                }
+                if (message.toString() === "terminate") {
+                    socket.terminate();
+                    return;
+                }
+                if (message.toString() === "send-ping") {
+                    socket.ping("preview ping");
+                    return;
+                }
+                socket.send(`agent websocket ${message.toString()}`, { binary });
+            });
         });
         await new Promise<void>((resolve, reject) => {
             upstream.once("error", reject);
@@ -70,6 +146,7 @@ describe("agent port sharing audiences", () => {
                     config.agents.socketPath = rig.socketPath;
                     config.agents.tokenPath = rig.tokenPath;
                     config.agents.defaultCwd = rig.workspaceRoot;
+                    config.server.trustedProxyHops = 1;
                     config.portSharing = {
                         publicDomain: "preview.gym.invalid",
                         publicUrl: "http://preview.gym.invalid",
@@ -328,7 +405,9 @@ describe("agent port sharing audiences", () => {
                     })
                 ).statusCode,
             ).toBe(401);
-            expect(await websocketUpgradeStatus(serverUrl, host, "/socket")).toBe(401);
+            expect((await websocketUpgradeResponse(serverUrl, host, "/socket")).statusCode).toBe(
+                401,
+            );
             const bearerResponse = await publicRequest(serverUrl, host, "/preview?mode=full", {
                 authorization: `Bearer ${access.token}`,
             });
@@ -371,14 +450,73 @@ describe("agent port sharing audiences", () => {
             expect(
                 await websocketRoundTrip(serverUrl, host, "/socket", "hello", {
                     cookie,
+                    "x-forwarded-proto": "http, https",
                 }),
-            ).toBe("agent websocket hello");
+            ).toEqual({ binary: false, text: "agent websocket hello" });
+            expect(
+                await websocketClose(serverUrl, host, "/socket", "close-with-code", { cookie }),
+            ).toEqual({
+                code: 4_001,
+                reason: "preview complete",
+            });
+            expect(
+                await websocketClose(serverUrl, host, "/socket", "close-without-code", { cookie }),
+            ).toEqual({ code: 1_005, reason: "" });
+            expect(
+                await websocketClose(serverUrl, host, "/socket", "terminate", { cookie }),
+            ).toEqual({ code: 1_006, reason: "" });
+            await websocketPingUpstream(
+                serverUrl,
+                host,
+                "/socket",
+                "browser ping",
+                () => upstreamPingPayloads.includes("browser ping"),
+                { cookie },
+            );
+            expect(
+                await websocketReceivePing(serverUrl, host, "/socket", "send-ping", { cookie }),
+            ).toBe("preview ping");
+            const hangingSource = websocketConnect(serverUrl, host, "/hang", { cookie });
+            await waitFor(
+                () => hangingUpgradeSockets.size === 1,
+                "preview upstream handshake to remain pending",
+            );
+            hangingSource.terminate();
+            await waitFor(
+                () => hangingUpgradeSockets.size === 0,
+                "preview upstream handshake to abort with its source",
+            );
+            expect(
+                await websocketUpgradeResponse(serverUrl, host, "/reject", { cookie }),
+            ).toMatchObject({ statusCode: 503 });
+            expect(
+                await rawWebSocketUpgradeAndDisconnect(serverUrl, host, "/reject-stream", {
+                    cookie,
+                }),
+            ).toBe(503);
+            await waitFor(
+                () => streamingRejectionSockets.size === 0,
+                "streaming rejected preview upgrade to close after its browser disconnects",
+            );
             expect(upstreamWebSocketRequests).toEqual([
                 {
                     authorization: undefined,
                     cookie: undefined,
+                    forwardedProtocol: "https",
                     userId: owner.id,
                 },
+                {
+                    authorization: undefined,
+                    cookie: undefined,
+                    forwardedProtocol: "http",
+                    userId: owner.id,
+                },
+                ...Array.from({ length: 4 }, () => ({
+                    authorization: undefined,
+                    cookie: undefined,
+                    forwardedProtocol: "http",
+                    userId: owner.id,
+                })),
             ]);
             expect(sandbox.portResolutionCount).toBe(1);
 
@@ -392,7 +530,24 @@ describe("agent port sharing audiences", () => {
                             message.text === "The documentation preview is ready.",
                     );
             }, "agent turn completion");
+            await waitFor(
+                () => activeUpstreamWebSockets.size === 0,
+                "earlier preview WebSockets to finish closing",
+            );
+            const restartSocket = await websocketOpen(serverUrl, host, "/socket", { cookie });
+            await waitFor(
+                () => activeUpstreamWebSockets.size === 1,
+                "established preview WebSocket before server restart",
+            );
+            const restartSocketClosed = new Promise<void>((resolve) =>
+                restartSocket.once("close", () => resolve()),
+            );
             await server.restart();
+            await restartSocketClosed;
+            await waitFor(
+                () => activeUpstreamWebSockets.size === 0,
+                "preview upstream WebSocket to close during server restart",
+            );
             serverUrl = await server.listen();
             await waitForInstallationReady(ownerClient, installationId);
             const staleContainerName = rig.createdSessions.at(-1)?.docker?.container;
@@ -564,15 +719,63 @@ describe("agent port sharing audiences", () => {
                 path: "/anyone",
                 userId: undefined,
             });
-            expect(await websocketRoundTrip(serverUrl, internetHost, "/socket", "public")).toBe(
-                "agent websocket public",
-            );
+            expect(
+                (
+                    await publicRequest(serverUrl, internetHost, "/spoofed-headers", {
+                        forwarded: "for=203.0.113.5;proto=https",
+                        "x-forwarded-port": "65",
+                        "x-happy2-user-id": "spoofed-user",
+                    })
+                ).statusCode,
+            ).toBe(200);
+            expect(spoofedHttpHeaders).toEqual({
+                forwarded: undefined,
+                forwardedPort: undefined,
+                userId: undefined,
+            });
+            expect(await websocketRoundTrip(serverUrl, internetHost, "/socket", "public")).toEqual({
+                binary: false,
+                text: "agent websocket public",
+            });
+            expect(
+                await websocketRoundTrip(serverUrl, internetHost, "/spoofed-headers", "public", {
+                    forwarded: "for=203.0.113.5;proto=https",
+                    "x-forwarded-port": "65",
+                    "x-happy2-user-id": "spoofed-user",
+                }),
+            ).toEqual({ binary: false, text: "agent websocket public" });
+            expect(spoofedWebSocketHeaders).toEqual({
+                forwarded: undefined,
+                forwardedPort: undefined,
+                userId: undefined,
+            });
+            expect(
+                await websocketRoundTrip(
+                    serverUrl,
+                    internetHost,
+                    "/v0/chats/fake/agents/fake/terminals/fake/attach",
+                    "preview owns this host",
+                ),
+            ).toEqual({
+                binary: false,
+                text: "agent websocket preview owns this host",
+            });
+            expect(
+                await rawWebSocketUpgradeResponse(
+                    serverUrl,
+                    internetHost,
+                    "http://169.254.169.254/latest/meta-data",
+                ),
+            ).toMatchObject({ statusCode: 400 });
             await new Promise<void>((resolve) => upstreamWebSockets.close(() => resolve()));
             upstreamWebSocketsClosed = true;
             await new Promise<void>((resolve) => upstream.close(() => resolve()));
             upstreamClosed = true;
             expectPortShareErrorPage(await publicRequest(serverUrl, internetHost, "/stopped"), 502);
         } finally {
+            for (const socket of hangingUpgradeSockets) socket.destroy();
+            for (const socket of streamingRejectionSockets) socket.destroy();
+            for (const socket of activeUpstreamWebSockets) socket.terminate();
             if (!upstreamWebSocketsClosed)
                 await new Promise<void>((resolve) => upstreamWebSockets.close(() => resolve()));
             if (!upstreamClosed)
@@ -580,6 +783,68 @@ describe("agent port sharing audiences", () => {
             await rm(pluginRoot, { recursive: true, force: true });
         }
     }, 30_000);
+
+    it("rate limits preview WebSocket upgrades before resolving their upstream", async () => {
+        await using rig = await createMockRigDaemon();
+        await using server = await createGymServer({
+            agentSandbox: new MockAgentSandboxRuntime(),
+            configure(config) {
+                config.agents.enabled = true;
+                config.agents.socketPath = rig.socketPath;
+                config.agents.tokenPath = rig.tokenPath;
+                config.agents.defaultCwd = rig.workspaceRoot;
+                config.portSharing = {
+                    publicDomain: "preview.gym.invalid",
+                    publicUrl: "http://preview.gym.invalid",
+                };
+                config.security.rateLimit.readsPerMinute = 1;
+            },
+        });
+        const serverUrl = await server.listen();
+        const host = "missing.preview.gym.invalid";
+
+        expect((await websocketUpgradeResponse(serverUrl, host, "/socket")).statusCode).toBe(404);
+        expect(await websocketUpgradeResponse(serverUrl, host, "/socket")).toMatchObject({
+            statusCode: 429,
+            headers: {
+                "ratelimit-limit": "1",
+                "ratelimit-remaining": "0",
+                "ratelimit-reset": "60",
+                "retry-after": "60",
+            },
+        });
+    });
+
+    it("returns retry guidance when preview WebSocket rate limiting is unavailable", async () => {
+        const rateLimiter = new HttpRateLimiter({
+            async consume() {
+                throw new Error("Rate-limit store is unavailable in this test");
+            },
+        });
+        await using rig = await createMockRigDaemon();
+        await using server = await createGymServer({
+            agentSandbox: new MockAgentSandboxRuntime(),
+            rateLimiter,
+            configure(config) {
+                config.agents.enabled = true;
+                config.agents.socketPath = rig.socketPath;
+                config.agents.tokenPath = rig.tokenPath;
+                config.agents.defaultCwd = rig.workspaceRoot;
+                config.portSharing = {
+                    publicDomain: "preview.gym.invalid",
+                    publicUrl: "http://preview.gym.invalid",
+                };
+            },
+        });
+        const serverUrl = await server.listen();
+
+        expect(
+            await websocketUpgradeResponse(serverUrl, "missing.preview.gym.invalid", "/socket"),
+        ).toMatchObject({
+            statusCode: 503,
+            headers: { "retry-after": "1" },
+        });
+    });
 });
 
 class PortSharingRuntime implements PluginMcpRuntime {
@@ -861,7 +1126,14 @@ async function publicRequest(
     serverUrl: string,
     host: string,
     path: string,
-    headers: { authorization?: string; cookie?: string; origin?: string } = {},
+    headers: {
+        authorization?: string;
+        cookie?: string;
+        forwarded?: string;
+        origin?: string;
+        "x-forwarded-port"?: string;
+        "x-happy2-user-id"?: string;
+    } = {},
 ): Promise<{ body: string; headers: Record<string, string | undefined>; statusCode: number }> {
     const address = new URL(serverUrl);
     return new Promise((resolve, reject) => {
@@ -911,29 +1183,100 @@ function expectPortShareErrorPage(
     expect(response.body).not.toMatch(/<(?:script|link)\b|\b(?:href|src)=|https?:\/\//i);
 }
 
-async function websocketUpgradeStatus(
+async function websocketUpgradeResponse(
     serverUrl: string,
     host: string,
     path: string,
-): Promise<number> {
+    credentials: WebSocketCredentials = {},
+): Promise<{ headers: Record<string, string | undefined>; statusCode: number }> {
     const url = new URL(path, serverUrl);
     url.protocol = "ws:";
     return new Promise((resolve, reject) => {
-        const socket = new WebSocket(url, { headers: { host } });
+        const socket = new WebSocket(url, { headers: { host, ...credentials } });
         let settled = false;
         socket.once("unexpected-response", (_request, response) => {
             settled = true;
             response.resume();
-            resolve(response.statusCode ?? 0);
+            resolve({
+                statusCode: response.statusCode ?? 0,
+                headers: Object.fromEntries(
+                    Object.entries(response.headers).map(([name, value]) => [
+                        name,
+                        Array.isArray(value) ? value.join("; ") : value,
+                    ]),
+                ),
+            });
         });
         socket.once("open", () => {
             settled = true;
             socket.close();
-            resolve(101);
+            resolve({ statusCode: 101, headers: {} });
         });
         socket.once("error", (error) => {
             if (!settled) reject(error);
         });
+    });
+}
+
+async function rawWebSocketUpgradeAndDisconnect(
+    serverUrl: string,
+    host: string,
+    path: string,
+    credentials: WebSocketCredentials = {},
+): Promise<number> {
+    const address = new URL(serverUrl);
+    return new Promise((resolve, reject) => {
+        const socket = connectTcp(Number(address.port), address.hostname);
+        let settled = false;
+        socket.once("connect", () => {
+            const headers = Object.entries(credentials)
+                .filter((entry): entry is [string, string] => entry[1] !== undefined)
+                .map(([name, value]) => `${name}: ${value}\r\n`)
+                .join("");
+            socket.write(
+                `GET ${path} HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n${headers}\r\n`,
+            );
+        });
+        socket.once("data", (chunk) => {
+            settled = true;
+            const status = Number(chunk.toString("utf8").match(/^HTTP\/1\.1 (\d{3}) /)?.[1]);
+            socket.end();
+            resolve(status);
+        });
+        socket.once("error", (error) => {
+            if (!settled) reject(error);
+        });
+    });
+}
+
+async function rawWebSocketUpgradeResponse(
+    serverUrl: string,
+    host: string,
+    requestTarget: string,
+): Promise<{ statusCode: number }> {
+    const address = new URL(serverUrl);
+    return new Promise((resolve, reject) => {
+        const socket = connectTcp(Number(address.port), address.hostname);
+        const chunks: Buffer[] = [];
+        socket.once("connect", () => {
+            socket.write(
+                `GET ${requestTarget} HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`,
+            );
+        });
+        socket.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        socket.once("end", () => {
+            const statusCode = Number(
+                Buffer.concat(chunks)
+                    .toString("utf8")
+                    .match(/^HTTP\/1\.1 (\d{3}) /)?.[1],
+            );
+            if (!Number.isInteger(statusCode)) {
+                reject(new Error("Raw WebSocket upgrade did not return an HTTP status"));
+                return;
+            }
+            resolve({ statusCode });
+        });
+        socket.once("error", reject);
     });
 }
 
@@ -942,19 +1285,108 @@ async function websocketRoundTrip(
     host: string,
     path: string,
     message: string,
-    credentials: { authorization?: string; cookie?: string } = {},
-): Promise<string> {
+    credentials: WebSocketCredentials = {},
+): Promise<{ binary: boolean; text: string }> {
     const url = new URL(path, serverUrl);
     url.protocol = "ws:";
     return new Promise((resolve, reject) => {
         const socket = new WebSocket(url, { headers: { host, ...credentials } });
         socket.once("open", () => socket.send(message));
-        socket.once("message", (reply) => {
+        socket.once("message", (reply, binary) => {
             socket.close();
-            resolve(reply.toString());
+            resolve({ binary, text: reply.toString() });
         });
         socket.once("error", reject);
     });
+}
+
+async function websocketClose(
+    serverUrl: string,
+    host: string,
+    path: string,
+    message: string,
+    credentials: WebSocketCredentials = {},
+): Promise<{ code: number; reason: string }> {
+    const url = new URL(path, serverUrl);
+    url.protocol = "ws:";
+    return new Promise((resolve, reject) => {
+        const socket = new WebSocket(url, { headers: { host, ...credentials } });
+        socket.once("open", () => socket.send(message));
+        socket.once("close", (code, reason) => resolve({ code, reason: reason.toString() }));
+        socket.once("error", reject);
+    });
+}
+
+async function websocketOpen(
+    serverUrl: string,
+    host: string,
+    path: string,
+    credentials: WebSocketCredentials = {},
+): Promise<WebSocket> {
+    const url = new URL(path, serverUrl);
+    url.protocol = "ws:";
+    return new Promise((resolve, reject) => {
+        const socket = new WebSocket(url, { headers: { host, ...credentials } });
+        socket.once("open", () => resolve(socket));
+        socket.once("error", reject);
+    });
+}
+
+function websocketConnect(
+    serverUrl: string,
+    host: string,
+    path: string,
+    credentials: WebSocketCredentials = {},
+): WebSocket {
+    const url = new URL(path, serverUrl);
+    url.protocol = "ws:";
+    const socket = new WebSocket(url, { headers: { host, ...credentials } });
+    socket.on("error", () => undefined);
+    return socket;
+}
+
+async function websocketPingUpstream(
+    serverUrl: string,
+    host: string,
+    path: string,
+    payload: string,
+    observed: () => boolean,
+    credentials: WebSocketCredentials = {},
+): Promise<void> {
+    const socket = await websocketOpen(serverUrl, host, path, credentials);
+    socket.ping(payload);
+    await waitFor(observed, "preview upstream to receive the browser ping");
+    const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
+    socket.close();
+    await closed;
+}
+
+async function websocketReceivePing(
+    serverUrl: string,
+    host: string,
+    path: string,
+    message: string,
+    credentials: WebSocketCredentials = {},
+): Promise<string> {
+    const socket = await websocketOpen(serverUrl, host, path, credentials);
+    return new Promise((resolve, reject) => {
+        socket.once("ping", (payload) => {
+            const text = payload.toString();
+            socket.once("close", () => resolve(text));
+            socket.close();
+        });
+        socket.once("error", reject);
+        socket.send(message);
+    });
+}
+
+interface WebSocketCredentials {
+    authorization?: string;
+    cookie?: string;
+    forwarded?: string;
+    "x-forwarded-port"?: string;
+    "x-forwarded-proto"?: string;
+    "x-happy2-user-id"?: string;
 }
 
 function cookieValue(setCookie: string | undefined): string {

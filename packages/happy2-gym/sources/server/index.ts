@@ -33,6 +33,7 @@ import {
     userOnboardingUpdateStep,
     userCreateProfile,
     type FileStorageFileSystem,
+    type HttpRateLimiter,
     type DrizzleExecutor,
     type AgentSandboxRuntime,
     type SandboxProvider,
@@ -100,6 +101,7 @@ export interface GymServerOptions {
     pluginPackageLinkDownloader?: PluginPackageLinkDownloader;
     webhookTransport?: WebhookTransport;
     webhookUrlPolicy?: WebhookUrlPolicy;
+    rateLimiter?: HttpRateLimiter;
     configure?: (config: ServerConfig) => void;
     /** Reuses an explicit database URL so tests can run independent server instances together. */
     databaseUrl?: string;
@@ -147,6 +149,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             pluginPackageLinkDownloader: options.pluginPackageLinkDownloader,
             webhookTransport: options.webhookTransport,
             webhookUrlPolicy: options.webhookUrlPolicy,
+            rateLimiter: options.rateLimiter,
             fileStorage: new FileStorage(config, executor, fileSystem),
             agentSandbox: options.agentSandbox,
             sandboxProviders: options.sandboxProviders,
@@ -170,6 +173,7 @@ export async function createGymServer(options: GymServerOptions = {}): Promise<G
             options.pluginPackageLinkDownloader,
             options.webhookTransport,
             options.webhookUrlPolicy,
+            options.rateLimiter,
             async () => {
                 if (databaseDirectory)
                     await rm(databaseDirectory, { force: true, recursive: true });
@@ -219,6 +223,7 @@ class GymServerInstance implements GymServer {
         private readonly pluginPackageLinkDownloader: PluginPackageLinkDownloader | undefined,
         private readonly webhookTransport: WebhookTransport | undefined,
         private readonly webhookUrlPolicy: WebhookUrlPolicy | undefined,
+        private readonly rateLimiter: HttpRateLimiter | undefined,
         private readonly cleanupDatabase: () => Promise<void>,
     ) {}
 
@@ -385,6 +390,7 @@ class GymServerInstance implements GymServer {
             pluginPackageLinkDownloader: this.pluginPackageLinkDownloader,
             webhookTransport: this.webhookTransport,
             webhookUrlPolicy: this.webhookUrlPolicy,
+            rateLimiter: this.rateLimiter,
             fileStorage: new FileStorage(this.config, createDatabase(this.client), this.fileSystem),
             agentSandbox: this.agentSandbox,
             sandboxProviders: this.sandboxProviders,

@@ -50,4 +50,5 @@ export {
     type PluginMcpRuntime,
 } from "./modules/plugin/runtime.js";
 export { buildServer, pluginHostApiFor } from "./server.js";
+export { HttpRateLimiter } from "./modules/request/rate-limit.js";
 export * from "./modules/port-share/types.js";

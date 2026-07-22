@@ -51,7 +51,7 @@ it("starts one exact chat agent session when terminals open before any turn", as
     );
 });
 
-it("authorizes exact chat Rig terminals and carries protocol input resize reconnect exit and cleanup", async () => {
+it("keeps exact chat Rig terminals attached while port-share WebSockets are enabled", async () => {
     await using rig = await createMockRigDaemon();
     await using server = await createGymServer({
         agentSandbox: new MockAgentSandboxRuntime(),
@@ -60,6 +60,10 @@ it("authorizes exact chat Rig terminals and carries protocol input resize reconn
             config.agents.socketPath = rig.socketPath;
             config.agents.tokenPath = rig.tokenPath;
             config.agents.defaultCwd = rig.workspaceRoot;
+            config.portSharing = {
+                publicDomain: "preview.gym.invalid",
+                publicUrl: "http://preview.gym.invalid",
+            };
         },
     });
     const owner = await server.createUser({ username: "terminal_owner", firstName: "Owner" });

@@ -370,7 +370,16 @@ async function buildServerWithLogging(
             registerPortShareRoutes(app, auth, portShareService);
             await registerPortShareProxy(app, portShareService, {
                 appPublicUrl: config.server.publicUrl,
+                ...(config.security.rateLimit.enabled
+                    ? {
+                          rateLimit: {
+                              limiter: rateLimiter,
+                              readsPerMinute: config.security.rateLimit.readsPerMinute,
+                          },
+                      }
+                    : {}),
                 secureCookies: new URL(config.portSharing.publicUrl).protocol === "https:",
+                trustedProxyHops: config.server.trustedProxyHops,
             });
         }
         pluginHostApi = createPluginHostApi(

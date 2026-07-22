@@ -5,6 +5,7 @@ import { createWebSocketStream, WebSocketServer } from "ws";
 import { RigHttpError, type AgentService } from "../modules/agents/index.js";
 import type { AuthService } from "../modules/auth/service.js";
 import { CollaborationError } from "../modules/chat/types.js";
+import { portShareWebSocketUpgradeClaimed } from "./portShareProxy.js";
 
 const MAX_ID_LENGTH = 128;
 const MAX_IMAGE_NAME_LENGTH = 100;
@@ -264,6 +265,7 @@ function registerTerminalWebSocket(
         handleProtocols: () => TERMINAL_PROTOCOL,
     });
     const upgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+        if (portShareWebSocketUpgradeClaimed(request)) return;
         const route = terminalWebSocketRoute(request.url);
         if (!route) return;
         void (async () => {
