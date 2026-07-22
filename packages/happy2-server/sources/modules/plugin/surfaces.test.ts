@@ -15,6 +15,7 @@ import {
     pluginMcpAppResources,
     pluginMcpTools,
     plugins,
+    projects,
     users,
 } from "../schema.js";
 import {
@@ -467,9 +468,15 @@ async function seed(executor: DrizzleExecutor) {
             username: "two",
         },
     ]);
+    await executor.insert(projects).values({
+        id: "project-one",
+        name: "Surface tests",
+        createdByUserId: "user-one",
+    });
     await executor.insert(chats).values({
         id: "chat-one",
         kind: "private_channel",
+        projectId: "project-one",
         name: "Surface tests",
         createdByUserId: "user-one",
     });

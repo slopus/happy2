@@ -69,6 +69,7 @@ const ENTITY_PREFIXES: Record<string, readonly string[]> = {
     plugin: ["plugin"],
     "port-share": ["portShare"],
     presence: ["presence"],
+    project: ["project"],
     request: ["idempotency"],
     retention: ["retention"],
     "scheduled-message": ["scheduledMessage", "syncEvent", "syncSequence"],

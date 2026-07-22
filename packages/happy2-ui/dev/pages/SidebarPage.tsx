@@ -14,8 +14,15 @@ const workspaceSections: SidebarSection[] = [
         ],
     },
     {
-        action: { icon: "plus", label: "Add channel" },
-        id: "shared",
+        action: { icon: "plus", label: "New project" },
+        headingOnly: true,
+        id: "projects",
+        items: [],
+        label: "Projects",
+    },
+    {
+        action: { icon: "plus", label: "Add channel to Product" },
+        id: "project-product",
         items: [
             { id: "launch-week", kind: "channel", label: "launch-week" },
             { depth: 1, id: "launch-week-ios", kind: "channel", label: "ios-rollout" },
@@ -30,15 +37,15 @@ const workspaceSections: SidebarSection[] = [
             { depth: 1, id: "eng-core-infra", kind: "channel", label: "infra", unread: true },
             { id: "design", kind: "channel", label: "design" },
             { archived: true, id: "support-fires", kind: "channel", label: "support-fires" },
-        ],
-        label: "Shared",
-    },
-    {
-        action: { icon: "plus", label: "Add channel" },
-        id: "private",
-        items: [
             { icon: "lock", id: "founders", kind: "channel", label: "founders" },
             { depth: 1, icon: "lock", id: "founders-hiring", kind: "channel", label: "hiring" },
+        ],
+        label: "Product",
+    },
+    {
+        action: { icon: "plus", label: "Add channel to Operations" },
+        id: "project-operations",
+        items: [
             {
                 badge: 2,
                 icon: "lock",
@@ -48,7 +55,7 @@ const workspaceSections: SidebarSection[] = [
                 unread: true,
             },
         ],
-        label: "Private",
+        label: "Operations",
     },
     {
         id: "humans",

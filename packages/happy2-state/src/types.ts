@@ -14,6 +14,8 @@ export interface SyncState {
 export interface ChatSummary {
     readonly id: string;
     readonly kind: ChatKind;
+    /** Owning project for every public/private channel; absent for direct messages. */
+    readonly projectId?: string;
     /**
      * Parent channel of a child channel. A child channel is a first-class
      * sidebar channel that shares its parent's container/workspace but keeps an
@@ -788,11 +790,35 @@ export interface SendMessageInput {
 }
 
 export interface CreateChannelInput {
+    /** Explicit project target. Omit only when intentionally using the server's General project. */
+    readonly projectId?: string;
     readonly kind: "public_channel" | "private_channel";
     readonly name: string;
     readonly slug: string;
     readonly topic?: string;
     readonly autoJoin?: boolean;
+}
+
+export interface ProjectSummary {
+    readonly id: string;
+    readonly name: string;
+    readonly description?: string;
+    readonly isDefault: boolean;
+    readonly createdByUserId?: string;
+    readonly syncSequence: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
+export interface CreateProjectInput {
+    readonly name: string;
+    readonly description?: string;
+    readonly initialChannel: {
+        readonly kind: "public_channel" | "private_channel";
+        readonly name: string;
+        readonly slug: string;
+        readonly topic?: string;
+    };
 }
 
 export interface CreateChildChannelInput {

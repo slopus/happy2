@@ -1,7 +1,7 @@
 import { CollaborationError, type MutationHint } from "./types.js";
 import { type DrizzleExecutor, withTransaction } from "../drizzle.js";
 
-import { and, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { chatMembers, chats } from "../schema.js";
 
 import { chatAdvanceWithSequence } from "./chatAdvanceWithSequence.js";
@@ -10,8 +10,8 @@ import { chatRequireManager } from "./chatRequireManager.js";
 import { chatDescendantIds } from "./impl/chatDescendantIds.js";
 
 /**
- * Soft-deletes a non-main, non-DM channel and every child channel after confirming owner or server-administrator authority.
- * Advancing each chats and chatUpdates row at one global sequence gives every current member terminal sync evidence for the complete tree.
+ * Soft-deletes a non-main, non-DM channel and every child channel after confirming owner or server-administrator authority and that its project retains another live channel.
+ * Advancing each chats and chatUpdates row at one global sequence gives every current member terminal sync evidence for the complete tree without allowing a project to become empty.
  */
 export async function channelDelete(
     executor: DrizzleExecutor,
@@ -38,6 +38,20 @@ export async function channelDelete(
             throw new CollaborationError("forbidden", "Only an owner can delete a channel");
         const descendantIds = await chatDescendantIds(tx, input.chatId);
         const deletedChatIds = [input.chatId, ...descendantIds];
+        if (!access.projectId) throw new Error("Channel project is missing");
+        const [remainingProjectChannel] = await tx
+            .select({ id: chats.id })
+            .from(chats)
+            .where(
+                and(
+                    eq(chats.projectId, access.projectId),
+                    isNull(chats.deletedAt),
+                    notInArray(chats.id, deletedChatIds),
+                ),
+            )
+            .limit(1);
+        if (!remainingProjectChannel)
+            throw new CollaborationError("invalid", "A project must keep at least one channel");
         const members = await tx
             .select({
                 userId: chatMembers.userId,

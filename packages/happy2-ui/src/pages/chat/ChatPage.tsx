@@ -48,6 +48,7 @@ import {
 import { ChatMessageEntry } from "./ChatMessageEntry.js";
 import { ChatAgentCreateDialog } from "./ChatAgentCreateDialog.js";
 import { ChatChannelCreateDialog } from "./ChatChannelCreateDialog.js";
+import { ChatProjectCreateDialog } from "./ChatProjectCreateDialog.js";
 import { ChatChildChannelCreateDialog } from "./ChatChildChannelCreateDialog.js";
 import { ChatDirectoryDialog } from "./ChatDirectoryDialog.js";
 import { ChatDirectMessageDialog } from "./ChatDirectMessageDialog.js";
@@ -212,6 +213,7 @@ export interface ChatPageActions {
     chatLeave(chatId: string): Promise<void>;
     chatStarSet(chatId: string, starred: boolean): Promise<void>;
     channelCreate(input: import("happy2-state").CreateChannelInput): Promise<void>;
+    projectCreate(input: import("happy2-state").CreateProjectInput): Promise<void>;
     channelCreateChild(input: import("happy2-state").CreateChildChannelInput): Promise<void>;
     channelArchive(chatId: string): Promise<void>;
     channelUnarchive(chatId: string): Promise<void>;
@@ -282,6 +284,8 @@ export function ChatPage(props: ChatPageProps) {
     }
     const [busyCount, setBusyCount] = useState(0);
     const [createOpen, setCreateOpen] = useState(false);
+    const [channelProjectId, setChannelProjectId] = useState<string>();
+    const [projectCreateOpen, setProjectCreateOpen] = useState(false);
     const [childCreateParentId, setChildCreateParentId] = useState<string | undefined>(undefined);
     const [agentCreateOpen, setAgentCreateOpen] = useState(false);
     const [directoryOpen, setDirectoryOpen] = useState(false);
@@ -437,6 +441,22 @@ export function ChatPage(props: ChatPageProps) {
         pendingSelection.current = { kind: "channel", slug: input.slug };
         setCreateOpen(false);
     }
+    async function createProject(input: import("happy2-state").CreateProjectInput) {
+        if (!(await creationModel.projectCreate(input))) return;
+        pendingSelection.current = { kind: "channel", slug: input.initialChannel.slug };
+        setProjectCreateOpen(false);
+    }
+    function defaultProjectId(): string {
+        return (
+            sidebarSnapshot().projects.find((project) => project.isDefault)?.id ??
+            sidebarSnapshot().projects[0]?.id ??
+            ""
+        );
+    }
+    function channelCreateOpen(projectId = defaultProjectId()) {
+        setChannelProjectId(projectId);
+        setCreateOpen(true);
+    }
     async function childCreate(input: {
         name: string;
         slug: string;
@@ -511,7 +531,7 @@ export function ChatPage(props: ChatPageProps) {
     useChatCreateRequest({
         request: props.createRequest,
         onAgent: () => setAgentCreateOpen(true),
-        onChannel: () => setCreateOpen(true),
+        onChannel: () => channelCreateOpen(),
     });
     const canEditChannel = () => {
         const role = activeChat()?.membershipRole;
@@ -929,8 +949,10 @@ export function ChatPage(props: ChatPageProps) {
                             }}
                             onSectionAction={(sectionId) => {
                                 if (sectionId === "agents") setAgentCreateOpen(true);
-                                if (sectionId === "shared" || sectionId === "private")
-                                    setDirectoryOpen(true);
+                                if (sectionId === "projects") setProjectCreateOpen(true);
+                                if (sectionId.startsWith("project:"))
+                                    channelCreateOpen(sectionId.slice("project:".length));
+                                if (sectionId === "browse") setDirectoryOpen(true);
                                 if (sectionId === "dms") setDirectMessageOpen(true);
                             }}
                             sections={[
@@ -1215,7 +1237,7 @@ export function ChatPage(props: ChatPageProps) {
                     items={directoryItems}
                     onChannelCreate={() => {
                         setDirectoryOpen(false);
-                        setCreateOpen(true);
+                        channelCreateOpen();
                     }}
                     onClose={() => setDirectoryOpen(false)}
                     onSelect={previewDirectoryChannel}
@@ -1260,9 +1282,18 @@ export function ChatPage(props: ChatPageProps) {
             {createOpen ? (
                 <ChatChannelCreateDialog
                     busy={busy()}
+                    initialProjectId={channelProjectId ?? defaultProjectId()}
                     isServerAdmin={isServerAdmin()}
                     onClose={() => setCreateOpen(false)}
                     onCreate={(input) => void channelCreate(input)}
+                    projects={sidebarSnapshot().projects}
+                />
+            ) : null}
+            {projectCreateOpen ? (
+                <ChatProjectCreateDialog
+                    busy={busy()}
+                    onClose={() => setProjectCreateOpen(false)}
+                    onCreate={(input) => void createProject(input)}
                 />
             ) : null}
             {childCreateParentId ? (

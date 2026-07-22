@@ -18,6 +18,7 @@ export async function channelCreateWithMembers(
     executor: DrizzleExecutor,
     input: {
         actorUserId: string;
+        projectId?: string;
         kind: "public_channel" | "private_channel";
         name: string;
         slug: string;
@@ -61,6 +62,7 @@ export async function channelCreateWithMembers(
         }
         const created = await channelCreate(tx, {
             actorUserId: input.actorUserId,
+            projectId: input.projectId,
             kind: input.kind,
             name: input.name,
             slug: input.slug,

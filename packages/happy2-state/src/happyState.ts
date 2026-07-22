@@ -105,6 +105,7 @@ import { fileUpload } from "./modules/files/filesState.js";
 import { filesStoreCreate, type FilesOutput, type FilesStore } from "./modules/files/filesState.js";
 import { StateRuntime, type StateRuntimeOptions } from "./modules/runtime/runtimeState.js";
 import { sidebarStoreCreate } from "./modules/sidebar/sidebarState.js";
+import { sidebarProjectsLoad } from "./modules/sidebar/sidebarState.js";
 import type { SidebarStore } from "./modules/sidebar/sidebarState.js";
 import { SidebarChatsProjector } from "./modules/sidebar/sidebarState.js";
 import { SettingsCoordinator } from "./modules/settings/settingsState.js";
@@ -150,6 +151,7 @@ import type {
     CreateAgentInput,
     CreateChannelInput,
     CreateChildChannelInput,
+    CreateProjectInput,
     DocumentSummary,
     MessageAudience,
     MessageSummary,
@@ -257,6 +259,7 @@ import { agentEffortChange } from "./modules/chat-actions/chatActionsState.js";
 import { agentEffortLoad } from "./modules/chat-actions/chatActionsState.js";
 import type { ChatActionContext } from "./modules/chat-actions/chatActionsState.js";
 import { channelCreate } from "./modules/chat-actions/chatActionsState.js";
+import { projectCreate } from "./modules/chat-actions/chatActionsState.js";
 import { channelCreateChild } from "./modules/chat-actions/chatActionsState.js";
 import { channelArchive } from "./modules/chat-actions/chatActionsState.js";
 import { channelUnarchive } from "./modules/chat-actions/chatActionsState.js";
@@ -997,6 +1000,10 @@ export class HappyState implements AsyncDisposable, Disposable {
 
     async channelCreate(input: CreateChannelInput): Promise<void> {
         await channelCreate(this.chatActionContext(), input);
+    }
+
+    async projectCreate(input: CreateProjectInput): Promise<void> {
+        await projectCreate(this.chatActionContext(), input);
     }
 
     async channelCreateChild(input: CreateChildChannelInput): Promise<void> {
@@ -1855,6 +1862,13 @@ export class HappyState implements AsyncDisposable, Disposable {
                                         chat,
                                     });
                             },
+                        }),
+                    ),
+                projectsReconcile: () =>
+                    this.runtime.background(
+                        sidebarProjectsLoad({
+                            runtime: this.runtime,
+                            sidebar: this.sidebarBinding,
                         }),
                     ),
                 unknownArea: this.unknownSyncArea,

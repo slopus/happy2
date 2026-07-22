@@ -26,6 +26,7 @@ import { ChannelHeaderPage } from "./pages/ChannelHeaderPage";
 import { CheckboxPage } from "./pages/CheckboxPage";
 import { CommandPalettePage } from "./pages/CommandPalettePage";
 import { ChatStorePage } from "./pages/ChatStorePage";
+import { ChatProjectCreateDialogPage } from "./pages/ChatProjectCreateDialogPage";
 import { AudienceTogglePage } from "./pages/AudienceTogglePage";
 import { PluginCatalogPanelPage } from "./pages/PluginCatalogPanelPage";
 import { PermissionChecklistPage } from "./pages/PermissionChecklistPage";
@@ -128,6 +129,12 @@ const components: BlueprintPage[] = [
     { id: "title-bar", label: "Title bar", number: "C-007", page: TitleBarPage },
     { id: "rail", label: "Rail", number: "C-008", page: RailPage },
     { id: "sidebar", label: "Sidebar", number: "C-009", page: SidebarPage },
+    {
+        id: "chat-project-create-dialog",
+        label: "Project create dialog",
+        number: "C-142",
+        page: ChatProjectCreateDialogPage,
+    },
     { id: "app-shell", label: "App shell", number: "C-010", page: AppShellPage },
     { id: "channel-header", label: "Channel header", number: "C-011", page: ChannelHeaderPage },
     { id: "message", label: "Message", number: "C-012", page: MessagePage },

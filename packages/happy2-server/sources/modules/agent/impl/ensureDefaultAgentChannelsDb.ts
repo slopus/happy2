@@ -13,6 +13,7 @@ import { syncSequenceNext } from "../../sync/syncSequenceNext.js";
 import { userJoinAutoChannels } from "../../user/userJoinAutoChannels.js";
 import { agentDefaultConversationEnsure } from "../agentDefaultConversationEnsure.js";
 import { userAnnounceJoinedServer } from "../../user/userAnnounceJoinedServer.js";
+import { projectDefaultEnsure } from "../../project/projectDefaultEnsure.js";
 /**
  * Repairs the main channel, default-agent memberships, and each active human's default-agent conversation after the agent exists.
  * The caller owns one transaction so no product surface can observe only part of the required default-agent substrate.
@@ -21,6 +22,7 @@ export async function ensureDefaultAgentChannelsDb(
     executor: DrizzleTransaction,
     defaultAgentUserId: string,
 ): Promise<void> {
+    const defaultProject = await projectDefaultEnsure(executor);
     let [main] = await executor
         .select({
             id: chats.id,
@@ -42,6 +44,7 @@ export async function ensureDefaultAgentChannelsDb(
                 .update(chats)
                 .set({
                     kind: "public_channel",
+                    projectId: defaultProject.id,
                     visibility: "public",
                     isListed: 1,
                     archivedAt: null,
@@ -67,6 +70,7 @@ export async function ensureDefaultAgentChannelsDb(
             await executor.insert(chats).values({
                 id,
                 kind: "public_channel",
+                projectId: defaultProject.id,
                 name: "Welcome",
                 slug: "welcome",
                 createdByUserId: defaultAgentUserId,
@@ -102,6 +106,7 @@ export async function ensureDefaultAgentChannelsDb(
         await executor
             .update(chats)
             .set({
+                projectId: defaultProject.id,
                 autoJoin: 1,
                 defaultAgentUserId: sql`coalesce(${chats.defaultAgentUserId}, ${defaultAgentUserId})`,
             })

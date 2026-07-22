@@ -18,6 +18,7 @@ import { chatReadMark } from "./chatActionsState.js";
 import { chatStarSet } from "./chatActionsState.js";
 import { directMessageCreate } from "./chatActionsState.js";
 import { groupDirectMessageCreate } from "./chatActionsState.js";
+import { projectCreate } from "./chatActionsState.js";
 import { typingSet } from "./chatActionsState.js";
 
 describe("chat actions module", () => {
@@ -142,6 +143,50 @@ describe("chat actions module", () => {
                 id: child.id,
                 chat: { parentChatId: parent.id, agentModelId: "gym/alternate-agent" },
             },
+        });
+    });
+
+    it("publishes an atomically created project and first channel into one sidebar snapshot", async () => {
+        const summary = chat({ id: "channel-1", projectId: "project-1" });
+        const project = {
+            id: "project-1",
+            name: "Launch",
+            isDefault: false,
+            syncSequence: "2",
+            createdAt: "now",
+            updatedAt: "now",
+        };
+        const operation = vi.fn().mockResolvedValue({ project, chat: summary });
+        const sidebar = sidebarStoreCreate();
+        const context = {
+            runtime: { operation } as unknown as StateRuntime,
+            sidebar,
+            chatGet: () => undefined,
+            sidebarChatProject: async (value: ChatSummary) => ({
+                id: value.id,
+                chat: value,
+                displayName: value.name ?? value.id,
+                participants: [],
+            }),
+        } satisfies ChatActionContext;
+
+        await projectCreate(context, {
+            name: "Launch",
+            initialChannel: { kind: "private_channel", name: "Planning", slug: "planning" },
+        });
+        await projectCreate(context, {
+            name: "Launch",
+            initialChannel: { kind: "private_channel", name: "Planning", slug: "planning" },
+        });
+
+        expect(operation).toHaveBeenCalledTimes(2);
+        expect(operation).toHaveBeenLastCalledWith("createProject", {
+            name: "Launch",
+            initialChannel: { kind: "private_channel", name: "Planning", slug: "planning" },
+        });
+        expect(sidebar.getState()).toMatchObject({
+            projects: [{ id: "project-1" }],
+            chats: [{ id: "channel-1", chat: { projectId: "project-1" } }],
         });
     });
 

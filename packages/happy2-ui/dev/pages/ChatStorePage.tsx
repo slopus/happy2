@@ -17,6 +17,7 @@ import { ComponentPage, FullScreenSpecimen } from "../kit";
 const chat: ChatSummary = {
     id: "chat-blueprint",
     kind: "public_channel",
+    projectId: "project-blueprint",
     name: "State architecture",
     slug: "state-architecture",
     topic: "One coarse store per rendered surface",
@@ -83,6 +84,7 @@ const passiveActions: ChatPageActions = {
     chatLeave: async () => undefined,
     chatStarSet: async () => undefined,
     channelCreate: async () => undefined,
+    projectCreate: async () => undefined,
     channelCreateChild: async () => undefined,
     channelArchive: async () => undefined,
     channelUnarchive: async () => undefined,
@@ -128,6 +130,16 @@ export function ChatStorePage() {
         });
         sidebar.input({
             type: "sidebarLoaded",
+            projects: [
+                {
+                    id: "project-blueprint",
+                    name: "Core product",
+                    isDefault: true,
+                    syncSequence: "1",
+                    createdAt: "2026-07-17T12:00:00.000Z",
+                    updatedAt: "2026-07-17T12:00:00.000Z",
+                },
+            ],
             chats: [
                 {
                     chat,

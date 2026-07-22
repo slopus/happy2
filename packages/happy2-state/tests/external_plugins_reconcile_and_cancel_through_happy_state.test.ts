@@ -84,6 +84,7 @@ function syncStateRoute(server: ReturnType<typeof createFakeServer>): void {
         }),
     );
     server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+    server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
     server.respond(
         "POST",
         "/v0/sync/getDifference",

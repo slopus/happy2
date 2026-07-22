@@ -80,13 +80,18 @@ export async function channelUpdate(
             if (!file || !["photo", "gif"].includes(file.kind))
                 throw new CollaborationError("not_found", "Channel photo was not found");
         }
+        const wasPubliclyListed = access.kind === "public_channel" && access.isListed;
+        const nextKind = input.kind ?? access.kind;
+        const nextIsListed = input.isListed ?? access.isListed;
+        const directoryVisibilityChanged =
+            wasPubliclyListed !== (nextKind === "public_channel" && nextIsListed);
         const sequence = await syncSequenceNext(tx);
         const mutation = await chatAdvanceWithSequence(
             tx,
             sequence,
             input.actorUserId,
             input.chatId,
-            input.kind && input.kind !== access.kind ? "chat.visibilityChanged" : "chat.updated",
+            directoryVisibilityChanged ? "chat.visibilityChanged" : "chat.updated",
             input.chatId,
         );
         try {

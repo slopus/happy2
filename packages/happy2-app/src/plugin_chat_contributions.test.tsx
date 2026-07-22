@@ -21,6 +21,14 @@ afterEach(cleanup);
 beforeEach(() => history.replaceState(null, "", "/chats"));
 
 const NOW = "2026-07-20T00:00:00.000Z";
+const project = {
+    id: "project-1",
+    name: "Product",
+    isDefault: true,
+    syncSequence: "1",
+    createdAt: NOW,
+    updatedAt: NOW,
+};
 const masks: PluginAssetMasks = { maskUrl: () => undefined };
 
 function buttonContribution(
@@ -148,6 +156,7 @@ function chatFixture(): ChatSummary {
     return {
         id: "chat-1",
         kind: "private_channel",
+        projectId: project.id,
         name: "Route laboratory",
         slug: "route-laboratory",
         isListed: false,
@@ -190,6 +199,7 @@ it("shows chat/composer contributions for the active chat and releases them on n
         }),
     );
     server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [chat] }));
+    server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [project] }));
     server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat }));
     server.respond("GET", /^\/v0\/chats\/chat-1\/members/u, jsonResponse(200, { users: [] }));
     server.respond(

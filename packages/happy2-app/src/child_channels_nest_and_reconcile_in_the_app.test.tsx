@@ -11,6 +11,7 @@ function channel(id: string, name: string, values: Partial<ChatSummary> = {}): C
     return {
         id,
         kind: "private_channel",
+        projectId: "project-1",
         name,
         slug: name.toLowerCase().replace(/[^a-z0-9]+/gu, "-"),
         isListed: false,
@@ -59,6 +60,22 @@ function baseServer(chats: readonly ChatSummary[]) {
         jsonResponse(200, { state: seq("0"), serverTime: "now" }),
     );
     server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [...chats] }));
+    server.respond(
+        "GET",
+        "/v0/projects",
+        jsonResponse(200, {
+            projects: [
+                {
+                    id: "project-1",
+                    name: "Product",
+                    isDefault: true,
+                    syncSequence: "1",
+                    createdAt: "now",
+                    updatedAt: "now",
+                },
+            ],
+        }),
+    );
     for (const chat of chats)
         server.respond("GET", `/v0/chats/${chat.id}`, jsonResponse(200, { chat }));
     server.respond("GET", /^\/v0\/chats\/[^/]+\/members/u, jsonResponse(200, { users: [agent] }));

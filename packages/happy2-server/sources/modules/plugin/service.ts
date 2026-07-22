@@ -20,6 +20,8 @@ import type { DocumentHostSummary, DocumentSnapshot } from "../document/types.js
 import { chatUpdateMetadata, type ChatMetadataSummary } from "../chat/chatUpdateMetadata.js";
 import { channelCreateChild } from "../chat/channelCreateChild.js";
 import { channelCreateWithMembers } from "../chat/channelCreateWithMembers.js";
+import { chatGetAccess } from "../chat/chatGetAccess.js";
+import { projectDefaultRequire } from "../project/projectDefaultRequire.js";
 import { channelMembersUpdate } from "../chat/channelMembersUpdate.js";
 import { channelSetArchived } from "../chat/channelSetArchived.js";
 import { messageSend } from "../message/messageSend.js";
@@ -2534,6 +2536,13 @@ export class PluginService {
         agents?: PluginAgentRuntime,
     ) {
         const claims = await this.authorizeChat(runtimeToken, chatToken, "channels:create");
+        const sourceChat = await chatGetAccess(
+            this.executor,
+            claims.actorUserId,
+            claims.chatId,
+            false,
+        );
+        const projectId = sourceChat?.projectId ?? (await projectDefaultRequire(this.executor)).id;
         const memberUserIds = await this.authorizeUsers(claims.installationId, input.members);
         const clientMutationId = input.idempotencyKey
             ? `${claims.installationId}:${input.idempotencyKey}`
@@ -2542,6 +2551,7 @@ export class PluginService {
             throw new PluginError("not_ready", "AI agents are not enabled on this server");
         const created = await channelCreateWithMembers(this.executor, {
             actorUserId: claims.actorUserId,
+            projectId,
             kind: input.visibility === "public" ? "public_channel" : "private_channel",
             name: input.name,
             slug: pluginChannelSlug(input.name),

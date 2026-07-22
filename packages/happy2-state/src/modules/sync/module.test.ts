@@ -31,6 +31,7 @@ describe("sync module", () => {
             contributionsReconcile: vi.fn(),
             permissionsReconcile: vi.fn(),
             identitiesReconcile: vi.fn(),
+            projectsReconcile: vi.fn(),
             unknownArea: vi.fn(),
         };
         for (const area of [
@@ -51,6 +52,7 @@ describe("sync module", () => {
             "permissions",
             "users",
             "profile",
+            "projects",
             "chat:",
             "unknown",
         ])
@@ -71,6 +73,7 @@ describe("sync module", () => {
         expect(context.contributionsReconcile).toHaveBeenCalledOnce();
         expect(context.permissionsReconcile).toHaveBeenCalledOnce();
         expect(context.identitiesReconcile).toHaveBeenCalledTimes(2);
+        expect(context.projectsReconcile).toHaveBeenCalledOnce();
         expect(context.unknownArea).toHaveBeenCalledTimes(2);
     });
 
@@ -85,6 +88,7 @@ describe("sync module", () => {
             }),
         );
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: chat() }));
         server.respond(
             "GET",
@@ -112,5 +116,58 @@ describe("sync module", () => {
         });
         state.syncStop();
         expect(surface.getState()).toMatchObject({ typing: [], agentActivity: [] });
+    });
+
+    it("reconciles the visible project directory from a realtime projects hint", async () => {
+        const server = createFakeServer();
+        const first = {
+            id: "project-1",
+            name: "General",
+            isDefault: true,
+            syncSequence: "1",
+            createdAt: "now",
+            updatedAt: "now",
+        };
+        const second = { ...first, id: "project-2", name: "Launch", isDefault: false };
+        server.respond(
+            "GET",
+            "/v0/sync/state",
+            jsonResponse(200, {
+                state: { protocolVersion: 1, generation: "g", sequence: "0" },
+                serverTime: "now",
+            }),
+        );
+        server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond(
+            "GET",
+            "/v0/projects",
+            jsonResponse(200, { projects: [first] }),
+            jsonResponse(200, { projects: [first, second] }),
+        );
+        server.respond(
+            "POST",
+            "/v0/sync/getDifference",
+            jsonResponse(200, {
+                kind: "difference",
+                changedChats: [],
+                removedChatIds: [],
+                areas: ["projects"],
+                state: { protocolVersion: 1, generation: "g", sequence: "1" },
+                targetState: { protocolVersion: 1, generation: "g", sequence: "1" },
+            }),
+        );
+        using state = happyStateCreate({ transport: server.transport });
+        await state.syncStart();
+        expect(state.sidebar().getState().projects).toEqual([first]);
+
+        server.events.sync({ sequence: "1" });
+        await state.whenIdle();
+
+        expect(state.sidebar().getState().projects).toEqual([first, second]);
+        expect(
+            server.requests.filter(
+                (request) => request.method === "GET" && request.path === "/v0/projects",
+            ),
+        ).toHaveLength(2);
     });
 });

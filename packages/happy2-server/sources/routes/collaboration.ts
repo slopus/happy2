@@ -11,6 +11,8 @@ import { notificationPreferenceUpdate } from "../modules/notification/notificati
 import { notificationPreferenceGet } from "../modules/notification/notificationPreferenceGet.js";
 import { notificationMarkRead } from "../modules/notification/notificationMarkRead.js";
 import { notificationList } from "../modules/notification/notificationList.js";
+import { projectCreateWithChannel } from "../modules/project/projectCreateWithChannel.js";
+import { projectDirectoryList } from "../modules/project/projectDirectoryList.js";
 import { messageSendAutomated } from "../modules/message/messageSendAutomated.js";
 import { messageSend } from "../modules/message/messageSend.js";
 import { messageRevisionList } from "../modules/message/messageRevisionList.js";
@@ -102,6 +104,56 @@ export function registerCollaborationRoutes(
             return {
                 chats: await chatList(executor, userId),
             };
+        }),
+    );
+    app.get(
+        "/v0/projects",
+        authenticated(auth, async (request, _reply, userId) => {
+            emptyQuery(request);
+            return {
+                projects: await projectDirectoryList(executor, userId),
+            };
+        }),
+    );
+    app.post(
+        "/v0/projects/createProject",
+        authenticated(auth, async (request, reply, userId) => {
+            const body = requestBody(request, ["name", "description", "initialChannel"]);
+            requireField(body, "initialChannel");
+            const initialChannel = record(body.initialChannel, "initialChannel");
+            onlyKeys(initialChannel, ["kind", "name", "slug", "topic"], "initialChannel");
+            const kind = enumField(initialChannel, "kind", [
+                "public_channel",
+                "private_channel",
+            ] as const);
+            const result = await projectCreateWithChannel(executor, {
+                actorUserId: userId,
+                name: trimmedString(body, "name", 100),
+                description: nullableTrimmedString(body, "description", 500),
+                initialChannel: {
+                    kind,
+                    name: trimmedString(initialChannel, "name", 100),
+                    slug: channelSlug(initialChannel),
+                    topic: nullableTrimmedString(initialChannel, "topic", 500),
+                },
+            });
+            if (kind === "public_channel")
+                await publishHints(request, pubsub, [result.hint], {
+                    server: true,
+                    userIds: [userId],
+                });
+            else {
+                await publishHints(request, pubsub, [result.hint], {
+                    userIds: result.privateProjectViewerUserIds,
+                    usersOnly: true,
+                });
+                await publishHints(request, pubsub, [{ ...result.hint, areas: [] }]);
+            }
+            return reply.code(201).send({
+                project: result.project,
+                chat: result.chat,
+                sync: result.hint,
+            });
         }),
     );
     app.get(
@@ -278,10 +330,18 @@ export function registerCollaborationRoutes(
     app.post(
         "/v0/chats/createChannel",
         authenticated(auth, async (request, reply, userId) => {
-            const body = requestBody(request, ["kind", "name", "slug", "topic", "autoJoin"]);
+            const body = requestBody(request, [
+                "projectId",
+                "kind",
+                "name",
+                "slug",
+                "topic",
+                "autoJoin",
+            ]);
             const kind = enumField(body, "kind", ["public_channel", "private_channel"] as const);
             const result = await channelCreate(executor, {
                 actorUserId: userId,
+                projectId: optionalIdField(body, "projectId"),
                 kind,
                 name: trimmedString(body, "name", 100),
                 slug: channelSlug(body),
@@ -1007,9 +1067,10 @@ export function registerCollaborationRoutes(
         "/v0/directory",
         authenticated(auth, async (request, _reply, userId) => {
             emptyQuery(request);
-            const [users, channels, customEmoji, server] = await Promise.all([
+            const [users, channels, projects, customEmoji, server] = await Promise.all([
                 contactList(executor),
                 channelDirectoryList(executor, userId),
+                projectDirectoryList(executor, userId),
                 customEmojiList(executor),
                 serverProfileGet(executor),
             ]);
@@ -1017,6 +1078,7 @@ export function registerCollaborationRoutes(
                 server,
                 users,
                 channels,
+                projects,
                 customEmoji,
                 presence: await pubsub.getPresenceSnapshot(users.map((user) => user.id)),
                 statuses: await presenceSettingList(

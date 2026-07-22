@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 export const chatSelection = {
     id: chats.id,
     kind: chats.kind,
+    project_id: chats.projectId,
     name: chats.name,
     slug: chats.slug,
     topic: chats.topic,

@@ -20,15 +20,31 @@ describe("server upgrades after thread removal", () => {
                 "ALTER TABLE user_chat_preferences ADD COLUMN followed INTEGER NOT NULL DEFAULT 0 CHECK (followed IN (0, 1))",
                 "CREATE INDEX user_chat_preferences_followed_idx ON user_chat_preferences (user_id, followed, updated_at DESC)",
                 "ALTER TABLE user_notification_preferences ADD COLUMN thread_replies TEXT NOT NULL DEFAULT 'all'",
+                "INSERT INTO projects (id, name, is_default) VALUES ('legacy-project', 'Legacy project', 1)",
                 "INSERT INTO accounts (id, email, active) VALUES ('legacy-account', 'legacy@example.com', 1)",
                 "INSERT INTO users (id, account_id, first_name, username) VALUES ('legacy-user', 'legacy-account', 'Legacy', 'legacy-user')",
-                "INSERT INTO chats (id, kind, name, created_by_user_id) VALUES ('root-chat', 'private_channel', 'Root channel', 'legacy-user')",
+                "INSERT INTO chats (id, kind, name, created_by_user_id, project_id) SELECT 'root-chat', 'private_channel', 'Root channel', 'legacy-user', id FROM projects WHERE is_default = 1",
                 "INSERT INTO messages (id, chat_id, sequence, change_pts, sender_user_id, text) VALUES ('root-message', 'root-chat', 1, 1, 'legacy-user', 'Legacy root')",
-                "INSERT INTO chats (id, kind, name, created_by_user_id, parent_message_id) VALUES ('legacy-thread', 'private_channel', 'Legacy thread', 'legacy-user', 'root-message')",
+                "INSERT INTO chats (id, kind, name, created_by_user_id, parent_message_id, project_id) SELECT 'legacy-thread', 'private_channel', 'Legacy thread', 'legacy-user', 'root-message', id FROM projects WHERE is_default = 1",
                 "INSERT INTO notifications (id, user_id, kind, chat_id, message_id) VALUES ('legacy-thread-notification', 'legacy-user', 'thread_reply', 'legacy-thread', 'root-message')",
             ]);
+            await client.migrate([
+                "ALTER TABLE port_shares DROP COLUMN audience",
+                "DROP TRIGGER chats_channel_project_required_insert",
+                "DROP TRIGGER chats_channel_project_required_update",
+                "DROP TRIGGER chats_dm_project_forbidden_insert",
+                "DROP TRIGGER chats_dm_project_forbidden_update",
+                "DROP TRIGGER chats_child_project_match_insert",
+                "DROP TRIGGER chats_child_project_match_update",
+                "DROP TRIGGER chats_parent_project_match_update",
+                "DROP INDEX chats_project_id_idx",
+                "ALTER TABLE chats DROP COLUMN project_id",
+                "DROP INDEX projects_sync_sequence_idx",
+                "DROP INDEX projects_one_default_idx",
+                "DROP TABLE projects",
+            ]);
             await client.execute({
-                sql: "DELETE FROM __drizzle_migrations WHERE created_at = ?",
+                sql: "DELETE FROM __drizzle_migrations WHERE created_at >= ?",
                 args: [1785628800000],
             });
 

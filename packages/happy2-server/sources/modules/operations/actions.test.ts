@@ -56,6 +56,10 @@ describe("operations actions", () => {
         });
         admin = await createUser(executor, "admin@example.com", "admin", "Ada");
         member = await createUser(executor, "member@example.com", "member", "Grace");
+        await client.execute({
+            sql: "INSERT INTO projects (id, name, created_by_user_id) VALUES ('operations-project', 'Operations', ?)",
+            args: [admin.user.id],
+        });
     });
     afterEach(async () => {
         raw.close();
@@ -451,9 +455,9 @@ describe("operations actions", () => {
         await raw.batch([
             {
                 sql: `INSERT INTO chats
-                        (id, kind, name, parent_chat_id, created_by_user_id, owner_user_id,
+                        (id, kind, name, project_id, parent_chat_id, created_by_user_id, owner_user_id,
                          pts, last_message_sequence, last_change_sequence, is_listed)
-                      VALUES (?, 'private_channel', 'Moderated child', ?, ?, ?, 1, 1, 1, 0)`,
+                      VALUES (?, 'private_channel', 'Moderated child', 'operations-project', ?, ?, ?, 1, 1, 1, 0)`,
                 args: [childChatId, parentChatId, admin.user.id, admin.user.id],
             },
             {
@@ -754,8 +758,8 @@ async function createChat(
     const chatId = createId();
     await client.execute({
         sql: `INSERT INTO chats
-                (id, kind, name, slug, created_by_user_id, owner_user_id, visibility)
-              VALUES (?, 'private_channel', 'Moderation', ?, ?, ?, 'private')`,
+                (id, kind, name, slug, project_id, created_by_user_id, owner_user_id, visibility)
+              VALUES (?, 'private_channel', 'Moderation', ?, 'operations-project', ?, ?, 'private')`,
         args: [chatId, `moderation-${chatId}`, adminUserId, ownerUserId],
     });
     for (const userId of [adminUserId, memberUserId])

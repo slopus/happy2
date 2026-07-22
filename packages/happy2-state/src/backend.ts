@@ -176,6 +176,8 @@ export const backendOperations = {
     chooseSetupRegistrationPolicy: post("/v0/setup/chooseRegistrationPolicy"),
 
     getChats: get("/v0/chats"),
+    getProjects: get("/v0/projects"),
+    createProject: post("/v0/projects/createProject"),
     getDrafts: get("/v0/drafts"),
     getChat: get("/v0/chats/:chatId"),
     getChatMembers: get("/v0/chats/:chatId/members"),
@@ -543,10 +545,22 @@ export interface KnownBackendInputs {
     createDirectMessage: { readonly userId: string };
     createGroupDirectMessage: { readonly userIds: readonly string[]; readonly name?: string };
     createChannel: {
+        readonly projectId?: string;
         readonly kind: "public_channel" | "private_channel";
         readonly name: string;
         readonly slug: string;
         readonly topic?: string | null;
+        readonly autoJoin?: boolean;
+    };
+    createProject: {
+        readonly name: string;
+        readonly description?: string;
+        readonly initialChannel: {
+            readonly kind: "public_channel" | "private_channel";
+            readonly name: string;
+            readonly slug: string;
+            readonly topic?: string;
+        };
     };
     createChildChannel: {
         readonly chatId: string;
@@ -1169,6 +1183,7 @@ export interface KnownBackendResults {
     getContacts: DirectoryUsersResult;
     getDirectoryUsers: DirectoryUsersResult;
     getDirectoryChannels: { readonly channels: readonly ChatSummary[] };
+    getProjects: { readonly projects: readonly import("./types.js").ProjectSummary[] };
     search: { readonly results: readonly SearchResultSummary[]; readonly nextCursor?: string };
     getPresence: Pick<DirectoryUsersResult, "presence" | "statuses">;
     updateStatus: { readonly status: PresenceSettingsSummary; readonly sync: unknown };
@@ -1284,6 +1299,11 @@ export interface KnownBackendResults {
     createDirectMessage: ChatResult;
     createGroupDirectMessage: ChatResult;
     createChannel: ChatResult;
+    createProject: {
+        readonly project: import("./types.js").ProjectSummary;
+        readonly chat: ChatSummary;
+        readonly sync: unknown;
+    };
     createChildChannel: ChatResult;
     getAgentModels: AgentModelCatalog;
     createAgent: ChatResult;

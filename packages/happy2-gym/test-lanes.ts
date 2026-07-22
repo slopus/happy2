@@ -16,6 +16,7 @@ export const gymSequentialTestFiles = [
     "tests/server/managed_partial_config_starts_server_and_persists_generated_secrets.test.ts",
     "tests/server/package_runner_serves_web_proxies_api_and_owns_a_private_rig.test.ts",
     "tests/server/plugins_manage_agent_environments_and_reprovision_chat_containers.test.ts",
+    "tests/server/projects_keep_at_least_one_channel_under_concurrent_deletion.test.ts",
     "tests/state/agent_turns_reconcile_through_the_real_server_and_rig_queue.test.ts",
     "tests/state/channel_composer_audience_and_default_agent_cross_the_real_state_boundary.test.ts",
     "tests/state/setup_onboarding_crosses_the_real_state_and_server_boundary.test.ts",

@@ -35,6 +35,7 @@ export interface AreaReconcileContext {
     contributionsReconcile(): void;
     permissionsReconcile(): void;
     identitiesReconcile(): void;
+    projectsReconcile(): void;
     unknownArea(area: string): void;
 }
 
@@ -64,6 +65,7 @@ export function areaReconcile(context: AreaReconcileContext, area: string): void
     else if (area === "contributions") context.contributionsReconcile();
     else if (area === "permissions") context.permissionsReconcile();
     else if (area === "users" || area === "profile") context.identitiesReconcile();
+    else if (area === "projects") context.projectsReconcile();
     else context.unknownArea(area);
 }
 
@@ -264,10 +266,18 @@ export class SyncCoordinator {
                 this.context.resetReconcile();
                 return;
             }
+            // Project visibility is derived from the visible chat directory. Fetch
+            // it before publishing this difference so a newly visible chat never
+            // renders against an older project catalog in the owning sidebar store.
+            const projects = difference.areas.includes("projects")
+                ? (await this.context.runtime.operation("getProjects")).projects
+                : undefined;
+            if (!this.context.runtime.active || !this.current(generation)) return;
             this.context.sidebar.getState().sidebarInput({
                 type: "chatSummariesReconciled",
                 changedChats: await this.context.sidebarChats.project(difference.changedChats),
                 removedChatIds: difference.removedChatIds,
+                projects,
                 sync: difference.state,
             });
             // Losing a chat revokes access to its traces; open panels must
@@ -283,7 +293,8 @@ export class SyncCoordinator {
                     await this.chatSynchronize(chat.id, generation);
                 else binding.getState().chatInput({ type: "chatSummaryReconciled", chat });
             }
-            for (const area of difference.areas) this.context.areaReconcile(area);
+            for (const area of difference.areas)
+                if (area !== "projects") this.context.areaReconcile(area);
             cursor = difference.state;
             if (difference.kind !== "slice") return;
         }

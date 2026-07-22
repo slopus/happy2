@@ -315,6 +315,7 @@ export function ChatView(props: ChatViewProps) {
         chatLeave: (selectedChatId) => state.chatLeave(selectedChatId),
         chatStarSet: (selectedChatId, starred) => state.chatStarSet(selectedChatId, starred),
         channelCreate: (input) => state.channelCreate(input),
+        projectCreate: (input) => state.projectCreate(input),
         channelCreateChild: (input) => state.channelCreateChild(input),
         channelArchive: (selectedChatId) => state.channelArchive(selectedChatId),
         channelUnarchive: (selectedChatId) => state.channelUnarchive(selectedChatId),

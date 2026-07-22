@@ -26,6 +26,14 @@ const happy: IdentityProjection = {
     kind: "agent",
     agentRole: "default",
 };
+const project = {
+    id: "project-1",
+    name: "Product",
+    isDefault: true,
+    syncSequence: "1",
+    createdAt: "2026-07-17T12:00:00.000Z",
+    updatedAt: "2026-07-17T12:00:00.000Z",
+};
 function chat(
     id: string,
     kind: ChatSummary["kind"],
@@ -34,6 +42,7 @@ function chat(
     return {
         id,
         kind,
+        ...(kind === "dm" ? {} : { projectId: project.id }),
         isListed: kind !== "dm",
         isMain: false,
         autoJoin: false,
@@ -103,6 +112,7 @@ it("places the default-agent conversation in the agents section and projects dis
     let activeId = "";
     let sidebar: SidebarSnapshot = {
         status: { type: "ready" },
+        projects: [project],
         chats: [agentChat, secondAgentChat, defaultAgentChat, humanChat, channel],
     };
     const directory: DirectorySnapshot = {
@@ -124,42 +134,48 @@ it("places the default-agent conversation in the agents section and projects dis
     // agents section; there is no privileged pinned row above the sections.
     expect("pinnedItems" in model).toBe(false);
     expect(model.sections.map((section) => section.id)).toEqual([
-        "shared",
-        "private",
+        "projects",
+        "project:project-1",
+        "browse",
         "dms",
         "agents",
     ]);
     expect(model.sections.map((section) => section.label)).toEqual([
-        "Shared",
-        "Private",
+        "Projects",
+        "Product",
+        "Discover channels",
         "Humans",
         "Agents",
     ]);
     expect(model.sections.map((section) => section.items.map((item) => item.label))).toEqual([
+        [],
         ["Engineering"],
         [],
         ["Grace Hopper"],
         ["Happy", "Build agent", "Review agent"],
     ]);
-    // The shared channel carries no explicit icon, so the Sidebar paints its hash.
-    expect(model.sections[0]!.items[0]).toMatchObject({ label: "Engineering", icon: undefined });
-    expect(model.sections[2]!.items[0]).toMatchObject({ unread: true, badge: undefined });
-    expect(model.sections[3]!.items[0]).toMatchObject({
+    const projectSection = () =>
+        model.sections.find((section) => section.id === "project:project-1")!;
+    const humanSection = () => model.sections.find((section) => section.id === "dms")!;
+    const agentSection = () => model.sections.find((section) => section.id === "agents")!;
+    expect(projectSection().items[0]).toMatchObject({ label: "Engineering", icon: undefined });
+    expect(humanSection().items[0]).toMatchObject({ unread: true, badge: undefined });
+    expect(agentSection().items[0]).toMatchObject({
         label: "Happy",
         depth: undefined,
         unread: true,
         badge: 1,
     });
-    expect(model.sections[3]!.items[1]).toMatchObject({
+    expect(agentSection().items[1]).toMatchObject({
         label: "Build agent",
         depth: 1,
         unread: true,
         badge: 2,
     });
-    expect(model.sections[3]!.items[2]).toMatchObject({ label: "Review agent", depth: 1 });
+    expect(agentSection().items[2]).toMatchObject({ label: "Review agent", depth: 1 });
     activeId = "agent-chat";
     model = createModel();
-    expect(model.sections[3]!.items[1]).toMatchObject({ unread: false, badge: undefined });
+    expect(agentSection().items[1]).toMatchObject({ unread: false, badge: undefined });
     const changedAgent = projection(
         { ...agentChat.chat, unreadCount: 8, mentionCount: 3 },
         "Release agent",
@@ -168,23 +184,24 @@ it("places the default-agent conversation in the agents section and projects dis
     activeId = "";
     sidebar = {
         status: { type: "ready" },
+        projects: [project],
         chats: [changedAgent, secondAgentChat, defaultAgentChat, humanChat, channel],
     };
     model = createModel();
-    expect(model.sections[3]!.items[1]).toMatchObject({
+    expect(agentSection().items[1]).toMatchObject({
         label: "Release agent",
         unread: true,
         badge: 3,
     });
-    expect(model.sections[3]!.items.map((item) => item.label)).toEqual([
+    expect(agentSection().items.map((item) => item.label)).toEqual([
         "Happy",
         "Release agent",
         "Review agent",
     ]);
-    expect(model.sections[3]!.items.map((item) => item.depth)).toEqual([undefined, 1, 1]);
+    expect(agentSection().items.map((item) => item.depth)).toEqual([undefined, 1, 1]);
 });
 
-it("splits channels into shared and private sections and marks private rows with the lock icon", () => {
+it("groups public and private channels in their project and marks private rows with a lock", () => {
     const shared = projection(
         chat("shared-channel", "public_channel", { name: "Engineering" }),
         "Engineering",
@@ -213,6 +230,7 @@ it("splits channels into shared and private sections and marks private rows with
         search: () => "",
         sidebarSnapshot: () => ({
             status: { type: "ready" },
+            projects: [project],
             chats: [shared, sharedChild, privateChannel, privateChild],
         }),
         directorySnapshot: () => ({
@@ -223,18 +241,92 @@ it("splits channels into shared and private sections and marks private rows with
         avatarFor: () => undefined,
     });
     const section = (id: string) => model.sections.find((candidate) => candidate.id === id)!;
-    // Shared and private channels keep independent nesting within their own section.
-    expect(section("shared").items.map((item) => [item.id, item.depth, item.icon])).toEqual([
+    expect(
+        section("project:project-1").items.map((item) => [item.id, item.depth, item.icon]),
+    ).toEqual([
         ["shared-channel", undefined, undefined],
         ["shared-child", 1, undefined],
-    ]);
-    expect(section("private").items.map((item) => [item.id, item.depth, item.icon])).toEqual([
         ["private-channel", undefined, "lock"],
         ["private-child", 1, "lock"],
     ]);
-    // Every channel row remains a first-class channel kind regardless of section.
-    for (const id of ["shared", "private"])
-        for (const row of section(id).items) expect(row.kind).toBe("channel");
+    for (const row of section("project:project-1").items) expect(row.kind).toBe("channel");
+});
+
+it("keeps channels isolated under their owning project while DMs remain separate", () => {
+    const secondProject = { ...project, id: "project-2", name: "Research", isDefault: false };
+    const productChannel = projection(
+        chat("product", "public_channel", { name: "Product" }),
+        "Product",
+    );
+    const researchChannel = projection(
+        chat("research", "private_channel", { name: "Research", projectId: secondProject.id }),
+        "Research",
+    );
+    const direct = projection(chat("direct", "dm"), "Grace Hopper", human);
+    const model = chatSidebarModelCreate({
+        user: () => ({ id: "human-1", firstName: "Ada" }),
+        activeConversationId: () => "",
+        search: () => "",
+        sidebarSnapshot: () => ({
+            status: { type: "ready" },
+            projects: [project, secondProject],
+            chats: [productChannel, researchChannel, direct],
+        }),
+        directorySnapshot: () => ({
+            status: { type: "ready", value: true },
+            users: [],
+            channels: [],
+        }),
+        avatarFor: () => undefined,
+    });
+    expect(
+        model.sections.find((section) => section.id === "project:project-1")!.items,
+    ).toMatchObject([{ id: "product" }]);
+    expect(
+        model.sections.find((section) => section.id === "project:project-2")!.items,
+    ).toMatchObject([{ id: "research", icon: "lock" }]);
+    expect(model.sections.find((section) => section.id === "dms")!.items).toMatchObject([
+        { id: "direct" },
+    ]);
+});
+
+it("groups discoverable channels under their project in the channel directory", () => {
+    const secondProject = { ...project, id: "project-2", name: "Research", isDefault: false };
+    const joined = chat("joined", "public_channel", { name: "Joined" });
+    const { membershipRole: _productRole, ...productChannel } = chat("product", "public_channel", {
+        name: "Roadmap",
+    });
+    const { membershipRole: _researchRole, ...researchChannel } = chat(
+        "research",
+        "public_channel",
+        {
+            name: "Experiments",
+            projectId: secondProject.id,
+        },
+    );
+    const model = chatSidebarModelCreate({
+        user: () => ({ id: "human-1", firstName: "Ada" }),
+        activeConversationId: () => "",
+        search: () => "",
+        sidebarSnapshot: () => ({
+            status: { type: "ready" },
+            projects: [project, secondProject],
+            chats: [projection(joined, "Joined")],
+        }),
+        directorySnapshot: () => ({
+            status: { type: "ready", value: true },
+            users: [],
+            channels: [{ ...joined, membershipRole: "member" }, productChannel, researchChannel],
+        }),
+        avatarFor: () => undefined,
+    });
+
+    expect(model.directoryItems).toEqual([
+        { kind: "label", label: "Product" },
+        { id: "product", icon: "hash", kind: "item", label: "Roadmap" },
+        { kind: "label", label: "Research" },
+        { id: "research", icon: "hash", kind: "item", label: "Experiments" },
+    ]);
 });
 
 it("keeps agent conversations top-level when search omits the main chat", () => {
@@ -244,6 +336,7 @@ it("keeps agent conversations top-level when search omits the main chat", () => 
         search: () => "build",
         sidebarSnapshot: () => ({
             status: { type: "ready" },
+            projects: [project],
             chats: [
                 projection(
                     chat("happy-chat", "dm", { isDefaultAgentConversation: true }),
@@ -299,6 +392,7 @@ it("nests child channels under their parent, flags archives, and rescues orphane
         search: () => "",
         sidebarSnapshot: () => ({
             status: { type: "ready" },
+            projects: [project],
             chats: [parent, childActive, childArchived, orphan, archivedParent],
         }),
         directorySnapshot: () => ({
@@ -308,7 +402,7 @@ it("nests child channels under their parent, flags archives, and rescues orphane
         }),
         avatarFor: () => undefined,
     });
-    const channels = model.sections.find((section) => section.id === "private")!.items;
+    const channels = model.sections.find((section) => section.id === "project:project-1")!.items;
     expect(channels.map((item) => item.id)).toEqual([
         "parent",
         "child-a",
@@ -337,7 +431,11 @@ it("keeps the default-agent conversation in Agents when member projection is una
         user: () => ({ id: "human-1", firstName: "Ada" }),
         activeConversationId: () => "",
         search: () => "",
-        sidebarSnapshot: () => ({ status: { type: "ready" }, chats: [fallback] }),
+        sidebarSnapshot: () => ({
+            status: { type: "ready" },
+            projects: [project],
+            chats: [fallback],
+        }),
         directorySnapshot: () => ({
             status: { type: "ready", value: true },
             users: [],

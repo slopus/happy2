@@ -32,6 +32,13 @@
 
 .happy2-form-row[data-layout="stacked"] .happy2-form-row__control {
     align-self: stretch;
+    min-width: 0;
+    width: 100%;
+}
+
+.happy2-form-row[data-layout="stacked"] .happy2-form-row__control > * {
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 .happy2-form-row[data-layout="inline"][data-align="center"] {

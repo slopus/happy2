@@ -47,21 +47,22 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
         };
     }
     /**
-     * Orders the channels of one visibility (`public_channel` shared or
-     * `private_channel`) so each child renders directly under its parent, one
-     * indent level deeper. A child whose parent is absent from this section's
-     * projection set — filtered out by search, or living in the other
-     * visibility section — stays reachable as a top-level row rather than
-     * disappearing.
+     * Orders one project's public and private channels so each child renders
+     * directly under its parent, one indent level deeper. A child whose parent
+     * is absent from this filtered projection stays reachable as a top-level row
+     * rather than disappearing.
      */
     function channelItems(
         projections: readonly DeepReadonly<SidebarChatProjection>[],
-        kind: "public_channel" | "private_channel",
+        projectId: string,
         ordered: (
             values: readonly DeepReadonly<SidebarChatProjection>[],
         ) => DeepReadonly<SidebarChatProjection>[],
     ): SidebarItem[] {
-        const channels = projections.filter((projection) => projection.chat.kind === kind);
+        const channels = projections.filter(
+            (projection) =>
+                projection.chat.kind !== "dm" && projection.chat.projectId === projectId,
+        );
         const present = new Set(channels.map((projection) => projection.chat.id));
         const childrenByParent = new Map<string, DeepReadonly<SidebarChatProjection>[]>();
         const roots: DeepReadonly<SidebarChatProjection>[] = [];
@@ -115,18 +116,28 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
         ];
         return [
             {
-                id: "shared",
-                label: "Shared",
-                action: { icon: "plus", label: "Add channel" },
-                empty: { actionLabel: "Create", description: "No shared channels yet." },
-                items: channelItems(projections, "public_channel", ordered),
+                id: "projects",
+                label: "Projects",
+                headingOnly: true,
+                action: { icon: "plus", label: "New project" },
+                items: [],
             },
+            ...options.sidebarSnapshot().projects.map((project) => ({
+                id: `project:${project.id}`,
+                label: project.name,
+                action: { icon: "plus" as const, label: `Add channel to ${project.name}` },
+                empty: {
+                    actionLabel: "Create channel",
+                    description: needle ? "No matching channels." : "No channels are visible here.",
+                },
+                items: channelItems(projections, project.id, ordered),
+            })),
             {
-                id: "private",
-                label: "Private",
-                action: { icon: "plus", label: "Add channel" },
-                empty: { actionLabel: "Create", description: "No private channels yet." },
-                items: channelItems(projections, "private_channel", ordered),
+                id: "browse",
+                label: "Discover channels",
+                headingOnly: true,
+                action: { icon: "search", label: "Browse channels" },
+                items: [],
             },
             {
                 id: "dms",
@@ -149,15 +160,22 @@ export function chatSidebarModelCreate(options: ChatSidebarModelOptions) {
             },
         ];
     })();
-    const directoryItems: MenuItem[] = options
+    const unjoinedChannels = options
         .directorySnapshot()
-        .channels.filter((chat) => !chat.membershipRole)
-        .map((chat) => ({
-            id: chat.id,
-            icon: "hash",
-            kind: "item",
-            label: chat.name ?? chat.slug ?? "Untitled channel",
-        }));
+        .channels.filter((chat) => !chat.membershipRole);
+    const directoryItems: MenuItem[] = options.sidebarSnapshot().projects.flatMap((project) => {
+        const channels = unjoinedChannels.filter((chat) => chat.projectId === project.id);
+        if (channels.length === 0) return [];
+        return [
+            { kind: "label" as const, label: project.name },
+            ...channels.map((chat) => ({
+                id: chat.id,
+                icon: chat.kind === "private_channel" ? ("lock" as const) : ("hash" as const),
+                kind: "item" as const,
+                label: chat.name ?? chat.slug ?? "Untitled channel",
+            })),
+        ];
+    });
     const isServerAdmin = () =>
         users().find((person) => person.id === options.user().id)?.role === "admin";
     return { chats, users, sections, directoryItems, isServerAdmin };

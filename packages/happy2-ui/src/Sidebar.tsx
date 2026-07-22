@@ -46,6 +46,8 @@ export type SidebarSection = {
         title?: string;
     };
     id: string;
+    /** Renders only the labeled action row, useful as a hierarchy heading. */
+    headingOnly?: boolean;
     items: SidebarItem[];
     label?: string;
 };
@@ -314,15 +316,18 @@ export function Sidebar(props: SidebarProps) {
                                         : null}
                                 </div>
                             ) : null}
-                            {section.items.map((item) => (
-                                <SidebarRow
-                                    active={item.id === local.activeItemId}
-                                    key={item.id}
-                                    item={item}
-                                    onSelect={local.onItemSelect}
-                                />
-                            ))}
-                            {(section.items.length === 0 ? section.empty : undefined)
+                            {!section.headingOnly
+                                ? section.items.map((item) => (
+                                      <SidebarRow
+                                          active={item.id === local.activeItemId}
+                                          key={item.id}
+                                          item={item}
+                                          onSelect={local.onItemSelect}
+                                      />
+                                  ))
+                                : null}
+                            {!section.headingOnly &&
+                            (section.items.length === 0 ? section.empty : undefined)
                                 ? ((empty) => (
                                       <div
                                           className="happy2-sidebar__empty"

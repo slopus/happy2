@@ -5,10 +5,14 @@ import { optionalText } from "../optionalText.js";
 import { text } from "../text.js";
 export function asChat(row: Record<string, unknown>): ChatSummary {
     const kind = text(row.kind) as ChatKind;
+    const projectId = optionalText(row.project_id);
+    if (kind === "dm" ? projectId !== undefined : projectId === undefined)
+        throw new Error("Chat project assignment does not match its kind");
     const starred = number(row.starred, 0) === 1;
     return {
         id: text(row.id),
         kind,
+        ...(projectId ? { projectId } : {}),
         parentChatId: optionalText(row.parent_chat_id),
         name: optionalText(row.name),
         slug: optionalText(row.slug),

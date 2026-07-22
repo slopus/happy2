@@ -25,6 +25,7 @@ describe("HappyState chat leases and realtime races", () => {
             }),
         );
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond(
             "POST",
             "/v0/sync/getDifference",
@@ -80,6 +81,7 @@ describe("HappyState chat leases and realtime races", () => {
             }),
         );
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond(
             "POST",
             "/v0/sync/getDifference",
@@ -149,6 +151,7 @@ describe("HappyState chat leases and realtime races", () => {
             });
         });
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond(
             "POST",
             "/v0/sync/getDifference",
@@ -186,6 +189,7 @@ describe("HappyState chat leases and realtime races", () => {
             kind: "human",
         } as const;
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [dm] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond(
             "GET",
             "/v0/sync/state",

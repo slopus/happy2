@@ -27,6 +27,7 @@ describe("agent secrets module", () => {
             }),
         );
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         const secret = {
             id: "API_KEY",
             description: "Provider key",

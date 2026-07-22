@@ -47,6 +47,7 @@ describe("child channels nest in the sidebar and inherit a parent archive reacti
     it("creates a child under its parent with an independent model and one idempotency key", async () => {
         const server = serverCreate();
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [parent] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.failNext("POST", `/v0/chats/${parent.id}/createChildChannel`);
         server.respond(
             "POST",
@@ -93,6 +94,7 @@ describe("child channels nest in the sidebar and inherit a parent archive reacti
     it("reconciles independent child archive and parent cascade through the difference stream", async () => {
         const server = serverCreate();
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [parent, child] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond(
             "POST",
             "/v0/sync/getDifference",

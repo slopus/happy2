@@ -1,6 +1,11 @@
 import { Happy2Api } from "../../api.js";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { type ChatSummary, type SyncState, type UserError } from "../../types.js";
+import {
+    type ChatSummary,
+    type ProjectSummary,
+    type SyncState,
+    type UserError,
+} from "../../types.js";
 import { type IdentityCatalog } from "../identity/identityState.js";
 import { type IdentityProjection } from "../identity/identityState.js";
 import { type StateRuntime, userError } from "../runtime/runtimeState.js";
@@ -142,11 +147,15 @@ export async function sidebarLoad(context: SidebarLoadContext): Promise<void> {
     sidebar.getState().sidebarInput({ type: "sidebarLoading" });
     try {
         const sync = await runtime.read((transport) => new Happy2Api(transport).state());
-        const chats = await runtime.operation("getChats");
+        const [chats, projects] = await Promise.all([
+            runtime.operation("getChats"),
+            runtime.operation("getProjects"),
+        ]);
         if (!runtime.active) return;
         sidebar.getState().sidebarInput({
             type: "sidebarLoaded",
             chats: await context.sidebarChats.project(chats.chats),
+            projects: projects.projects,
             sync: sync.state,
         });
     } catch (error) {
@@ -156,11 +165,25 @@ export async function sidebarLoad(context: SidebarLoadContext): Promise<void> {
     }
 }
 
+/** Reconciles the visible project directory after a durable projects-area sync hint. */
+export async function sidebarProjectsLoad(
+    context: Pick<SidebarLoadContext, "runtime" | "sidebar">,
+): Promise<void> {
+    if (!context.runtime.connected) return;
+    const result = await context.runtime.operation("getProjects");
+    if (!context.runtime.active) return;
+    context.sidebar.getState().sidebarInput({
+        type: "projectSummariesReconciled",
+        projects: result.projects,
+    });
+}
+
 /** Creates the one coarse chat-directory render store and its owner-only input capability. */
 export function sidebarStoreCreate(): SidebarStore {
     return createStore<SidebarState>()((set) => ({
         status: { type: "unloaded" },
         chats: [],
+        projects: [],
         sidebarInput(event): void {
             set((snapshot) => {
                 switch (event.type) {
@@ -173,6 +196,7 @@ export function sidebarStoreCreate(): SidebarStore {
                             ...snapshot,
                             status: { type: "ready" },
                             chats: [...event.chats],
+                            projects: [...event.projects],
                             sync: event.sync,
                         };
                     case "sidebarFailed":
@@ -191,10 +215,17 @@ export function sidebarStoreCreate(): SidebarStore {
                             snapshot.status.type === "ready" &&
                             snapshot.sync === event.sync &&
                             chats.length === snapshot.chats.length &&
-                            chats.every((chat, index) => chat === snapshot.chats[index])
+                            chats.every((chat, index) => chat === snapshot.chats[index]) &&
+                            (!event.projects || projectsEqual(snapshot.projects, event.projects))
                         )
                             return snapshot;
-                        return { ...snapshot, status: { type: "ready" }, chats, sync: event.sync };
+                        return {
+                            ...snapshot,
+                            status: { type: "ready" },
+                            chats,
+                            projects: event.projects ? [...event.projects] : snapshot.projects,
+                            sync: event.sync,
+                        };
                     }
                     case "chatSummaryUpserted": {
                         const index = snapshot.chats.findIndex((chat) => chat.id === event.chat.id);
@@ -210,6 +241,29 @@ export function sidebarStoreCreate(): SidebarStore {
                         return chats.length === snapshot.chats.length
                             ? snapshot
                             : { ...snapshot, chats };
+                    }
+                    case "projectSummariesReconciled":
+                        return projectsEqual(snapshot.projects, event.projects)
+                            ? snapshot
+                            : { ...snapshot, projects: [...event.projects] };
+                    case "projectCreated": {
+                        const projectIndex = snapshot.projects.findIndex(
+                            (project) => project.id === event.project.id,
+                        );
+                        const projects = [...snapshot.projects];
+                        if (projectIndex === -1) projects.push(event.project);
+                        else projects[projectIndex] = event.project;
+                        const chatIndex = snapshot.chats.findIndex(
+                            (chat) => chat.id === event.chat.id,
+                        );
+                        const chats = [...snapshot.chats];
+                        if (chatIndex === -1) chats.push(event.chat);
+                        else chats[chatIndex] = event.chat;
+                        return {
+                            ...snapshot,
+                            projects,
+                            chats,
+                        };
                     }
                 }
             });
@@ -234,6 +288,7 @@ export interface SidebarChatProjection {
 export interface SidebarSnapshot {
     readonly status: SidebarStatus;
     readonly chats: readonly SidebarChatProjection[];
+    readonly projects: readonly ProjectSummary[];
     readonly sync?: SyncState;
 }
 
@@ -242,6 +297,7 @@ export type SidebarInput =
     | {
           readonly type: "sidebarLoaded";
           readonly chats: readonly SidebarChatProjection[];
+          readonly projects: readonly ProjectSummary[];
           readonly sync: SyncState;
       }
     | { readonly type: "sidebarFailed"; readonly error: UserError }
@@ -249,13 +305,41 @@ export type SidebarInput =
           readonly type: "chatSummariesReconciled";
           readonly changedChats: readonly SidebarChatProjection[];
           readonly removedChatIds: readonly string[];
+          readonly projects?: readonly ProjectSummary[];
           readonly sync: SyncState;
       }
     | { readonly type: "chatSummaryUpserted"; readonly chat: SidebarChatProjection }
-    | { readonly type: "chatSummaryRemoved"; readonly chatId: string };
+    | { readonly type: "chatSummaryRemoved"; readonly chatId: string }
+    | { readonly type: "projectSummariesReconciled"; readonly projects: readonly ProjectSummary[] }
+    | {
+          readonly type: "projectCreated";
+          readonly project: ProjectSummary;
+          readonly chat: SidebarChatProjection;
+      };
 
 export interface SidebarState extends SidebarSnapshot {
     sidebarInput(event: SidebarInput): void;
 }
 
 export type SidebarStore = StoreApi<SidebarState>;
+
+function projectsEqual(
+    current: readonly ProjectSummary[],
+    next: readonly ProjectSummary[],
+): boolean {
+    return (
+        current.length === next.length &&
+        current.every((project, index) => {
+            const candidate = next[index];
+            return (
+                candidate !== undefined &&
+                project.id === candidate.id &&
+                project.name === candidate.name &&
+                project.description === candidate.description &&
+                project.isDefault === candidate.isDefault &&
+                project.syncSequence === candidate.syncSequence &&
+                project.updatedAt === candidate.updatedAt
+            );
+        })
+    );
+}

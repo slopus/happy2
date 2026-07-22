@@ -19,11 +19,14 @@ const actionsStyle: CSSProperties = { display: "flex", alignItems: "center", gap
 export interface ChatChannelCreateDialogProps {
     busy: boolean;
     isServerAdmin: boolean;
+    projects: readonly { readonly id: string; readonly name: string }[];
+    initialProjectId: string;
     onClose(): void;
     onCreate(input: {
         name: string;
         slug: string;
         kind: "public_channel" | "private_channel";
+        projectId: string;
         autoJoin: boolean;
     }): void;
 }
@@ -33,6 +36,7 @@ export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
     const [slugEdited, setSlugEdited] = useState(false);
     const [kind, setKind] = useState<"public_channel" | "private_channel">("public_channel");
     const [autoJoin, setAutoJoin] = useState(false);
+    const [projectId, setProjectId] = useState(props.initialProjectId);
     return (
         <ModalOverlay onDismiss={props.onClose}>
             <Modal
@@ -42,13 +46,14 @@ export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
                             Cancel
                         </Button>
                         <Button
-                            disabled={props.busy || !name.trim()}
+                            disabled={props.busy || !name.trim() || !projectId}
                             icon="plus"
                             onClick={() =>
                                 props.onCreate({
                                     name: name.trim(),
                                     slug: channelSlug(slug || name),
                                     kind: kind,
+                                    projectId,
                                     autoJoin: autoJoin,
                                 })
                             }
@@ -63,6 +68,21 @@ export function ChatChannelCreateDialog(props: ChatChannelCreateDialogProps) {
                 title="Create channel"
             >
                 <Box style={stackStyle}>
+                    <FormRow
+                        control={
+                            <Select
+                                fullWidth
+                                onValueChange={setProjectId}
+                                options={props.projects.map((project) => ({
+                                    value: project.id,
+                                    label: project.name,
+                                }))}
+                                value={projectId}
+                            />
+                        }
+                        label="Project"
+                        layout="stacked"
+                    />
                     <FormRow
                         control={
                             <TextField

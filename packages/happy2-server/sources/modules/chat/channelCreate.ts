@@ -13,15 +13,19 @@ import { syncSequenceNext } from "../sync/syncSequenceNext.js";
 import { userRequireActive } from "./userRequireActive.js";
 import { userRequireServerAdmin } from "./userRequireServerAdmin.js";
 import { agentDefaultRequire } from "../agent/agentDefaultRequire.js";
+import { projectDefaultRequire } from "../project/projectDefaultRequire.js";
+import { projectRequire } from "../project/projectRequire.js";
+import { projectDirectoryList } from "../project/projectDirectoryList.js";
 
 /**
- * Creates a chats channel with its owner and the sole default agent after validating the creator and channel policy.
- * The transaction exposes a channel only after chatMembers and initial sync history are complete, so no client can discover an unusable room.
+ * Creates a chats channel in the selected visible project with its owner and the sole default agent after validating the creator and channel policy.
+ * The transaction exposes a channel only after chatMembers and initial sync history are complete, so no client can discover an unusable room or attach work to undiscoverable project metadata.
  */
 export async function channelCreate(
     executor: DrizzleExecutor,
     input: {
         actorUserId: string;
+        projectId?: string;
         kind: "public_channel" | "private_channel";
         name: string;
         slug: string;
@@ -35,6 +39,17 @@ export async function channelCreate(
     return withTransaction(executor, async (tx) => {
         await userRequireActive(tx, input.actorUserId);
         if (input.autoJoin) await userRequireServerAdmin(tx, input.actorUserId);
+        const project = input.projectId
+            ? await projectRequire(tx, input.projectId)
+            : await projectDefaultRequire(tx);
+        if (
+            input.projectId &&
+            project.createdByUserId !== input.actorUserId &&
+            !(await projectDirectoryList(tx, input.actorUserId)).some(
+                (visible) => visible.id === project.id,
+            )
+        )
+            throw new CollaborationError("not_found", "Project was not found");
         const defaultAgentUserId = await agentDefaultRequire(tx);
         const id = createId();
         const membershipEpoch = createId();
@@ -43,6 +58,7 @@ export async function channelCreate(
             await tx.insert(chats).values({
                 id,
                 kind: input.kind,
+                projectId: project.id,
                 name: input.name,
                 slug: input.slug,
                 topic: input.topic,

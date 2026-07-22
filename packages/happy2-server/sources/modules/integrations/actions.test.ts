@@ -520,11 +520,16 @@ async function createFixture(): Promise<Fixture> {
     const member = await createUser(executor, "member@example.com", "member");
     const outsider = await createUser(executor, "outsider@example.com", "outsider");
     const chatId = createId();
+    const projectId = createId();
+    await client.execute({
+        sql: "INSERT INTO projects (id, name, created_by_user_id) VALUES (?, 'Integrations', ?)",
+        args: [projectId, admin.id],
+    });
     await client.execute({
         sql: `INSERT INTO chats
-                (id, kind, name, slug, created_by_user_id, owner_user_id, visibility)
-              VALUES (?, 'private_channel', 'Deployments', 'deployments', ?, ?, 'private')`,
-        args: [chatId, admin.id, admin.id],
+                (id, kind, name, slug, project_id, created_by_user_id, owner_user_id, visibility)
+              VALUES (?, 'private_channel', 'Deployments', 'deployments', ?, ?, ?, 'private')`,
+        args: [chatId, projectId, admin.id, admin.id],
     });
     for (const [user, role] of [
         [admin, "owner"],

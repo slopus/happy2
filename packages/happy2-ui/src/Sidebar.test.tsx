@@ -1025,6 +1025,60 @@ it("nests child channels under their parent and dims archived rows", async () =>
     await view.screenshot("Sidebar.nested");
 }, 120_000);
 
+it("renders a project hierarchy heading without fabricating a row or empty state", async () => {
+    const actions: string[] = [];
+    const view = createRenderer();
+    view.render(
+        () => (
+            <Sidebar
+                activeItemId="planning"
+                data-testid="projects"
+                onItemSelect={() => {}}
+                onSectionAction={(id) => actions.push(id)}
+                sections={[
+                    {
+                        id: "projects",
+                        label: "Projects",
+                        headingOnly: true,
+                        action: { icon: "plus", label: "New project" },
+                        items: [],
+                    },
+                    {
+                        id: "project-launch",
+                        label: "Launch",
+                        action: { icon: "plus", label: "Add channel to Launch" },
+                        items: [
+                            { id: "planning", kind: "channel", label: "planning" },
+                            { id: "leads", kind: "channel", label: "leads", icon: "lock" },
+                        ],
+                    },
+                ]}
+                title="Projects"
+            />
+        ),
+        { width: 360, height: 260 },
+    );
+    await view.ready();
+
+    const heading = view.$('[data-section-id="projects"]');
+    expect(heading.element.querySelectorAll('[data-happy2-ui="sidebar-item"]')).toHaveLength(0);
+    expect(heading.element.querySelector('[data-happy2-ui="sidebar-section-empty"]')).toBeNull();
+    const project = view.$('[data-section-id="project-launch"]');
+    expect(project.element.querySelectorAll('[data-happy2-ui="sidebar-item"]')).toHaveLength(2);
+    expect(project.computedStyle("display")).toBe("flex");
+    (
+        heading.element.querySelector('button[aria-label="New project"]') as HTMLButtonElement
+    ).click();
+    (
+        project.element.querySelector(
+            'button[aria-label="Add channel to Launch"]',
+        ) as HTMLButtonElement
+    ).click();
+    expect(actions).toEqual(["projects", "project-launch"]);
+
+    await view.screenshot("Sidebar.projects");
+}, 120_000);
+
 /*
  * A channel row renders the hash glyph by default, but honours an explicit
  * `icon` for the channel kind so a private channel can paint the lock glyph

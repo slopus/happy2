@@ -11,6 +11,7 @@ export function chatCreationModelCreate(options: ChatCreationModelOptions) {
     async function channelCreate(input: {
         name: string;
         slug: string;
+        projectId: string;
         kind: "public_channel" | "private_channel";
         autoJoin: boolean;
     }) {
@@ -20,6 +21,7 @@ export function chatCreationModelCreate(options: ChatCreationModelOptions) {
             await options.actions.channelCreate({
                 kind: input.kind,
                 name: input.name,
+                projectId: input.projectId,
                 slug: input.slug,
                 ...(options.isServerAdmin() && input.autoJoin ? { autoJoin: true } : {}),
             });
@@ -56,6 +58,19 @@ export function chatCreationModelCreate(options: ChatCreationModelOptions) {
             options.onBusyFinish();
         }
     }
+    async function projectCreate(input: import("happy2-state").CreateProjectInput) {
+        if (!input.name || !input.initialChannel.name || !input.initialChannel.slug) return false;
+        options.onBusyStart();
+        try {
+            await options.actions.projectCreate(input);
+            return true;
+        } catch (error) {
+            options.onError(error);
+            return false;
+        } finally {
+            options.onBusyFinish();
+        }
+    }
     async function agentCreate(name: string, username: string) {
         options.onBusyStart();
         try {
@@ -80,7 +95,7 @@ export function chatCreationModelCreate(options: ChatCreationModelOptions) {
             options.onBusyFinish();
         }
     }
-    return { agentCreate, channelCreate, channelCreateChild, directMessageStart };
+    return { agentCreate, channelCreate, channelCreateChild, directMessageStart, projectCreate };
 }
 export function useChatCreateRequest(options: {
     request?: {

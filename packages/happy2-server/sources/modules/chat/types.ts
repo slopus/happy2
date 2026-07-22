@@ -17,6 +17,7 @@ export interface SyncState {
 export interface ChatSummary {
     id: string;
     kind: ChatKind;
+    projectId?: string;
     parentChatId?: string;
     name?: string;
     slug?: string;

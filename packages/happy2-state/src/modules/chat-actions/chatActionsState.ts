@@ -3,6 +3,7 @@ import {
     type CreateAgentInput,
     type CreateChannelInput,
     type CreateChildChannelInput,
+    type CreateProjectInput,
 } from "../../types.js";
 import { type ChatStore } from "../chat/chatState.js";
 import { type StateRuntime, userError } from "../runtime/runtimeState.js";
@@ -81,6 +82,19 @@ export async function channelCreate(
 ): Promise<void> {
     const result = await context.runtime.operation("createChannel", input);
     await chatResultApply(context, result.chat);
+}
+
+/** Creates a project with its required first channel and publishes both authoritative summaries together. */
+export async function projectCreate(
+    context: ChatActionContext,
+    input: CreateProjectInput,
+): Promise<void> {
+    const result = await context.runtime.operation("createProject", input);
+    context.sidebar.getState().sidebarInput({
+        type: "projectCreated",
+        project: result.project,
+        chat: await context.sidebarChatProject(result.chat),
+    });
 }
 
 /**

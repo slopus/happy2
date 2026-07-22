@@ -411,6 +411,10 @@ export {
     type McpAppRenderInput,
 } from "./pages/chat/ChatPage";
 export {
+    ChatProjectCreateDialog,
+    type ChatProjectCreateDialogProps,
+} from "./pages/chat/ChatProjectCreateDialog";
+export {
     PermissionChecklist,
     type PermissionChecklistOption,
     type PermissionChecklistProps,

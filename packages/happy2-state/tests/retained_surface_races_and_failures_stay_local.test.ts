@@ -22,6 +22,7 @@ describe("retained surface races and failures", () => {
         const server = createFakeServer();
         server.failNext("GET", "/v0/chats");
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         let releaseSleep!: () => void;
         const runtime = new StateRuntime({
             transport: server.transport,

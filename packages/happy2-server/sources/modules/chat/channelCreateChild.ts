@@ -36,8 +36,8 @@ export async function channelCreateChild(
                 "invalid",
                 "Child channels cannot be created under an archived channel",
             );
-        if (!parent.ownerUserId || !parent.defaultAgentUserId)
-            throw new Error("Parent channel ownership or default agent is missing");
+        if (!parent.projectId || !parent.ownerUserId || !parent.defaultAgentUserId)
+            throw new Error("Parent channel project, ownership, or default agent is missing");
         const memberships = await tx
             .select({
                 userId: chatMembers.userId,
@@ -52,6 +52,7 @@ export async function channelCreateChild(
             await tx.insert(chats).values({
                 id,
                 kind: "private_channel",
+                projectId: parent.projectId,
                 name: input.name,
                 slug: input.slug,
                 topic: input.topic,

@@ -168,6 +168,22 @@ describe("server upgrades with shared plugin packages", () => {
                     "c".repeat(64),
                 ],
             });
+            await client.migrate([
+                "DROP TABLE plugin_resource_links",
+                "ALTER TABLE port_shares DROP COLUMN audience",
+                "DROP TRIGGER chats_channel_project_required_insert",
+                "DROP TRIGGER chats_channel_project_required_update",
+                "DROP TRIGGER chats_dm_project_forbidden_insert",
+                "DROP TRIGGER chats_dm_project_forbidden_update",
+                "DROP TRIGGER chats_child_project_match_insert",
+                "DROP TRIGGER chats_child_project_match_update",
+                "DROP TRIGGER chats_parent_project_match_update",
+                "DROP INDEX chats_project_id_idx",
+                "ALTER TABLE chats DROP COLUMN project_id",
+                "DROP INDEX projects_sync_sequence_idx",
+                "DROP INDEX projects_one_default_idx",
+                "DROP TABLE projects",
+            ]);
             await client.execute({
                 sql: "DELETE FROM __drizzle_migrations WHERE created_at >= ?",
                 args: [1785369600000],

@@ -18,9 +18,18 @@ import { createRenderer } from "../../testing";
 import { ChatPage, type ChatPageActions, type ChatPageNavigation } from "./ChatPage";
 import { ChatMessageEntry } from "./ChatMessageEntry";
 import { entriesProject } from "./chatPageModels";
+const testProject = {
+    id: "project-1",
+    name: "Product",
+    isDefault: true,
+    syncSequence: "1",
+    createdAt: "2026-07-17T12:00:00.000Z",
+    updatedAt: "2026-07-17T12:00:00.000Z",
+};
 const chat: ChatSummary = {
     id: "chat-1",
     kind: "public_channel",
+    projectId: testProject.id,
     name: "State architecture",
     slug: "state-architecture",
     topic: "One coarse store per rendered surface",
@@ -110,6 +119,7 @@ function chatPageActionsCreate(overrides: Partial<ChatPageActions> = {}): ChatPa
         chatLeave: async () => undefined,
         chatStarSet: async () => undefined,
         channelCreate: async () => undefined,
+        projectCreate: async () => undefined,
         channelCreateChild: async () => undefined,
         channelArchive: async () => undefined,
         channelUnarchive: async () => undefined,
@@ -349,6 +359,7 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
     };
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [
             {
                 chat,
@@ -385,6 +396,17 @@ it("renders a complete chat page from coarse HappyState surface stores", async (
     expect(view.container.textContent).not.toContain("Welcome to #state-architecture");
     expect(view.container.textContent).toContain("State architecture");
     expect(view.container.textContent).toContain("One coarse store per rendered surface");
+    expect(view.container.textContent).toContain("Product");
+    const channelRow = view.container.querySelector<HTMLElement>('[data-item-id="chat-1"]')!;
+    channelRow.focus();
+    sidebar.input({
+        type: "projectSummariesReconciled",
+        projects: [{ ...testProject, name: "Product launch", updatedAt: "later" }],
+    });
+    await nextFrame();
+    expect(view.container.querySelector('[data-item-id="chat-1"]')).toBe(channelRow);
+    expect(document.activeElement).toBe(channelRow);
+    expect(view.container.textContent).toContain("Product launch");
     // The default-agent conversation renders as a normal row inside the agents
     // section, never in a privileged pinned row above the sections.
     expect(view.container.querySelector('[data-happy2-ui="sidebar-pinned"]')).toBeNull();
@@ -479,6 +501,7 @@ it("does not select the first channel for a nonempty unknown route", async () =>
     directory.input({ type: "directoryLoaded", users: [], channels: [] });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
         sync: { protocolVersion: 1, generation: "test", sequence: "0" },
     });
@@ -503,6 +526,48 @@ it("does not select the first channel for a nonempty unknown route", async () =>
     await nextFrame();
     expect(chatSelect).not.toHaveBeenCalled();
     expect(view.container.textContent).not.toContain("No conversation selected");
+});
+
+it("keeps a project channel row focused and mounted while project metadata reconciles", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+    });
+    directory.input({ type: "directoryLoaded", users: [], channels: [] });
+    sidebar.input({
+        type: "sidebarLoaded",
+        projects: [testProject],
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    const view = createRenderer();
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate()}
+                directory={directory.store}
+                navigation={{ chatId: chat.id }}
+                sidebar={sidebar.store}
+                user={{ id: "user-1", firstName: "Ada" }}
+            />
+        ),
+        { width: 1000, height: 700 },
+    );
+    await view.ready();
+    const row = view.container.querySelector<HTMLElement>('[data-item-id="chat-1"]')!;
+    row.focus();
+
+    sidebar.input({
+        type: "projectSummariesReconciled",
+        projects: [{ ...testProject, name: "Product launch", updatedAt: "later" }],
+    });
+    await nextFrame();
+
+    expect(view.container.querySelector('[data-item-id="chat-1"]')).toBe(row);
+    expect(document.activeElement).toBe(row);
+    expect(view.container.textContent).toContain("Product launch");
 });
 
 it("creates a direct message from the directory and does not hijack later navigation", async () => {
@@ -551,6 +616,7 @@ it("creates a direct message from the directory and does not hijack later naviga
     });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [
             { chat, id: chat.id, displayName: chat.name!, participants: [] },
             { chat: otherChat, id: otherChat.id, displayName: "General", participants: [] },
@@ -659,6 +725,7 @@ it("replaces the channel default agent from the info panel", async () => {
     });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [
             {
                 chat: routedChat,
@@ -718,6 +785,7 @@ it("renders one active port share in the header and info panel and routes open a
     });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
         sync: { protocolVersion: 1, generation: "test", sequence: "0" },
     });
@@ -823,6 +891,7 @@ it("reconciles an effort notice without remounting or moving focus from the chat
     directory.input({ type: "directoryLoaded", users: [owner, agent], channels: [] });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [
             {
                 chat: agentChat,
@@ -1004,6 +1073,7 @@ it("edits an own message through the desktop-safe dialog with its current revisi
     directory.input({ type: "directoryLoaded", users: [owner], channels: [] });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [owner] }],
         sync: { protocolVersion: 1, generation: "test", sequence: "0" },
     });
@@ -1135,6 +1205,7 @@ it("opens a live trace panel from the message row and keeps DOM identity across 
     });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
         sync: { protocolVersion: 1, generation: "test", sequence: "0" },
     });
@@ -1324,6 +1395,7 @@ it("projects live subagents and terminals into the strip with stable row identit
     directory.input({ type: "directoryLoaded", users: [], channels: [] });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
         sync: { protocolVersion: 1, generation: "test", sequence: "0" },
     });
@@ -1527,6 +1599,7 @@ it("projects shared MCP links into the sidebar and opens them via the external-l
     directory.input({ type: "directoryLoaded", users: [], channels: [] });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
         sync: { protocolVersion: 1, generation: "test", sequence: "0" },
     });
@@ -1614,6 +1687,7 @@ it("expands the trace over the shell with a working composer footer and stable i
     directory.input({ type: "directoryLoaded", users: [], channels: [] });
     sidebar.input({
         type: "sidebarLoaded",
+        projects: [testProject],
         chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
         sync: { protocolVersion: 1, generation: "test", sequence: "0" },
     });

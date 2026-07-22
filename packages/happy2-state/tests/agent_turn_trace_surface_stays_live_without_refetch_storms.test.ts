@@ -57,6 +57,7 @@ describe("Agent turn trace surface stays live without refetch storms", () => {
         const server = createFakeServer();
         server.respond("GET", "/v0/sync/state", syncStateResponse);
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [chat()] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: chat() }));
         server.respond(
             "GET",
@@ -135,6 +136,7 @@ describe("Agent turn trace surface stays live without refetch storms", () => {
         const server = createFakeServer();
         server.respond("GET", "/v0/sync/state", syncStateResponse);
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [chat()] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: chat() }));
         server.respond(
             "GET",
@@ -174,6 +176,7 @@ describe("Agent turn trace surface stays live without refetch storms", () => {
         const server = createFakeServer();
         server.respond("GET", "/v0/sync/state", syncStateResponse);
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [chat()] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: chat() }));
         server.respond(
             "GET",
@@ -222,6 +225,7 @@ describe("Agent turn trace surface stays live without refetch storms", () => {
         const server = createFakeServer();
         server.respond("GET", "/v0/sync/state", syncStateResponse);
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [chat()] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
         server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: chat() }));
         server.respond(
             "GET",
@@ -266,6 +270,7 @@ describe("Agent turn trace surface stays live without refetch storms", () => {
             const server = createFakeServer();
             server.respond("GET", "/v0/sync/state", syncStateResponse);
             server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [chat()] }));
+            server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
             server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: chat() }));
             server.respond(
                 "GET",

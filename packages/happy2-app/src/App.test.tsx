@@ -7,6 +7,14 @@ import { App } from "./App";
 import { DesktopApp } from "./components/DesktopApp";
 import type { AuthSession } from "./components/AuthGate";
 import { desktopNavigationCreate } from "./navigation/desktopNavigationCreate";
+const project = {
+    id: "project-1",
+    name: "Product",
+    isDefault: true,
+    syncSequence: "1",
+    createdAt: "now",
+    updatedAt: "now",
+};
 import { InboxView } from "./views/InboxView";
 
 function createFakeServer() {
@@ -190,6 +198,7 @@ describe("persistent desktop routing", () => {
             .getState()
             .sidebarInput({
                 type: "sidebarLoaded",
+                projects: [project],
                 chats: [{ id: chat.id, chat, displayName: "Route laboratory", participants: [] }],
                 sync: { protocolVersion: 1, generation: "test", sequence: "0" },
             });
@@ -365,6 +374,7 @@ describe("persistent desktop routing", () => {
             }),
         );
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [channel] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [project] }));
         server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: channel }));
         server.respond(
             "GET",
@@ -443,6 +453,7 @@ describe("persistent desktop routing", () => {
             }),
         );
         server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [channel, second] }));
+        server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [project] }));
         server.respond("GET", "/v0/chats/chat-1", jsonResponse(200, { chat: channel }));
         server.respond("GET", "/v0/chats/chat-2", jsonResponse(200, { chat: second }));
         server.respond(
@@ -747,6 +758,7 @@ describe("default-agent conversation in the sidebar", () => {
             .getState()
             .sidebarInput({
                 type: "sidebarLoaded",
+                projects: [project],
                 chats: [
                     {
                         id: agentDm.id,
@@ -795,6 +807,7 @@ function channelFixture(): ChatSummary {
     return {
         id: "chat-1",
         kind: "private_channel",
+        projectId: "project-1",
         name: "Route laboratory",
         slug: "route-laboratory",
         isListed: false,

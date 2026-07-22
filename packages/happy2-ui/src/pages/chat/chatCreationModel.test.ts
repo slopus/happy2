@@ -65,3 +65,50 @@ it("surfaces a creation failure through onError and still finishes busy", async 
     expect(errors).toEqual([failure]);
     expect(events).toEqual(["start", "finish"]);
 });
+
+it("forwards the selected project when creating a channel", async () => {
+    const channelCreate = vi.fn(async () => undefined);
+    const model = chatCreationModelCreate({
+        actions: { channelCreate } as unknown as ChatPageActions,
+        isServerAdmin: () => false,
+        onBusyStart: () => undefined,
+        onBusyFinish: () => undefined,
+        onError: () => undefined,
+    });
+    const result = await model.channelCreate({
+        projectId: "project-2",
+        kind: "private_channel",
+        name: "Planning",
+        slug: "planning",
+        autoJoin: false,
+    });
+    expect(result).toBe(true);
+    expect(channelCreate).toHaveBeenCalledWith({
+        projectId: "project-2",
+        kind: "private_channel",
+        name: "Planning",
+        slug: "planning",
+    });
+});
+
+it("forwards project creation with its required initial channel", async () => {
+    const projectCreate = vi.fn(async () => undefined);
+    const model = chatCreationModelCreate({
+        actions: { projectCreate } as unknown as ChatPageActions,
+        isServerAdmin: () => false,
+        onBusyStart: () => undefined,
+        onBusyFinish: () => undefined,
+        onError: () => undefined,
+    });
+    const input = {
+        name: "Launch",
+        description: "Release work",
+        initialChannel: {
+            kind: "public_channel" as const,
+            name: "Planning",
+            slug: "planning",
+        },
+    };
+    expect(await model.projectCreate(input)).toBe(true);
+    expect(projectCreate).toHaveBeenCalledWith(input);
+});

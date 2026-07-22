@@ -71,6 +71,7 @@ function baseServer(apps: PluginAppSummary[], contributions: PluginContributionS
         }),
     );
     server.respond("GET", "/v0/chats", jsonResponse(200, { chats: [] }));
+    server.respond("GET", "/v0/projects", jsonResponse(200, { projects: [] }));
     server.respond(
         "GET",
         "/v0/contacts",
