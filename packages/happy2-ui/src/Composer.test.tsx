@@ -521,6 +521,51 @@ it("holds Composer geometry, colors, and typography", async () => {
     await view.screenshot("Composer.test");
 });
 
+it("focuses the draft from every unoccupied composer surface", async () => {
+    let attached = false;
+    const view = createRenderer().render(
+        () => (
+            <Composer
+                contextItems={contextItems}
+                data-testid="composer-surface-focus"
+                onAttachFile={() => {
+                    attached = true;
+                }}
+                onSend={() => {}}
+                onValueChange={() => {}}
+                value=""
+            />
+        ),
+        { width: 600, height: 220, padding: 20 },
+    );
+    await view.ready();
+    const textarea = view.$(
+        '[data-testid="composer-surface-focus"] [data-happy2-ui="composer-textarea"]',
+    ).element as HTMLTextAreaElement;
+    const card = view.$('[data-testid="composer-surface-focus"]');
+    const input = view.$(
+        '[data-testid="composer-surface-focus"] [data-happy2-ui="composer-input"]',
+    );
+    const context = view.$(
+        '[data-testid="composer-surface-focus"] [data-happy2-ui="composer-context"]',
+    );
+    const toolbar = view.$(
+        '[data-testid="composer-surface-focus"] [data-happy2-ui="composer-toolbar"]',
+    );
+
+    for (const surface of [card, context, input, toolbar]) {
+        textarea.blur();
+        surface.element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+        expect(document.activeElement).toBe(textarea);
+    }
+
+    const attach = view.container.querySelector(
+        '[data-testid="composer-surface-focus"] [aria-label="Attach file"]',
+    ) as HTMLButtonElement;
+    await userEvent.click(attach);
+    expect(attached).toBe(true);
+});
+
 it("keeps the ready send control light in an explicit dark theme", async () => {
     const view = createRenderer().render(
         () => (

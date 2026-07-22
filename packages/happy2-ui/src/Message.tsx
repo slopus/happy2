@@ -53,13 +53,21 @@ export type MessageImage = {
 };
 const MEDIA_SINGLE_MAX_W = 380;
 const MEDIA_SINGLE_MAX_H = 320;
+const MEDIA_SINGLE_FALLBACK_W = 240;
+const MEDIA_SINGLE_FALLBACK_RATIO = "4 / 3";
 /**
- * Inline box for a lone photo with known dimensions: an aspect-ratio plus a
- * capped width reserves the exact layout up front so nothing reflows when the
- * image finishes loading. Multi-image tiles are square via CSS and need none.
+ * Inline box for a lone photo: an aspect-ratio plus a capped width reserves the
+ * exact layout up front so nothing reflows when the image finishes loading.
+ * Missing source dimensions use a stable 4:3 fallback rather than the image's
+ * eventual intrinsic size. Multi-image tiles are square via CSS and need none.
  */
 function mediaItemStyle(image: MessageImage, count: number): CSSProperties | undefined {
-    if (count !== 1 || !image.width || !image.height) return undefined;
+    if (count !== 1) return undefined;
+    if (!image.width || !image.height)
+        return {
+            width: `${MEDIA_SINGLE_FALLBACK_W}px`,
+            aspectRatio: MEDIA_SINGLE_FALLBACK_RATIO,
+        };
     const ratio = image.width / image.height;
     const width = Math.round(Math.min(image.width, MEDIA_SINGLE_MAX_W, MEDIA_SINGLE_MAX_H * ratio));
     return { width: `${width}px`, aspectRatio: `${image.width} / ${image.height}` };
@@ -217,6 +225,8 @@ export function Message(props: MessageProps) {
     const [reactionQuery, setReactionQuery] = useState("");
     const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
     const root = useRef<HTMLDivElement>(null);
+    const body = useRef<HTMLDivElement>(null);
+    const generationMarker = useRef<HTMLSpanElement>(null);
     const segments = (): MessageSegment[] =>
         typeof local.body === "string" ? [{ kind: "text", text: local.body }] : local.body;
     const isMarkdownBody = () => typeof local.body === "string";
@@ -328,29 +338,75 @@ export function Message(props: MessageProps) {
             window.removeEventListener("resize", onViewportChange);
         };
     }, [closePopovers, menuOpen, reactionOpen]);
+    /* The live cursor is painted at the end of the final rendered text run. It
+       stays absolutely positioned so neither a generation-state update nor a
+       streamed text tick can alter the message's flow geometry. */
+    useLayoutEffect(() => {
+        const bodyElement = body.current;
+        const marker = generationMarker.current;
+        if (!bodyElement || !marker) return;
+        const position = () => {
+            const textNodes = document.createTreeWalker(bodyElement, NodeFilter.SHOW_TEXT);
+            let textRect: DOMRect | undefined;
+            for (let node = textNodes.nextNode(); node; node = textNodes.nextNode()) {
+                const text = node as Text;
+                if (!text.textContent?.trim()) continue;
+                const range = document.createRange();
+                range.setStart(text, Math.max(0, text.length - 1));
+                range.setEnd(text, text.length);
+                const rects = range.getClientRects();
+                const finalRect = rects.item(rects.length - 1);
+                if (finalRect) textRect = finalRect;
+            }
+            if (!textRect) {
+                marker.style.transform = "translate(0px, 0px)";
+                marker.style.visibility = "visible";
+                return;
+            }
+            const bodyRect = bodyElement.getBoundingClientRect();
+            marker.style.transform = `translate(${textRect.right - bodyRect.left}px, ${
+                textRect.top - bodyRect.top
+            }px)`;
+            marker.style.visibility = "visible";
+        };
+        position();
+        const observer = new ResizeObserver(position);
+        observer.observe(bodyElement);
+        return () => observer.disconnect();
+    }, [local.body, local.generationStatus]);
     const bodyNode =
-        !local.body &&
-        local.generationStatus !== "streaming" &&
-        local.generationStatus !== "failed" ? null : isMarkdownBody() ? (
+        !local.body && local.generationStatus === undefined ? null : isMarkdownBody() ? (
             <div
                 className="happy2-message__body happy2-message__body--markdown"
                 data-markdown=""
                 data-happy2-ui="message-body"
+                ref={body}
             >
                 {markdownBody}
-                {local.generationStatus === "streaming" ? (
-                    <span
-                        aria-hidden="true"
-                        className="happy2-message__caret"
-                        data-happy2-ui="message-stream-caret"
-                    />
+                {/* An empty generated reply keeps a non-breaking-space line box
+                    after completion. The visible stream cursor can therefore
+                    disappear without collapsing the message row. */}
+                {!local.body && local.generationStatus !== undefined ? (
+                    <p aria-hidden="true" className="happy2-message__generation-anchor">
+                        {"\u00a0"}
+                    </p>
                 ) : null}
-                {local.generationStatus === "failed" ? (
+                {local.generationStatus === "streaming" || local.generationStatus === "failed" ? (
                     <span
-                        aria-label="Generation failed"
-                        className="happy2-message__gen-failed"
-                        data-happy2-ui="message-generation-failed"
-                        role="img"
+                        aria-hidden={local.generationStatus === "failed" ? undefined : true}
+                        aria-label={
+                            local.generationStatus === "failed" ? "Generation failed" : undefined
+                        }
+                        className="happy2-message__generation-marker"
+                        data-empty={!local.body ? "" : undefined}
+                        data-generation-marker={local.generationStatus}
+                        data-happy2-ui={
+                            local.generationStatus === "streaming"
+                                ? "message-stream-caret"
+                                : "message-generation-failed"
+                        }
+                        ref={generationMarker}
+                        role={local.generationStatus === "failed" ? "img" : undefined}
                     />
                 ) : null}
             </div>
@@ -478,7 +534,7 @@ export function Message(props: MessageProps) {
                             <button
                                 aria-label={image.alt ? `Open ${image.alt}` : "Open image"}
                                 className="happy2-message__media-item"
-                                data-fixed={image.width && image.height ? "" : undefined}
+                                data-fixed=""
                                 data-media-id={image.id}
                                 data-happy2-ui="message-media-item"
                                 onClick={() => local.onImageOpen?.(image.id)}
@@ -747,8 +803,6 @@ function systemNoticeSegments(text: string): SystemNoticeSegment[] {
  */
 export function SystemNotice(props: {
     className?: string;
-    groupedAfter?: boolean;
-    groupedBefore?: boolean;
     icon?: IconName;
     style?: CSSProperties;
     text: string;
@@ -758,8 +812,6 @@ export function SystemNotice(props: {
         <div
             aria-label={props.text}
             className={["happy2-system-notice", props.className].filter(Boolean).join(" ")}
-            data-group-end={props.groupedAfter ? undefined : ""}
-            data-group-start={props.groupedBefore ? undefined : ""}
             data-happy2-ui="system-notice"
             role="note"
             style={props.style}

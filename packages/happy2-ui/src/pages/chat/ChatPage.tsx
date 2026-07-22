@@ -294,9 +294,9 @@ export function ChatPage(props: ChatPageProps) {
     const [directoryJoinError, setDirectoryJoinError] = useState<string | undefined>(undefined);
     const [composeOpen, setComposeOpen] = useState(false);
     const [directMessageOpen, setDirectMessageOpen] = useState(false);
-    // Whether the trace inspector is expanded to overlay the whole content region.
-    // Only meaningful while the trace panel is open; AppShell owns the geometry.
-    const [traceExpanded, setTraceExpanded] = useState(false);
+    // Every right-panel mode shares AppShell's expanded workspace geometry. The
+    // trace alone adds a composer footer while expanded.
+    const [panelExpanded, setPanelExpanded] = useState(false);
     const [messageEdit, setMessageEdit] = useState<{
         chatId: string;
         error?: string;
@@ -786,7 +786,7 @@ export function ChatPage(props: ChatPageProps) {
     };
     function selectConversation(id: string, replace = false) {
         pendingSelection.current = undefined;
-        setTraceExpanded(false);
+        setPanelExpanded(false);
         const projection = sidebarChats().find((candidate) => candidate.id === id);
         if (!projection) return;
         props.actions.chatSelect(id, projection.chat.kind === "dm" ? "chat" : "channel", replace);
@@ -879,6 +879,7 @@ export function ChatPage(props: ChatPageProps) {
     }
     function toggleFilesPanel() {
         if (panelMode() === "files") {
+            setPanelExpanded(false);
             workspaceModel.panelClose();
         } else openFilesPanel();
     }
@@ -888,8 +889,10 @@ export function ChatPage(props: ChatPageProps) {
         return Boolean(props.navigation.documentId && props.document);
     }
     function toggleDocumentsPanel() {
-        if (panelMode() === "documents") props.actions.documentsClose();
-        else props.actions.documentsOpen();
+        if (panelMode() === "documents") {
+            setPanelExpanded(false);
+            props.actions.documentsClose();
+        } else props.actions.documentsOpen();
     }
     function memberDisplayName(userId: string): string | undefined {
         const members = chatSnapshot()?.members;
@@ -927,15 +930,14 @@ export function ChatPage(props: ChatPageProps) {
                 // Left navigation can hide/show and resize whenever the normal chat
                 // sidebar is present (not a pushed detail override).
                 sidebarCollapsible={!props.sidebarOverride}
-                // Any inspector can be mouse-resized; only the trace inspector can
-                // expand to overlay the content, and only then carries a composer
-                // footer so the live trace and a usable input share the region.
+                // All inspector modes use the same resize/expand shell. The live
+                // trace alone adds a composer footer while it is expanded.
                 panelResizable
-                panelMaximizable={panelMode() === "trace"}
-                panelMaximized={panelMode() === "trace" ? traceExpanded : undefined}
-                onPanelMaximizedChange={setTraceExpanded}
+                panelMaximizable={panelMode() !== undefined}
+                panelMaximized={panelMode() !== undefined ? panelExpanded : undefined}
+                onPanelMaximizedChange={setPanelExpanded}
                 panelFooter={
-                    panelMode() === "trace" && traceExpanded ? renderComposerDock() : undefined
+                    panelMode() === "trace" && panelExpanded ? renderComposerDock() : undefined
                 }
                 sidebar={
                     props.sidebarOverride ?? (
@@ -998,7 +1000,7 @@ export function ChatPage(props: ChatPageProps) {
                                     !trace || (trace.type !== "ready" && trace.type !== "error")
                                 }
                                 onClose={() => {
-                                    setTraceExpanded(false);
+                                    setPanelExpanded(false);
                                     props.actions.traceClose();
                                 }}
                                 status={traceDetails()?.status ?? "pending"}
@@ -1032,7 +1034,10 @@ export function ChatPage(props: ChatPageProps) {
                             isMain={Boolean(activeChat()?.isMain)}
                             isServerAdmin={isServerAdmin()}
                             members={infoModel.members}
-                            onClose={props.actions.panelClose}
+                            onClose={() => {
+                                setPanelExpanded(false);
+                                props.actions.panelClose();
+                            }}
                             onAutoJoinChange={infoModel.setAutoJoin}
                             onChannelNameChange={infoModel.setChannelName}
                             onChannelTopicChange={infoModel.setChannelTopic}
@@ -1105,7 +1110,10 @@ export function ChatPage(props: ChatPageProps) {
                                 documentListState.documents.type === "loading" ||
                                 documentListState.documents.type === "unloaded"
                             }
-                            onClose={() => props.actions.documentsClose()}
+                            onClose={() => {
+                                setPanelExpanded(false);
+                                props.actions.documentsClose();
+                            }}
                             onCreate={() => {
                                 const chatId = activeConversationId();
                                 if (chatId) void props.actions.documentCreate(chatId);
@@ -1442,8 +1450,6 @@ export function ChatPage(props: ChatPageProps) {
                 images={message ? mediaModel.images(message) : []}
                 menuContributions={server ? props.messageContributions?.(server.id) : undefined}
                 menuItems={message ? messageActions.menuItems(message) : []}
-                noticeGroupedAfter={list[index + 1]?.kind === "notice"}
-                noticeGroupedBefore={list[index - 1]?.kind === "notice"}
                 profile={message ? infoModel.messageProfile(message) : undefined}
                 onImageOpen={(message, id) => void mediaModel.imageOpen(message, id)}
                 onMenuSelect={(message, action) => void messageActions.menuSelect(message, action)}
@@ -1453,7 +1459,7 @@ export function ChatPage(props: ChatPageProps) {
                 }
                 onTraceSelect={(message) => {
                     // A freshly opened trace starts docked, not left maximized from before.
-                    setTraceExpanded(false);
+                    setPanelExpanded(false);
                     props.actions.traceOpen(message.id);
                 }}
                 traceOpen={message ? activeTraceMessageId() === message.id : false}

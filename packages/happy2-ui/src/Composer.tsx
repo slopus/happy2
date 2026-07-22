@@ -6,6 +6,7 @@ import {
     type CSSProperties,
     type FormEvent,
     type KeyboardEvent as ReactKeyboardEvent,
+    type PointerEvent as ReactPointerEvent,
     type ReactNode,
 } from "react";
 import { AudienceToggle, type AudienceValue } from "./AudienceToggle";
@@ -527,6 +528,27 @@ export function Composer(props: ComposerProps) {
         rememberSelection();
         detectMention(event.currentTarget);
     };
+    /*
+     * The composer is one input surface, not a small textarea surrounded by
+     * dead padding. Keep native and semantic controls in charge of their own
+     * pointer interactions, but direct every other point in the card to the
+     * editable control. Popovers are visually adjacent to the card but own
+     * their separate keyboard interactions.
+     */
+    const focusTextareaFromSurface = (event: ReactPointerEvent<HTMLDivElement>) => {
+        const target = event.target;
+        if (
+            !(target instanceof Element) ||
+            target.closest(
+                '[data-happy2-ui="composer-popover"], button, input, textarea, select, a, [contenteditable], [tabindex], [role="button"], [role="combobox"], [role="listbox"], [role="option"], [role="menu"], [role="menuitem"]',
+            )
+        ) {
+            return;
+        }
+        const textarea = textareaEl.current;
+        if (!textarea || textarea.disabled) return;
+        textarea.focus();
+    };
     return (
         <div
             className={["happy2-composer", props.className].filter(Boolean).join(" ")}
@@ -537,6 +559,7 @@ export function Composer(props: ComposerProps) {
             data-pending={props.pending ? "" : undefined}
             data-happy2-ui="composer"
             data-testid={props["data-testid"]}
+            onPointerDown={focusTextareaFromSurface}
             onBlur={(event) => {
                 const next = event.relatedTarget;
                 if (next && !event.currentTarget.contains(next as Node)) closePopovers();

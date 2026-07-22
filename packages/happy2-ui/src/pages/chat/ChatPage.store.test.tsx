@@ -11,6 +11,7 @@ import {
     chatStoreFixtureCreate,
     composerStoreFixtureCreate,
     directoryStoreFixtureCreate,
+    documentListStoreFixtureCreate,
     sidebarStoreFixtureCreate,
 } from "happy2-state/testing";
 import { expect, it, onTestFinished, vi } from "vitest";
@@ -1915,6 +1916,65 @@ it("expands the trace over the shell with a working composer footer and stable i
     ).toBeNull();
     expect(view.container.querySelector('[data-happy2-ui="app-shell-panel-footer"]')).toBeNull();
     expect(view.container.querySelector('[data-happy2-ui="agent-trace-panel"]')).toBe(tracePanel);
+});
+
+it("uses the shared expandable inspector shell for documents", async () => {
+    const sidebar = sidebarStoreFixtureCreate();
+    const directory = directoryStoreFixtureCreate();
+    const chatSurface = chatStoreFixtureCreate(chat.id);
+    const documentList = documentListStoreFixtureCreate(chat.id);
+    const view = createRenderer();
+    onTestFinished(() => {
+        sidebar[Symbol.dispose]();
+        directory[Symbol.dispose]();
+        chatSurface[Symbol.dispose]();
+        documentList[Symbol.dispose]();
+        view.destroy();
+    });
+    sidebar.input({
+        type: "sidebarLoaded",
+        projects: [testProject],
+        chats: [{ chat, id: chat.id, displayName: chat.name!, participants: [] }],
+        sync: { protocolVersion: 1, generation: "test", sequence: "0" },
+    });
+    directory.input({ type: "directoryLoaded", users: [], channels: [] });
+    chatSurface.input({ type: "chatLoaded", chat, messages: [], hasMoreMessages: false });
+    documentList.input({ type: "documentListLoaded", documents: [] });
+    view.render(
+        () => (
+            <ChatPage
+                actions={chatPageActionsCreate()}
+                chat={chatSurface.store}
+                directory={directory.store}
+                documentList={documentList.store}
+                navigation={{ chatId: chat.id, panel: { kind: "documents" } }}
+                sidebarSearch=""
+                sidebar={sidebar.store}
+                user={{ id: "user-1", firstName: "Ada" }}
+                windowControls={false}
+            />
+        ),
+        { width: 1200, height: 800 },
+    );
+    await view.ready();
+
+    const panel = view.container.querySelector('[data-happy2-ui="app-shell-panel"]')!;
+    const documents = view.container.querySelector('[data-testid="chat-documents-panel"]')!;
+    const toggle = view.container.querySelector<HTMLButtonElement>(
+        '[data-happy2-ui="app-shell-panel-toggle"]',
+    )!;
+    expect(toggle.getAttribute("aria-label")).toBe("Expand panel");
+
+    toggle.click();
+    await nextFrame();
+    expect(panel.getAttribute("data-maximized")).toBe("");
+    expect(view.container.querySelector('[data-testid="chat-documents-panel"]')).toBe(documents);
+    expect(view.container.querySelector('[data-happy2-ui="app-shell-panel-footer"]')).toBeNull();
+
+    toggle.click();
+    await nextFrame();
+    expect(panel.getAttribute("data-maximized")).toBeNull();
+    expect(view.container.querySelector('[data-testid="chat-documents-panel"]')).toBe(documents);
 });
 async function nextFrame(): Promise<void> {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

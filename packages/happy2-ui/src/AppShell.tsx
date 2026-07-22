@@ -173,9 +173,9 @@ function ResizeHandle(props: {
  *
  * The sidebar collapse/resize, the panel resize, and the panel maximize/restore
  * are narrowly scoped local UI interactions owned here so application code stays
- * props-only. Maximize overlays the whole content region — including the left
- * sidebar — while keeping the sidebar, workspace, and panel DOM nodes mounted so
- * focus, scroll, and any in-flight content survive the transition.
+ * props-only. Maximize overlays the workspace only, preserving the left sidebar's
+ * visibility and interaction while keeping every region mounted so focus, scroll,
+ * and any in-flight content survive the transition.
  */
 export function AppShell(props: AppShellProps) {
     const [local, rest] = partitionComponentProps(props, [
@@ -268,9 +268,19 @@ export function AppShell(props: AppShellProps) {
           : sidebarInteractive
             ? sidebarMin + RESIZE_HANDLE_WIDTH
             : FIXED_SIDEBAR_MIN_WIDTH;
+    const sidebarFootprint = !local.sidebar
+        ? "0px"
+        : sidebarInteractive && sidebarCollapsed
+          ? `${local.windowControls ? WINDOW_CONTROLS_REVEAL_WIDTH : REVEAL_WIDTH}px`
+          : sidebarInteractive
+            ? `${sidebarWidth + RESIZE_HANDLE_WIDTH}px`
+            : "clamp(250px, 30vw, 360px)";
     const mainStyle: CSSProperties = {
         minWidth: `${sidebarLayoutMin + WORKSPACE_MIN_WIDTH}px`,
     };
+    const contentStyle = {
+        "--happy2-app-shell-panel-expanded-left": sidebarFootprint,
+    } as CSSProperties;
     return (
         <div
             {...rest}
@@ -305,7 +315,11 @@ export function AppShell(props: AppShellProps) {
                         {local.rail}
                     </div>
                 ) : null}
-                <div className="happy2-app-shell__content" data-happy2-ui="app-shell-content">
+                <div
+                    className="happy2-app-shell__content"
+                    data-happy2-ui="app-shell-content"
+                    style={contentStyle}
+                >
                     <main
                         className="happy2-app-shell__main"
                         data-happy2-ui="app-shell-main"

@@ -354,7 +354,7 @@ it("keeps both resized sidebars fully reachable at the minimum desktop width", a
     expect(panel.x + panel.width).toBe(content.x + content.width);
 });
 
-it("maximizes the panel over the whole content region and restores it without remounting", async () => {
+it("maximizes the panel over the workspace without covering the sidebar", async () => {
     const view = createRenderer().render(interactiveShell, shellSize);
     await view.ready();
 
@@ -362,24 +362,26 @@ it("maximizes the panel over the whole content region and restores it without re
     const workspaceNode = view.$('[data-happy2-ui="app-shell-workspace"]').element;
     const sidebarNode = view.$('[data-happy2-ui="app-shell-sidebar"]').element;
     const content = view.$('[data-happy2-ui="app-shell-content"]').bounds();
-    const sidebarLeft = view.$('[data-happy2-ui="app-shell-sidebar"]').bounds().x;
+    const workspace = view.$('[data-happy2-ui="app-shell-workspace"]').bounds();
 
     const toggle = view.$('[data-happy2-ui="app-shell-panel-toggle"]');
     expect(toggle.element.getAttribute("aria-label")).toBe("Expand panel");
     (toggle.element as HTMLButtonElement).click();
     await view.ready();
 
-    // Maximized: the panel overlays the full content region, including the sidebar.
+    // Maximized: the panel fills workspace space but leaves the sidebar exposed.
     const maximized = view.$('[data-happy2-ui="app-shell-panel"]');
     expect(maximized.element.getAttribute("data-maximized")).toBe("");
-    expect(maximized.bounds()).toEqual(content);
-    expect(maximized.bounds().x).toBe(sidebarLeft);
+    expect(maximized.bounds()).toMatchObject({
+        x: workspace.x,
+        width: content.x + content.width - workspace.x,
+    });
     const collapse = view.$('[data-happy2-ui="app-shell-sidebar-collapse"]').bounds();
     const topmostAtCollapse = document.elementFromPoint(
         collapse.x + collapse.width / 2,
         collapse.y + collapse.height / 2,
     );
-    expect(maximized.element.contains(topmostAtCollapse)).toBe(true);
+    expect(maximized.element.contains(topmostAtCollapse)).toBe(false);
     // Every region kept its identity and stays in the DOM under the overlay.
     expect(view.$('[data-happy2-ui="app-shell-panel"]').element).toBe(panelNode);
     expect(view.$('[data-happy2-ui="app-shell-workspace"]').element).toBe(workspaceNode);
@@ -423,11 +425,15 @@ it("supports controlled maximize with a panel footer pinned below the body", asy
     );
     await view.ready();
 
-    // Controlled maximized: the panel overlays the whole content region.
+    // Controlled maximized: the panel overlays the workspace but preserves the sidebar.
     const content = view.$('[data-happy2-ui="app-shell-content"]').bounds();
+    const workspace = view.$('[data-happy2-ui="app-shell-workspace"]').bounds();
     const panel = view.$('[data-happy2-ui="app-shell-panel"]');
     expect(panel.element.getAttribute("data-maximized")).toBe("");
-    expect(panel.bounds()).toEqual(content);
+    expect(panel.bounds()).toMatchObject({
+        x: workspace.x,
+        width: content.x + content.width - workspace.x,
+    });
 
     // The footer sits below the panel body inside the same column, both full width.
     const body = view.$('[data-happy2-ui="app-shell-panel-content"]').bounds();

@@ -17,8 +17,6 @@ export interface ChatMessageEntryProps {
     avatarUrl?: string;
     images: MessageImage[];
     menuItems: MenuItem[];
-    noticeGroupedAfter?: boolean;
-    noticeGroupedBefore?: boolean;
     profile?: InfoPanelProfile;
     files: Array<{
         name: string;
@@ -46,15 +44,7 @@ export interface ChatMessageEntryProps {
 export function ChatMessageEntry(props: ChatMessageEntryProps): ReactNode {
     const entry = props.entry;
     if (entry.kind === "divider") return <DayDivider label={entry.label} />;
-    if (entry.kind === "notice")
-        return (
-            <SystemNotice
-                groupedAfter={props.noticeGroupedAfter}
-                groupedBefore={props.noticeGroupedBefore}
-                icon={entry.icon}
-                text={entry.text}
-            />
-        );
+    if (entry.kind === "notice") return <SystemNotice icon={entry.icon} text={entry.text} />;
     return (
         <Message
             agent={entry.agent}

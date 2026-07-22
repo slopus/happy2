@@ -306,6 +306,7 @@
 }
 
 .happy2-message__body {
+    position: relative;
     font-size: 15px;
     line-height: 22px;
     color: var(--text);
@@ -474,13 +475,7 @@
     min-width: 0;
 }
 
-/* The streaming caret and failure marker are body children appended after the
-   compiled blocks, not blocks in the stack; excluding them keeps the caret on
-   the same baseline as the trailing content instead of dropping it 8px and out
-   of the captured row. */
-.happy2-message__body--markdown
-    > *
-    + *:not(.happy2-message__caret):not(.happy2-message__gen-failed) {
+.happy2-message__body--markdown > * + * {
     margin-top: 8px;
 }
 
@@ -490,14 +485,6 @@
 .happy2-message__body--markdown p {
     font-size: 16px;
     line-height: 24px;
-}
-
-/* A marker following a paragraph belongs to its final text line. Markdown
-   paragraphs are blocks by default, so make only that trailing paragraph
-   inline; markers after code, lists, and other blocks keep their own line. */
-.happy2-message__body--markdown > p:has(+ .happy2-message__caret),
-.happy2-message__body--markdown > p:has(+ .happy2-message__gen-failed) {
-    display: inline;
 }
 
 .happy2-message__body--markdown h1,
@@ -652,29 +639,56 @@
 }
 
 /*
- * Streaming caret: a small, static (no animation, screenshot-safe) accent block
- * that reads as a live cursor while the reply generates. The streamed content
- * itself stays at full opacity — only this marker signals in-progress state.
+ * Generation state paints as a zero-width cursor at the measured end of the
+ * final text run. The absolute marker never participates in text flow, so
+ * streaming and failure updates cannot change a message's dimensions.
  */
-.happy2-message__caret {
-    display: inline-flex;
-    width: 8px;
+.happy2-message__generation-marker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 0;
     height: 16px;
-    background: var(--radio-active);
-    border-radius: 2px;
-    vertical-align: text-bottom;
+    margin: 0;
+    pointer-events: none;
+    visibility: hidden;
 }
 
-/*
- * Failed generation: a minimal danger dot. No speculative retry control — the
- * partial body stays fully visible so the reader keeps whatever text arrived.
- */
-.happy2-message__gen-failed {
-    display: inline-flex;
+.happy2-message__generation-marker::after {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 1px;
+    height: 16px;
+    content: "";
+}
+
+.happy2-message__generation-marker[data-generation-marker="streaming"]::after {
+    background: var(--radio-active);
+}
+
+.happy2-message__generation-marker[data-empty][data-generation-marker="streaming"] {
+    width: 8px;
+}
+
+.happy2-message__generation-marker[data-empty][data-generation-marker="streaming"]::after {
+    width: 8px;
+    border-radius: 2px;
+}
+
+.happy2-message__generation-marker[data-generation-marker="failed"]::after {
     width: 8px;
     height: 8px;
     background: var(--text-destructive);
     border-radius: var(--happy2-radius-pill);
+}
+
+/* A durable non-breaking-space line box anchors the empty reply cursor and
+ * remains after completion, preventing a status-only geometry change. */
+.happy2-message__generation-anchor {
+    display: block;
 }
 
 .happy2-message__attachments {
@@ -767,17 +781,6 @@
     background: var(--surface-pressed);
     background-position: center;
     background-size: cover;
-}
-
-/* A lone photo with no dimension metadata sizes to its natural aspect, capped —
-   it may reflow once on load, which is why callers should pass width/height. */
-.happy2-message__media[data-count="1"]
-    .happy2-message__media-item:not([data-fixed])
-    .happy2-message__media-image {
-    width: auto;
-    height: auto;
-    max-width: 380px;
-    max-height: 320px;
 }
 
 .happy2-message__reactions {
@@ -923,6 +926,9 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    /* Keep every message's available measure constant when the history crosses
+       the overflow threshold and native scrollbar space becomes occupied. */
+    scrollbar-gutter: stable;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
     /* Slack-style scrollbar (desktop): a narrow, rounded thumb over a
@@ -1040,20 +1046,11 @@
     justify-content: center;
     flex: none;
     gap: 8px;
-    padding: 3px 20px;
+    /* Every notice owns its full vertical measure. Neighboring notices must
+       never alter this row's padding or dimensions. */
+    padding: 16px 20px;
     font-family: var(--happy2-font-ui);
     font-synthesis: none;
-}
-
-/* Consecutive service events read as one grouped activity block. The quiet
- * interior rows stay compact while the first and last lines create a clear
- * 16px separation from conversational messages. */
-.happy2-system-notice[data-group-start] {
-    padding-top: 16px;
-}
-
-.happy2-system-notice[data-group-end] {
-    padding-bottom: 16px;
 }
 
 .happy2-system-notice__icon {

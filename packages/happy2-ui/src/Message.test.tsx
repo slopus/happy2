@@ -1709,8 +1709,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     const mdBlocks = [...mdBody.element.children].filter(
         (node): node is HTMLElement =>
             node instanceof HTMLElement &&
-            !node.classList.contains("happy2-message__caret") &&
-            !node.classList.contains("happy2-message__gen-failed"),
+            !node.classList.contains("happy2-message__generation-marker"),
     );
     expect(mdBlocks.length, "markdown compiled to direct block children").toBeGreaterThanOrEqual(4);
     for (let index = 1; index < mdBlocks.length; index += 1) {
@@ -1779,7 +1778,7 @@ it("renders string bodies as safe streaming Markdown", async () => {
     const streamCode = streamBody.element.querySelector("pre code");
     expect(streamCode?.textContent).toContain("const answer = 42");
     const caret = view.$('[data-testid="md-stream"] [data-happy2-ui="message-stream-caret"]');
-    expect(caret.bounds().width).toBe(8);
+    expect(caret.bounds().width).toBe(0);
     expect(caret.bounds().height).toBe(16);
     expect(caret.computedStyle("background-color")).toBe("rgb(0, 122, 255)");
     /* Streamed content is never dimmed — that treatment is reserved for delivery. */
@@ -1790,7 +1789,8 @@ it("renders string bodies as safe streaming Markdown", async () => {
        inside the body row rather than clipped past its bottom. */
     const streamBlocks = [...streamBody.element.children].filter(
         (node): node is HTMLElement =>
-            node instanceof HTMLElement && !node.classList.contains("happy2-message__caret"),
+            node instanceof HTMLElement &&
+            !node.classList.contains("happy2-message__generation-marker"),
     );
     const lastStreamBlock = streamBlocks[streamBlocks.length - 1]!.getBoundingClientRect();
     const caretRect = caret.element.getBoundingClientRect();
@@ -1878,6 +1878,203 @@ it("preserves Message DOM identity while a streamed Markdown body advances", asy
     );
     expect(body.textContent).toContain("The compiler is ready.");
     expect(body.querySelector('[data-happy2-ui="message-stream-caret"]')).toBeNull();
+});
+it("keeps Message geometry fixed across non-content state changes", async () => {
+    let update = (_next: {
+        actionsVisible: boolean;
+        deliveryState: "failed" | "sent";
+        generationStatus: "complete" | "failed" | "streaming";
+    }) => {};
+    function StableMessage() {
+        const [state, setState] = useState<{
+            actionsVisible: boolean;
+            deliveryState: "failed" | "sent";
+            generationStatus: "complete" | "failed" | "streaming";
+        }>({ actionsVisible: false, deliveryState: "sent", generationStatus: "streaming" });
+        update = setState;
+        return stage(
+            "geometry-stable",
+            <Message
+                actionsVisible={state.actionsVisible}
+                agent
+                author="Codex"
+                body="This exact message body must keep its dimensions while presentation state changes."
+                contributions={<button type="button">Copy</button>}
+                deliveryState={state.deliveryState}
+                generationStatus={state.generationStatus}
+                initials="CX"
+                time="11:03"
+                tone="mint"
+            />,
+        );
+    }
+    const view = createRenderer().render(() => <StableMessage />, { width: 560, height: 120 });
+    await view.ready();
+    const root = () => view.$('[data-testid="geometry-stable"] [data-happy2-ui="message"]');
+    const content = () =>
+        view.$('[data-testid="geometry-stable"] [data-happy2-ui="message-content"]');
+    const body = () => view.$('[data-testid="geometry-stable"] [data-happy2-ui="message-body"]');
+    const baseline = { root: root().bounds(), content: content().bounds(), body: body().bounds() };
+
+    flushSync(() =>
+        update({ actionsVisible: true, deliveryState: "failed", generationStatus: "failed" }),
+    );
+    await nextFrame();
+    expect(root().bounds()).toEqual(baseline.root);
+    expect(content().bounds()).toEqual(baseline.content);
+    expect(body().bounds()).toEqual(baseline.body);
+
+    flushSync(() =>
+        update({ actionsVisible: false, deliveryState: "sent", generationStatus: "complete" }),
+    );
+    await nextFrame();
+    expect(root().bounds()).toEqual(baseline.root);
+    expect(content().bounds()).toEqual(baseline.content);
+    expect(body().bounds()).toEqual(baseline.body);
+});
+it("pins the zero-width streaming cursor to the final rendered character", async () => {
+    const view = createRenderer().render(
+        () =>
+            stage(
+                "cursor-position",
+                <Message
+                    agent
+                    author="Codex"
+                    body="Waiting for the final response"
+                    generationStatus="streaming"
+                    initials="CX"
+                    time="11:04"
+                    tone="mint"
+                />,
+            ),
+        { width: 560, height: 100 },
+    );
+    await view.ready();
+    const body = view.$('[data-testid="cursor-position"] [data-happy2-ui="message-body"]');
+    const text = body.element.querySelector("p")?.firstChild;
+    expect(text).toBeInstanceOf(Text);
+    const range = document.createRange();
+    range.setStart(text!, text!.textContent!.length - 1);
+    range.setEnd(text!, text!.textContent!.length);
+    const finalGlyph = range.getClientRects().item(range.getClientRects().length - 1)!;
+    const cursor = view.$(
+        '[data-testid="cursor-position"] [data-happy2-ui="message-stream-caret"]',
+    );
+    expect(cursor.bounds().width).toBe(0);
+    const cursorRect = cursor.element.getBoundingClientRect();
+    expect(Math.abs(cursorRect.x - finalGlyph.right)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(cursorRect.y - finalGlyph.top)).toBeLessThanOrEqual(0.5);
+});
+it("keeps an empty generated reply stable while its visible cursor settles", async () => {
+    let generationStatus: (status: "complete" | "streaming") => void = () => {};
+    function EmptyGeneratedReply() {
+        const [status, setStatus] = useState<"complete" | "streaming">("streaming");
+        generationStatus = setStatus;
+        return stage(
+            "empty-generation",
+            <Message
+                agent
+                author="Codex"
+                body=""
+                generationStatus={status}
+                initials="CX"
+                time="11:05"
+                tone="mint"
+            />,
+        );
+    }
+    const view = createRenderer().render(() => <EmptyGeneratedReply />, {
+        width: 560,
+        height: 100,
+    });
+    await view.ready();
+    const root = () => view.$('[data-testid="empty-generation"] [data-happy2-ui="message"]');
+    const body = () => view.$('[data-testid="empty-generation"] [data-happy2-ui="message-body"]');
+    const cursor = () =>
+        view.$('[data-testid="empty-generation"] [data-happy2-ui="message-stream-caret"]');
+    const baseline = { root: root().bounds(), body: body().bounds() };
+    expect(cursor().bounds()).toMatchObject({ width: 8, height: 16 });
+    expect(body().element.textContent).toBe("\u00a0");
+
+    flushSync(() => generationStatus("complete"));
+    await nextFrame();
+    expect(root().bounds()).toEqual(baseline.root);
+    expect(body().bounds()).toEqual(baseline.body);
+    expect(
+        view.container.querySelector(
+            '[data-testid="empty-generation"] [data-happy2-ui="message-stream-caret"]',
+        ),
+    ).toBeNull();
+    expect(body().element.textContent).toBe("\u00a0");
+});
+it("uses the same line geometry for empty and non-empty generated replies", async () => {
+    const view = createRenderer()
+        .render(
+            () =>
+                stage(
+                    "empty-generated-line",
+                    <Message
+                        agent
+                        author="Codex"
+                        body=""
+                        generationStatus="streaming"
+                        initials="CX"
+                        time="11:06"
+                        tone="mint"
+                    />,
+                ),
+            { width: 560, height: 100 },
+        )
+        .render(
+            () =>
+                stage(
+                    "text-generated-line",
+                    <Message
+                        agent
+                        author="Codex"
+                        body="Waiting"
+                        generationStatus="streaming"
+                        initials="CX"
+                        time="11:06"
+                        tone="mint"
+                    />,
+                ),
+            { width: 560, height: 100 },
+        );
+    await view.ready();
+    const emptyBody = view.$(
+        '[data-testid="empty-generated-line"] [data-happy2-ui="message-body"]',
+    );
+    const textBody = view.$('[data-testid="text-generated-line"] [data-happy2-ui="message-body"]');
+    expect(emptyBody.bounds().height).toBe(textBody.bounds().height);
+    expect(emptyBody.computedStyles(["font-size", "line-height"])).toEqual(
+        textBody.computedStyles(["font-size", "line-height"]),
+    );
+});
+it("reserves a fallback box for a singleton image without source dimensions", async () => {
+    const view = createRenderer().render(
+        () =>
+            stage(
+                "fallback-media",
+                <Message
+                    author="Ada"
+                    body=""
+                    images={[
+                        {
+                            id: "unknown-size",
+                            alt: "Unmeasured image",
+                            url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='760' height='420'/%3E",
+                        },
+                    ]}
+                    time="11:04"
+                />,
+            ),
+        { width: 560, height: 240 },
+    );
+    await view.ready();
+    const item = view.$('[data-testid="fallback-media"] [data-happy2-ui="message-media-item"]');
+    expect(item.element.hasAttribute("data-fixed")).toBe(true);
+    expect(item.bounds()).toMatchObject({ width: 240, height: 180 });
 });
 it("centers SystemNotice service lines and lifts @user / #channel refs", async () => {
     const view = createRenderer();

@@ -285,15 +285,16 @@
 }
 
 /*
- * Maximized: overlay the entire content region (sidebar + workspace) as an
- * absolute box. The sidebar, workspace, and panel stay mounted underneath so
- * focus, scroll, and in-flight content survive the transition. width: auto lets
- * inset: 0 span the full content area rather than the docked clamp/width.
+ * Maximized: overlay the workspace as an absolute box, expanding left from the
+ * inspector's right edge while preserving the sidebar's visible, interactive
+ * lane. The sidebar, workspace, and panel stay mounted underneath so focus,
+ * scroll, and in-flight content survive the transition.
  */
 .happy2-app-shell__panel[data-maximized] {
     position: absolute;
     z-index: 3;
     inset: 0;
+    left: var(--happy2-app-shell-panel-expanded-left, 0px);
     width: auto;
     border-left: 0;
 }
