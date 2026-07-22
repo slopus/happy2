@@ -10,7 +10,7 @@ import {
 import { z } from "zod/v4";
 
 const USERS_META_KEY = "happy2/users";
-const server = new McpServer({ name: "happy2-chat-management", version: "1.5.0" });
+const server = new McpServer({ name: "happy2-chat-management", version: "1.6.0" });
 
 const chatUpdateSchema = z
     .strictObject({
@@ -132,6 +132,47 @@ const initialMessageSchema = z.strictObject({
         .enum(["agents", "people"])
         .describe("agents starts the current agent; people posts without inference."),
 });
+const directMessageInitialMessageSchema = z.strictObject({
+    text: z.string().min(1).max(40_000).describe("The opening message to send to the user."),
+});
+const directMessageCreateSchema = z.strictObject({
+    user: z
+        .string()
+        .min(1)
+        .max(128)
+        .describe("Referenced username (with or without @) to message."),
+    initialMessage: directMessageInitialMessageSchema.optional(),
+});
+
+server.registerTool(
+    "direct_message_create",
+    {
+        title: "Create a direct message",
+        description:
+            "Creates or reuses a direct message between the user who triggered this turn and one referenced user. It can post an opening people-only message on behalf of the triggering user without starting agent inference.",
+        inputSchema: directMessageCreateSchema,
+    },
+    (input, extra) =>
+        safeTool(async () => {
+            const chat = requireChat(happyCallContext(extra));
+            const users = referencedUsers(extra._meta?.[USERS_META_KEY]);
+            const user = resolveUsers([input.user], users, "user")[0]!;
+            const result = await callHost<{ chat: JsonObject; initialMessage?: JsonObject }>(
+                "/direct-messages/createDirectMessage",
+                chat.token,
+                {
+                    user,
+                    ...(input.initialMessage ? { initialMessage: input.initialMessage } : {}),
+                    idempotencyKey: randomUUID(),
+                },
+            );
+            return success(
+                `Opened direct message ${String(result.chat.id)}${result.initialMessage ? " and posted its initial message" : ""}.`,
+                result,
+            );
+        }),
+);
+
 const channelCreateSchema = z.strictObject({
     name: z.string().min(1).max(100).describe("Channel title."),
     description: z.string().min(1).max(500).optional().describe("Optional channel description."),

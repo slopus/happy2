@@ -118,6 +118,30 @@ redemption token. The preview host verifies current access, establishes a
 user-and-subdomain host-only HttpOnly cookie, and redirects back to the requested
 path.
 
+## Create a direct message
+
+Manifest permission: `direct-messages:create`; an opening message additionally
+requires `messages:send`.
+
+```http
+POST /direct-messages/createDirectMessage
+Authorization: Bearer …
+X-Happy2-Chat-Token: …
+Content-Type: application/json
+
+{
+  "user": { "id": "signed user ID", "token": "installation-bound user token" },
+  "initialMessage": { "text": "Private context" },
+  "idempotencyKey": "one stable key per logical call"
+}
+```
+
+The route creates or reuses the canonical DM between the triggering human and
+the signed user. The target must come from Happy's protected `happy2/users` MCP
+metadata; a plugin must not accept an arbitrary user ID as authority. An opening
+message is attributed to the triggering human with `automated: true`, uses the
+people audience, and does not start agent inference.
+
 ## Trust model
 
 Manifest permissions are exact capabilities, not descriptive labels. Happy2 verifies the token signature, installation, container-incarnation ID, database health, and matching live OCI container on every host request. Stopping, replacing, failing, or uninstalling that incarnation invalidates the token without a process-local revocation list.

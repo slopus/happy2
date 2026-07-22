@@ -135,6 +135,10 @@ Variable keys use environment-variable syntax. Each installation must provide ev
 
 Supported local host permissions:
 
+- `direct-messages:create`: create or reuse a DM with one user represented by
+  an installation-bound signed user capability.
+- `messages:send`: send an automated message as the human represented by a
+  signed chat capability; this is also required for an opening DM message.
 - `environments:read`: list agent environments and read one immutable Dockerfile.
 - `environments:manage`: create an agent environment and select a ready default.
 - `environments:deactivate`: deactivate an unused custom agent environment without deleting its retained manifest or Dockerfile.

@@ -25,6 +25,7 @@ import { projectDefaultRequire } from "../project/projectDefaultRequire.js";
 import { projectCreateWithChannels } from "../project/projectCreateWithChannels.js";
 import { channelMembersUpdate } from "../chat/channelMembersUpdate.js";
 import { channelSetArchived } from "../chat/channelSetArchived.js";
+import { directMessageCreate as directMessageCreateAction } from "../chat/directMessageCreate.js";
 import { messageSend } from "../message/messageSend.js";
 import { messageDelete } from "../message/messageDelete.js";
 import { messageGet } from "../message/messageGet.js";
@@ -2582,6 +2583,51 @@ export class PluginService {
                 })),
             ),
             sync: created.hints,
+        };
+    }
+
+    async directMessageCreate(
+        runtimeToken: string,
+        chatToken: string,
+        input: {
+            user: PluginUserCapability;
+            idempotencyKey?: string;
+            initialMessage?: { text: string };
+        },
+    ) {
+        const permissions: PluginHostPermission[] = ["direct-messages:create"];
+        if (input.initialMessage) permissions.push("messages:send");
+        const claims = await this.authorizeChat(runtimeToken, chatToken, permissions);
+        const [otherUserId] = await this.authorizeUsers(claims.installationId, [input.user]);
+        if (!otherUserId) throw new PluginError("forbidden", "Direct-message user is unavailable");
+        const created = await directMessageCreateAction(
+            this.executor,
+            claims.actorUserId,
+            otherUserId,
+        );
+        const hints = created.hint ? [created.hint] : [];
+        let initialMessage;
+        if (input.initialMessage) {
+            const sent = await messageSend(this.executor, {
+                actorUserId: claims.actorUserId,
+                chatId: created.chat.id,
+                text: input.initialMessage.text,
+                audience: "people",
+                automated: true,
+                agentTurns: [],
+                clientMutationId: input.idempotencyKey
+                    ? `${claims.installationId}:${input.idempotencyKey}`
+                    : undefined,
+            });
+            initialMessage = sent.message;
+            hints.push(sent.hint);
+        }
+        await this.publishHints(hints, [claims.actorUserId, otherUserId]);
+        return {
+            created: created.hint !== undefined,
+            chat: created.chat,
+            ...(initialMessage ? { initialMessage } : {}),
+            sync: hints,
         };
     }
 

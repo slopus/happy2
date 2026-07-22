@@ -625,6 +625,20 @@ export function createPluginHostApi(
             throw error;
         }
     });
+    app.post("/direct-messages/createDirectMessage", async (request, reply) => {
+        try {
+            const { created, ...result } = await plugins.directMessageCreate(
+                bearerToken(request),
+                requiredHeader(request, "x-happy2-chat-token", "Plugin chat token is required"),
+                directMessageCreateInput(request.body),
+            );
+            return reply.code(created ? 201 : 200).send(result);
+        } catch (error) {
+            const response = handled(reply, error);
+            if (response) return response;
+            throw error;
+        }
+    });
     app.post("/channels/createChannel", async (request, reply) => {
         try {
             const result = await plugins.channelCreate(
@@ -1207,6 +1221,33 @@ function channelCreateInput(value: unknown): {
         ...(description ? { description } : {}),
         ...(idempotencyKey ? { idempotencyKey } : {}),
         members,
+        ...(initialMessage ? { initialMessage } : {}),
+    };
+}
+
+function directMessageCreateInput(value: unknown): {
+    user: PluginUserCapability;
+    idempotencyKey?: string;
+    initialMessage?: { text: string };
+} {
+    const body = bodyRecord(value);
+    onlyBodyKeys(body, ["user", "idempotencyKey", "initialMessage"]);
+    const user = userCapability(body.user, "user");
+    const idempotencyKey =
+        body.idempotencyKey === undefined
+            ? undefined
+            : requiredToken(body.idempotencyKey, "idempotencyKey", 128);
+    let initialMessage: { text: string } | undefined;
+    if (body.initialMessage !== undefined) {
+        const message = bodyRecord(body.initialMessage, "initialMessage");
+        onlyBodyKeys(message, ["text"], "initialMessage");
+        initialMessage = {
+            text: requiredMessageText(message.text),
+        };
+    }
+    return {
+        user,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
         ...(initialMessage ? { initialMessage } : {}),
     };
 }

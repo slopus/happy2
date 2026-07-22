@@ -29,6 +29,14 @@ const definitions = {
         section: "channels",
         access: "mutations",
     },
+    "direct-messages:create": {
+        id: "direct-messages:create",
+        displayName: "Create direct messages",
+        description:
+            "Create or reuse a direct message with a signed user and optionally post an opening message.",
+        section: "chats",
+        access: "mutations",
+    },
     "chats:members:add": {
         id: "chats:members:add",
         displayName: "Add chat members",

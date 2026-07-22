@@ -194,6 +194,7 @@ export const pluginHostPermissions = [
     "projects:create",
     "channels:create",
     "channels:create-child",
+    "direct-messages:create",
     "chats:members:add",
     "chats:members:remove",
     "chats:update",

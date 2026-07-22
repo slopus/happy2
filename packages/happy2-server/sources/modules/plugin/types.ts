@@ -33,6 +33,7 @@ export type PluginHostPermission =
     | "projects:create"
     | "channels:create"
     | "channels:create-child"
+    | "direct-messages:create"
     | "chats:members:add"
     | "chats:members:remove"
     | "chats:update"
@@ -69,6 +70,7 @@ export const pluginHostPermissions: readonly PluginHostPermission[] = [
     "projects:create",
     "channels:create",
     "channels:create-child",
+    "direct-messages:create",
     "chats:members:add",
     "chats:members:remove",
     "chats:update",

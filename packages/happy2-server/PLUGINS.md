@@ -163,9 +163,10 @@ each configured process, not persisted in the image or container definition.
 
 `container.permissions` declares the exact host API capabilities a package may
 request. Permissions are grouped for presentation by API section:
-`projects:create`, `channels:create`, `channels:create-child`, `chats:members:add`,
-`chats:members:remove`, `chats:update`, and `chats:archive` independently grant
-their named mutations. Messages split
+`projects:create`, `channels:create`, `channels:create-child`,
+`direct-messages:create`, `chats:members:add`, `chats:members:remove`,
+`chats:update`, and `chats:archive` independently grant their named mutations.
+Messages split
 send, delete, history, and single-message reads; reactions split add and remove;
 search splits users, messages, and chats; and commands plus workspace reads and
 writes each have their own grant. `environments:read` is read-only and
@@ -527,6 +528,13 @@ Remote endpoints are rechecked.
   message, and an optional `idempotencyKey`. Opening messages are user-attributed
   with `automated: true`. The response includes a signed chat token for the new
   channel.
+- `POST /direct-messages/createDirectMessage` requires `direct-messages:create`
+  and one installation-bound signed user capability. It creates or reuses the
+  canonical DM between that user and the human bound to the current chat token.
+  An optional opening message additionally requires `messages:send`, is
+  attributed to that human with `automated: true`, and uses the people audience
+  without starting agent inference. An optional `idempotencyKey` deduplicates
+  the opening message.
 - `POST /projects/createProject` requires `projects:create`. It atomically
   creates a project with 1–20 initial public or private channels, optional
   signed people who join every channel, and an optional signed steward. The

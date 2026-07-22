@@ -147,7 +147,7 @@ describe("agent plugin chat capabilities", () => {
         expect((await client.get(`/v0/chats/${chatId}`)).json().chat.name).toBe("Boston release");
     }, 30_000);
 
-    it("adds triggering and mentioned users to MCP metadata and creates or manages channels with explicit inference", async () => {
+    it("adds triggering and mentioned users to MCP metadata and creates direct messages or channels with explicit inference", async () => {
         await using rig = await createMockRigDaemon();
         rig.setAutomaticReply(undefined);
         const runtime = new ChatManagementRuntime();
@@ -166,6 +166,12 @@ describe("agent plugin chat capabilities", () => {
             | { statusCode: number; body: Record<string, unknown> }
             | undefined;
         let replayedPeopleResult: { statusCode: number; body: Record<string, unknown> } | undefined;
+        let replayedDirectMessageResult:
+            | { statusCode: number; body: Record<string, unknown> }
+            | undefined;
+        let reopenedDirectMessageResult:
+            | { statusCode: number; body: Record<string, unknown> }
+            | undefined;
         let replayedProjectResult:
             | { statusCode: number; body: Record<string, unknown> }
             | undefined;
@@ -193,29 +199,38 @@ describe("agent plugin chat capabilities", () => {
                                 remove: selectCapabilities(call.arguments.removeUsers, users),
                             },
                         }
-                      : call.name === "channel_child_create"
+                      : call.name === "direct_message_create"
                         ? {
-                              path: "/channels/createChildChannel",
-                              body: call.arguments,
+                              path: "/direct-messages/createDirectMessage",
+                              body: {
+                                  ...call.arguments,
+                                  user: selectCapabilities([call.arguments.user], users)[0],
+                                  idempotencyKey: "gym-direct-message-create",
+                              },
                           }
-                        : call.name === "message_send"
+                        : call.name === "channel_child_create"
                           ? {
-                                path: "/messages/send",
-                                body: {
-                                    ...call.arguments,
-                                    idempotencyKey: `gym-message-${runtime.calls.indexOf(call)}`,
-                                },
+                                path: "/channels/createChildChannel",
+                                body: call.arguments,
                             }
-                          : {
-                                path: "/channels/createChannel",
-                                body: {
-                                    ...call.arguments,
-                                    idempotencyKey: `gym-${String(call.arguments.name)
-                                        .toLowerCase()
-                                        .replace(/[^a-z0-9]+/g, "-")}`,
-                                    members: selectCapabilities(call.arguments.members, users),
-                                },
-                            };
+                          : call.name === "message_send"
+                            ? {
+                                  path: "/messages/send",
+                                  body: {
+                                      ...call.arguments,
+                                      idempotencyKey: `gym-message-${runtime.calls.indexOf(call)}`,
+                                  },
+                              }
+                            : {
+                                  path: "/channels/createChannel",
+                                  body: {
+                                      ...call.arguments,
+                                      idempotencyKey: `gym-${String(call.arguments.name)
+                                          .toLowerCase()
+                                          .replace(/[^a-z0-9]+/g, "-")}`,
+                                      members: selectCapabilities(call.arguments.members, users),
+                                  },
+                              };
             const response = await server.pluginHost().post(request.path, request.body, {
                 headers: {
                     authorization: `Bearer ${runtimeToken}`,
@@ -267,6 +282,32 @@ describe("agent plugin chat capabilities", () => {
                     body: replayed.json(),
                 };
             }
+            if (call.name === "direct_message_create") {
+                const replayed = await server.pluginHost().post(request.path, request.body, {
+                    headers: {
+                        authorization: `Bearer ${runtimeToken}`,
+                        "x-happy2-chat-token": chatToken,
+                    },
+                });
+                replayedDirectMessageResult = {
+                    statusCode: replayed.statusCode,
+                    body: replayed.json(),
+                };
+                const reopened = await server.pluginHost().post(
+                    request.path,
+                    { user: request.body.user },
+                    {
+                        headers: {
+                            authorization: `Bearer ${runtimeToken}`,
+                            "x-happy2-chat-token": chatToken,
+                        },
+                    },
+                );
+                reopenedDirectMessageResult = {
+                    statusCode: reopened.statusCode,
+                    body: reopened.json(),
+                };
+            }
             return { statusCode: response.statusCode, body: response.json() };
         };
         const owner = await server.createUser({
@@ -305,7 +346,10 @@ describe("agent plugin chat capabilities", () => {
         const projectTool = originRun.externalTools.find(({ name }) =>
             name.includes(`plugin_${installationId}_project_create_`),
         );
-        if (!createTool || !membersTool || !messageTool || !projectTool)
+        const directMessageTool = originRun.externalTools.find(({ name }) =>
+            name.includes(`plugin_${installationId}_direct_message_create_`),
+        );
+        if (!createTool || !membersTool || !messageTool || !projectTool || !directMessageTool)
             throw new Error("Chat Management channel tools were not submitted to Rig");
 
         const projectCallId = rig.requestExternalToolCall(originRun.runId, projectTool.name, {
@@ -363,9 +407,10 @@ describe("agent plugin chat capabilities", () => {
             ownerUserId: reviewer.id,
             projectId: project.id,
         });
-        expect(replayedProjectResult?.statusCode).toBe(201);
+        if (!replayedProjectResult) throw new Error("Project replay did not complete");
+        expect(replayedProjectResult.statusCode).toBe(201);
         expect(
-            (replayedProjectResult?.body.channels as Array<{ chat: { id: string } }>).map(
+            (replayedProjectResult.body.channels as Array<{ chat: { id: string } }>).map(
                 ({ chat }) => chat.id,
             ),
         ).toEqual(projectChannels.map(({ chat }) => chat.id));
@@ -386,6 +431,61 @@ describe("agent plugin chat capabilities", () => {
         expect(
             (await server.as(friend).get(`/v0/chats/${publicProjectChannel.id}`)).json().chat,
         ).toMatchObject({ membershipRole: "member" });
+
+        const directMessageCallId = rig.requestExternalToolCall(
+            originRun.runId,
+            directMessageTool.name,
+            {
+                user: "@feature_friend",
+                initialMessage: {
+                    text: "Private release context for @feature_friend without another inference.",
+                },
+            },
+        );
+        await waitFor(
+            () =>
+                rig.externalToolCalls.find(({ id }) => id === directMessageCallId)?.status !==
+                "pending",
+            "direct-message creation",
+        );
+        const directMessageResolution = completedOutput(directMessageCallId, rig);
+        const directMessageChat = directMessageResolution.chat as {
+            id: string;
+            kind: string;
+            createdByUserId: string;
+        };
+        expect(directMessageChat).toMatchObject({
+            kind: "dm",
+            createdByUserId: owner.id,
+        });
+        expect(directMessageResolution.initialMessage).toMatchObject({
+            chatId: directMessageChat.id,
+            sender: { id: owner.id },
+            automated: true,
+            audience: "people",
+            text: "Private release context for @feature_friend without another inference.",
+        });
+        if (!replayedDirectMessageResult) throw new Error("Direct-message replay did not complete");
+        expect(replayedDirectMessageResult.statusCode).toBe(200);
+        expect((replayedDirectMessageResult.body.chat as { id: string }).id).toBe(
+            directMessageChat.id,
+        );
+        expect((replayedDirectMessageResult.body.initialMessage as { id: string }).id).toBe(
+            (directMessageResolution.initialMessage as { id: string }).id,
+        );
+        if (!reopenedDirectMessageResult) throw new Error("Direct-message reopen did not complete");
+        expect(reopenedDirectMessageResult.statusCode).toBe(200);
+        expect((reopenedDirectMessageResult.body.chat as { id: string }).id).toBe(
+            directMessageChat.id,
+        );
+        expect(reopenedDirectMessageResult.body).not.toHaveProperty("initialMessage");
+        expect((await server.as(friend).get(`/v0/chats/${directMessageChat.id}`)).statusCode).toBe(
+            200,
+        );
+        expect(
+            (await server.as(reviewer).get(`/v0/chats/${directMessageChat.id}`)).statusCode,
+        ).toBe(404);
+        expect(rig.submittedRuns).toHaveLength(1);
 
         const peopleInput = {
             name: "Feature briefing",
@@ -433,8 +533,9 @@ describe("agent plugin chat capabilities", () => {
         expect(mismatchedUserTokenResult?.body.message).toContain("another user");
         const peopleResolution = completedOutput(peopleCallId, rig);
         const peopleChatId = (peopleResolution.chat as { id: string }).id;
-        expect(replayedPeopleResult?.statusCode).toBe(201);
-        expect((replayedPeopleResult?.body.chat as { id: string }).id).toBe(peopleChatId);
+        if (!replayedPeopleResult) throw new Error("Channel replay did not complete");
+        expect(replayedPeopleResult.statusCode).toBe(201);
+        expect((replayedPeopleResult.body.chat as { id: string }).id).toBe(peopleChatId);
         expect(rig.submittedRuns).toHaveLength(1);
         expect(
             (await client.get(`/v0/chats/${peopleChatId}/messages`))
@@ -722,6 +823,13 @@ class ChatManagementRuntime implements PluginMcpRuntime {
                                 inputSchema: { type: "object", additionalProperties: false },
                             },
                             {
+                                name: "direct_message_create",
+                                title: "Create a direct message",
+                                description:
+                                    "Creates a direct message with an optional initial message.",
+                                inputSchema: { type: "object", additionalProperties: false },
+                            },
+                            {
                                 name: "project_create",
                                 title: "Create a project",
                                 description: "Creates a project with initial channels.",
@@ -858,6 +966,7 @@ async function install(client: GymRequestClient): Promise<string> {
             "projects:create",
             "channels:create",
             "channels:create-child",
+            "direct-messages:create",
             "chats:members:add",
             "chats:members:remove",
             "chats:update",
