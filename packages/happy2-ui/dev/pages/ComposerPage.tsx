@@ -10,6 +10,7 @@ import {
     type ContextItem,
     type Mentionable,
 } from "../../src/Composer";
+import { ComposerModelControl, type ComposerModelChoice } from "../../src/ComposerModelControl";
 import type { EmojiItem } from "../../src/EmojiPicker";
 import { StoreSurface } from "../../src/StoreSurface";
 import { ComponentPage, DimensionRule, Specimen } from "../kit";
@@ -64,6 +65,56 @@ const TOOLBAR_STAGES = [
     { contentWidth: 530, label: "530px content · compact hint" },
     { contentWidth: 420, label: "420px content · compact audience" },
 ] as const;
+const MODEL_OPTIONS: readonly ComposerModelChoice[] = [
+    { id: "sol", label: "5.6 Sol" },
+    { id: "terra", label: "5.6 Terra" },
+    { id: "luna", label: "5.6 Luna" },
+    { id: "five-five", label: "5.5" },
+    { id: "five-four", label: "5.4" },
+    { id: "five-four-mini", label: "5.4 Mini" },
+    { id: "spark", label: "5.3 Codex Spark" },
+];
+const EFFORT_OPTIONS: readonly ComposerModelChoice[] = [
+    { id: "low", label: "Low" },
+    { id: "standard", label: "Standard" },
+    { id: "high", label: "High" },
+    { id: "extra-high", label: "Extra High" },
+];
+const SPEED_OPTIONS: readonly ComposerModelChoice[] = [
+    { id: "fast", label: "Fast" },
+    { id: "standard", label: "Standard" },
+    { id: "deliberate", label: "Deliberate" },
+];
+
+function ModelControlFixture() {
+    const [model, setModel] = useState("sol");
+    const [effort, setEffort] = useState("extra-high");
+    const [speed, setSpeed] = useState("standard");
+    const [advancedValue, setAdvancedValue] = useState(94);
+    return (
+        <Composer
+            modelControl={
+                <ComposerModelControl
+                    advancedValue={advancedValue}
+                    effort={effort}
+                    efforts={EFFORT_OPTIONS}
+                    model={model}
+                    models={MODEL_OPTIONS}
+                    onAdvancedValueChange={setAdvancedValue}
+                    onEffortChange={setEffort}
+                    onModelChange={setModel}
+                    onSpeedChange={setSpeed}
+                    speed={speed}
+                    speeds={SPEED_OPTIONS}
+                />
+            }
+            onSend={noop}
+            onValueChange={noop}
+            placeholder="Message #launch-week"
+            value=""
+        />
+    );
+}
 /*
  * Live composer driven entirely by a standalone happy2-state composer fixture —
  * no transport, authentication, server, or cross-store bridge. It exercises
@@ -203,6 +254,22 @@ export function ComposerPage() {
             summary="Message composer with auto-growing text, capability-driven file/mention/emoji actions, stable sending feedback, and retained focus."
             title="Composer"
         >
+            <div className="specimen-grid">
+                <Specimen
+                    detail="Blueprint-only controlled model configuration · model, effort, speed, and advanced slider panels"
+                    label="Model control"
+                    number="CP-10"
+                    stage="app"
+                >
+                    <div
+                        className="happy2-theme-dark"
+                        style={{ width: "720px", padding: "280px 20px 24px" }}
+                    >
+                        <ModelControlFixture />
+                    </div>
+                </Specimen>
+            </div>
+
             <div className="specimen-grid">
                 <Specimen
                     detail="80px single-line card · capability actions hidden · send disabled while empty"

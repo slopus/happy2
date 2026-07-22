@@ -260,6 +260,8 @@ export type ComposerProps = {
     mentions?: Mentionable[];
     /** Visible heading above the mention candidates (default "Mentions"). */
     mentionPickerLabel?: string;
+    /** Optional controlled model-selection control, rendered in the composer toolbar. */
+    modelControl?: ReactNode;
     onSend: () => unknown;
     onValueChange: (value: string) => void;
     placeholder?: string;
@@ -582,6 +584,11 @@ export function Composer(props: ComposerProps) {
                         />
                     ) : null}
                 </div>
+                {props.modelControl ? (
+                    <div className="happy2-composer__model" data-happy2-ui="composer-model">
+                        {props.modelControl}
+                    </div>
+                ) : null}
                 <div className="happy2-composer__trailing" data-happy2-ui="composer-trailing">
                     {props.contributions ? (
                         <span

@@ -137,6 +137,11 @@ export {
     type MentionPickerProps,
 } from "./Composer";
 export {
+    ComposerModelControl,
+    type ComposerModelChoice,
+    type ComposerModelControlProps,
+} from "./ComposerModelControl";
+export {
     DiffSnippet,
     type DiffLine,
     type DiffLineKind,

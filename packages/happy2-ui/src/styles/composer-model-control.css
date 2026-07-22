@@ -1,0 +1,269 @@
+/* C-145 ComposerModelControl — a compact, nested configuration control that
+ * is only composed into a Composer toolbar. */
+
+.happy2-composer-model-control,
+.happy2-composer-model-control * {
+    box-sizing: border-box;
+}
+
+.happy2-composer-model-control {
+    position: relative;
+    display: flex;
+    flex: 0 1 240px;
+    justify-content: center;
+    width: min(100%, 240px);
+    min-width: 0;
+    color: var(--text);
+    font-family: var(--happy2-font-ui);
+    font-synthesis: none;
+}
+
+.happy2-composer-model-control__trigger {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    height: 32px;
+    margin: 0;
+    padding: 0 12px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-pressed);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 18px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition:
+        background-color 140ms ease,
+        box-shadow 140ms ease,
+        transform 140ms ease;
+}
+
+.happy2-composer-model-control__trigger[aria-expanded="true"] {
+    background: var(--surface-selected);
+}
+
+.happy2-composer-model-control__trigger:hover:not(:disabled) {
+    background: var(--surface-selected);
+    box-shadow: 0 4px 12px var(--shadow-subtle);
+    transform: translateY(-1px);
+}
+
+.happy2-composer-model-control__trigger:active:not(:disabled) {
+    box-shadow: none;
+    transform: translateY(0);
+}
+
+.happy2-composer-model-control__trigger > .happy2-icon {
+    transition: transform 160ms ease;
+}
+
+.happy2-composer-model-control__trigger:hover:not(:disabled) > .happy2-icon {
+    transform: translateY(1px);
+}
+
+.happy2-composer-model-control__trigger:focus-visible,
+.happy2-composer-model-control__row:focus-visible,
+.happy2-composer-model-control__choice:focus-visible,
+.happy2-composer-model-control__advanced:focus-visible,
+.happy2-composer-model-control__advanced-heading:focus-visible,
+.happy2-composer-model-control__range:focus-visible {
+    outline: 2px solid var(--radio-active);
+    outline-offset: 2px;
+}
+
+.happy2-composer-model-control__trigger:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.happy2-composer-model-control__summary {
+    display: flex;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-composer-model-control__summary > :last-child,
+.happy2-composer-model-control__row-value,
+.happy2-composer-model-control__choices-label,
+.happy2-composer-model-control__advanced {
+    color: var(--text-secondary);
+}
+
+.happy2-composer-model-control__summary > :last-child::before {
+    content: " ";
+}
+
+.happy2-composer-model-control__menu,
+.happy2-composer-model-control__advanced-panel,
+.happy2-composer-model-control__choices {
+    position: absolute;
+    z-index: 30;
+    background: var(--surface);
+    border: 1px solid var(--modal-border);
+    border-radius: 14px;
+    box-shadow: 0 10px 24px var(--shadow-floating);
+}
+
+.happy2-composer-model-control__menu {
+    bottom: calc(100% + 8px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    width: 240px;
+    padding: 6px;
+}
+
+.happy2-composer-model-control__row,
+.happy2-composer-model-control__advanced {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 40px;
+    margin: 0;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 18px;
+    text-align: left;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition:
+        background-color 140ms ease,
+        transform 140ms ease;
+}
+
+.happy2-composer-model-control__row:hover,
+.happy2-composer-model-control__advanced:hover,
+.happy2-composer-model-control__choice:hover {
+    background: var(--surface-pressed);
+    transform: translateX(2px);
+}
+
+.happy2-composer-model-control__row-value {
+    flex: 1;
+    min-width: 0;
+    margin-left: 10px;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.happy2-composer-model-control__divider {
+    flex: none;
+    height: 1px;
+    margin: 4px 10px;
+    background: var(--divider);
+}
+
+.happy2-composer-model-control__advanced {
+    gap: 6px;
+    height: 40px;
+}
+
+.happy2-composer-model-control__choices {
+    top: 0;
+    left: calc(100% + 8px);
+    display: flex;
+    flex-direction: column;
+    width: 240px;
+    padding: 6px;
+}
+
+.happy2-composer-model-control__choices-label {
+    display: block;
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 28px;
+}
+
+.happy2-composer-model-control__choice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 18px;
+    text-align: left;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition:
+        background-color 140ms ease,
+        transform 140ms ease;
+}
+
+.happy2-composer-model-control__advanced-panel {
+    bottom: calc(100% + 8px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 240px;
+    padding: 12px 16px 18px;
+}
+
+.happy2-composer-model-control__advanced-heading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 18px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition:
+        color 140ms ease,
+        transform 140ms ease;
+}
+
+.happy2-composer-model-control__advanced-heading:hover {
+    color: var(--text);
+    transform: translateX(2px);
+}
+
+.happy2-composer-model-control__advanced-heading > :last-child {
+    margin-left: auto;
+}
+
+.happy2-composer-model-control__range {
+    width: 100%;
+    height: 6px;
+    margin: 0;
+    accent-color: var(--radio-active);
+    cursor: pointer;
+}
