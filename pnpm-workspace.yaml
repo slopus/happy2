@@ -1,6 +1,9 @@
 packages:
-  - packages/*
+    - packages/*
 
 # Electron downloads its platform binary during installation.
 onlyBuiltDependencies:
-  - electron
+    - electron
+
+patchedDependencies:
+    "@slopus/rig@0.0.33": patches/@slopus__rig@0.0.33.patch

@@ -387,7 +387,7 @@ describe("Streamed agent replies", () => {
         expect(await automatedMessages(asOwner, chatId)).toHaveLength(1);
     });
 
-    it("replaces a partial reply with failure on the same message row", async () => {
+    it("replaces a partial reply with the provider error on the same message row", async () => {
         await using rig = await createMockRigDaemon();
         rig.setAutomaticReply(undefined);
         await using server = await agentServer(rig);
@@ -420,7 +420,7 @@ describe("Streamed agent replies", () => {
             "the partial reply before failure",
         );
 
-        rig.failRun(run.runId, "The provider disconnected");
+        rig.failProviderRun(run.runId, "Claude could not launch from the selected workspace");
         const failed = await waitForReplyDifference(
             asOwner,
             chatId,
@@ -438,7 +438,7 @@ describe("Streamed agent replies", () => {
             generationStatus: "failed",
             id: streamed.reply.id,
             sequence: streamed.reply.sequence,
-            text: "I couldn't complete this request.",
+            text: "I couldn't complete this request.\n\nError: Claude could not launch from the selected workspace",
         });
 
         expect(await automatedMessages(asOwner, chatId)).toEqual([
@@ -446,7 +446,7 @@ describe("Streamed agent replies", () => {
                 generationStatus: "failed",
                 id: streamed.reply.id,
                 sequence: streamed.reply.sequence,
-                text: "I couldn't complete this request.",
+                text: "I couldn't complete this request.\n\nError: Claude could not launch from the selected workspace",
             }),
         ]);
     });
@@ -494,7 +494,7 @@ describe("Streamed agent replies", () => {
         expect(failed.reply).toMatchObject({
             id: streamed.reply.id,
             sequence: streamed.reply.sequence,
-            text: "I couldn't complete this request.",
+            text: expect.stringMatching(/^I couldn't complete this request\.\n\nError: \S/u),
         });
         expect(await automatedMessages(asOwner, chatId)).toHaveLength(1);
     });

@@ -1711,6 +1711,8 @@ export class AgentService {
         }
         if (event.type === "external_tool_call_requested" && event.data.call) {
             const call = event.data.call;
+            const turn = await agentTurnGetRunning(this.executor, event.sessionId, call.runId);
+            if (!turn) return;
             const result = call.skill
                 ? await this.executePluginSkillRead(
                       event.sessionId,
@@ -1770,7 +1772,7 @@ export class AgentService {
                 runId,
             };
         }
-        if (event.type === "run_error") {
+        if (event.type === "run_error" || event.data.errorMessage) {
             await this.failTurn(turn, event.data.errorMessage ?? "Rig run failed.");
             return;
         }

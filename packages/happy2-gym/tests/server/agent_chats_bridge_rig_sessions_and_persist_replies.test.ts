@@ -361,11 +361,65 @@ describe("AI agent chats", () => {
         const messages = await waitForMessages(asOwner, chatId, 4);
         expect(messages.map((message) => message.text)).toEqual([
             "This run will fail",
-            "I couldn't complete this request.",
+            "I couldn't complete this request.\n\nError: Provider failed",
             "This run must follow",
             "The queue continued safely.",
         ]);
         expect(rig.submittedTexts).toEqual(["This run will fail", "This run must follow"]);
+    });
+
+    it("skips stale external calls after a fresh Happy database and still settles new turns", async () => {
+        await using rig = await createMockRigDaemon();
+        rig.setAutomaticReply(undefined);
+
+        let originalResolution: Record<string, unknown>;
+        {
+            await using firstServer = await agentServer(rig);
+            const firstOwner = await firstServer.createUser({
+                username: "stale_call_first_owner",
+                firstName: "Owner",
+            });
+            const asFirstOwner = firstServer.as(firstOwner);
+            const firstChatId = await createAgent(asFirstOwner, "stale_call_first_agent");
+            await asFirstOwner.post(`/v0/chats/${firstChatId}/sendMessage`, {
+                text: "Resolve one tool call before the database is replaced",
+                clientMutationId: "stale-call-first-run",
+            });
+            const firstRun = await waitForRun(rig, 1);
+            const callId = rig.requestUnknownExternalToolCall(
+                firstRun.runId,
+                "stale_fixture_function",
+                {},
+            );
+            await waitFor(
+                () =>
+                    rig.externalToolCalls.find(({ id }) => id === callId)?.resolution !== undefined,
+                "the original external function resolution",
+            );
+            originalResolution = structuredClone(
+                rig.externalToolCalls.find(({ id }) => id === callId)!.resolution!,
+            );
+            rig.completeRun(firstRun.runId, "The first run completed.");
+            await waitForMessages(asFirstOwner, firstChatId, 2);
+        }
+
+        await using secondServer = await agentServer(rig);
+        const secondOwner = await secondServer.createUser({
+            username: "stale_call_second_owner",
+            firstName: "Owner",
+        });
+        const asSecondOwner = secondServer.as(secondOwner);
+        const secondChatId = await createAgent(asSecondOwner, "stale_call_second_agent");
+        await asSecondOwner.post(`/v0/chats/${secondChatId}/sendMessage`, {
+            text: "This new turn must pass the stale global event",
+            clientMutationId: "stale-call-second-run",
+        });
+        const secondRun = await waitForRun(rig, 2);
+        rig.completeRun(secondRun.runId, "The new turn settled.");
+
+        const messages = await waitForMessages(asSecondOwner, secondChatId, 2);
+        expect(messages.at(-1)?.text).toBe("The new turn settled.");
+        expect(rig.externalToolCalls[0]?.resolution).toEqual(originalResolution);
     });
 
     it("finishes a turn while ignoring a burst of inference updates", async () => {

@@ -5,6 +5,7 @@ import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough, type Duplex } from "node:stream";
+import { isDeepStrictEqual } from "node:util";
 import { createWebSocketStream, WebSocketServer } from "ws";
 import { RemoteTerminalProtocolServer, type RemoteTerminalGridState } from "@slopus/ghostty-web";
 import type {
@@ -298,6 +299,29 @@ export class MockRigDaemon implements AsyncDisposable {
         const { run, session } = this.requireRun(runId);
         const definition = run.externalTools.find(({ name }) => name === functionName);
         if (!definition) throw new Error(`Unknown mock Rig external function ${functionName}`);
+        return this.appendExternalToolCall(runId, session, definition, args);
+    }
+
+    requestUnknownExternalToolCall(runId: string, functionName: string, args: unknown): string {
+        const { session } = this.requireRun(runId);
+        return this.appendExternalToolCall(
+            runId,
+            session,
+            {
+                description: "Mock external function unavailable to Happy",
+                name: functionName,
+                parameters: { type: "object" },
+            },
+            args,
+        );
+    }
+
+    private appendExternalToolCall(
+        runId: string,
+        session: MockSession,
+        definition: MockRigExternalToolDefinition,
+        args: unknown,
+    ): string {
         const id = `external-call-${++this.externalToolCallSequence}`;
         const call: MockRigExternalToolCall = {
             arguments: structuredClone(args),
@@ -597,6 +621,27 @@ export class MockRigDaemon implements AsyncDisposable {
         const { session } = this.requireRun(runId);
         session.status = "error";
         this.append(session, "run_error", { errorMessage, modelLocked: false, runId });
+        this.runStreams.delete(runId);
+    }
+
+    failProviderRun(runId: string, errorMessage: string): void {
+        const { session } = this.requireRun(runId);
+        this.append(session, "agent_event", {
+            event: {
+                error: { errorMessage },
+                type: "error",
+            },
+            runId,
+        });
+        this.emitAgentMessage(runId, "");
+        session.status = "completed";
+        this.append(session, "run_finished", {
+            agentRunId: `agent-${runId}`,
+            errorMessage,
+            modelLocked: false,
+            runId,
+            stopReason: "error",
+        });
         this.runStreams.delete(runId);
     }
 
@@ -927,8 +972,12 @@ export class MockRigDaemon implements AsyncDisposable {
             if (!session || !call)
                 return sendJson(response, 404, { error: "External function call not found" });
             const resolution = await jsonBody(request);
-            if (call.resolution)
+            if (call.resolution && isDeepStrictEqual(call.resolution, resolution))
                 return sendJson(response, 200, { accepted: false, call: structuredClone(call) });
+            if (call.resolution)
+                return sendJson(response, 409, {
+                    error: "This external function call already has a different result.",
+                });
             call.resolution = structuredClone(resolution);
             call.status = resolution.status === "completed" ? "completed" : "failed";
             this.append(session, "external_tool_call_resolved", {

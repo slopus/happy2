@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: false
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@slopus/rig@0.0.33':
+    hash: b79711e48fe6d355a8671ce946fbcc43ada89d3ae6aacc1a43fa395a79d95e1d
+    path: patches/@slopus__rig@0.0.33.patch
+
 importers:
 
   .:
@@ -31,7 +36,7 @@ importers:
         version: 3.3.0
       '@slopus/rig':
         specifier: ^0.0.33
-        version: 0.0.33(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)
+        version: 0.0.33(patch_hash=b79711e48fe6d355a8671ce946fbcc43ada89d3ae6aacc1a43fa395a79d95e1d)(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)(sql.js@1.14.1)
@@ -213,7 +218,7 @@ importers:
         version: 0.0.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@26.1.1)
       '@slopus/rig-client-runtime':
         specifier: npm:@slopus/rig@0.0.33
-        version: '@slopus/rig@0.0.33(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)'
+        version: '@slopus/rig@0.0.33(patch_hash=b79711e48fe6d355a8671ce946fbcc43ada89d3ae6aacc1a43fa395a79d95e1d)(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)'
       electron-updater:
         specifier: ^6.8.9
         version: 6.8.9
@@ -692,7 +697,7 @@ importers:
         version: 3.3.0
       '@slopus/rig':
         specifier: ^0.0.33
-        version: 0.0.33(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)
+        version: 0.0.33(patch_hash=b79711e48fe6d355a8671ce946fbcc43ada89d3ae6aacc1a43fa395a79d95e1d)(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)(sql.js@1.14.1)
@@ -9637,7 +9642,7 @@ snapshots:
 
   '@slopus/ghostty-web@0.1.0': {}
 
-  '@slopus/rig@0.0.33(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)':
+  '@slopus/rig@0.0.33(patch_hash=b79711e48fe6d355a8671ce946fbcc43ada89d3ae6aacc1a43fa395a79d95e1d)(@aws-sdk/credential-provider-node@3.972.70)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@smithy/signature-v4@5.6.7)(@types/node@26.1.1)':
     dependencies:
       '@anthropic-ai/claude-agent-sdk': 0.3.216(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0)(zod@4.4.3)
       '@anthropic-ai/sandbox-runtime': 0.0.64

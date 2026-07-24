@@ -38,6 +38,9 @@ url = ${tomlString(`file:${join(runtimeDirectory, "happy2.db")}`)}
 
 [agents]
 enabled = true
+directory = ${tomlString(join(runtimeDirectory, "rig"))}
+socket_path = ${tomlString(join(runtimeDirectory, "rig", "server.sock"))}
+token_path = ${tomlString(join(runtimeDirectory, "rig", "token"))}
 default_cwd = ${tomlString(join(runtimeDirectory, "workspaces"))}
 
 [files]

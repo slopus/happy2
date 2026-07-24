@@ -1,0 +1,169 @@
+diff --git a/dist/agent/loop.d.ts b/dist/agent/loop.d.ts
+index 990e0e61e6266683101505fa5c92a01a68907782..477e8c7d9c0a31002043bb3cf87fd1ecb37cc0f9 100644
+--- a/dist/agent/loop.d.ts
++++ b/dist/agent/loop.d.ts
+@@ -90,6 +90,7 @@ export type AgentLoopEvent = AssistantMessageEvent | {
+ export interface AgentLoopResult {
+     messages: readonly Message[];
+     contextMessages: readonly Message[];
++    errorMessage?: string;
+     stopReason: StopReason;
+ }
+ export declare function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentLoopResult>;
+diff --git a/dist/agent/loop.js b/dist/agent/loop.js
+index d1798d94bf0e369b0b35d73ad783ce54ff27195e..4bd876e218724e877fa2fb3eca5889bf6ed0da37 100644
+--- a/dist/agent/loop.js
++++ b/dist/agent/loop.js
+@@ -291,6 +291,9 @@ export async function runAgentLoop(options) {
+             return {
+                 messages: transcript,
+                 contextMessages: contextTranscript,
++                ...(assistantMessage.errorMessage === undefined
++                    ? {}
++                    : { errorMessage: assistantMessage.errorMessage }),
+                 stopReason: assistantMessage.stopReason,
+             };
+         }
+diff --git a/dist/protocol/SessionProtocol.d.ts b/dist/protocol/SessionProtocol.d.ts
+index 703489db1b3bbb117a852241978dc60f12f7fc4d..93299e2f672a7458fdbbdcf6ec5d3a2474adb595 100644
+--- a/dist/protocol/SessionProtocol.d.ts
++++ b/dist/protocol/SessionProtocol.d.ts
+@@ -440,6 +440,7 @@ export type AgentMessageEvent = BaseSessionEvent<"agent_message", {
+ }>;
+ export type RunFinishedEvent = BaseSessionEvent<"run_finished", {
+     agentRunId?: string;
++    errorMessage?: string;
+     modelLocked: boolean;
+     runId: string;
+     stopReason: StopReason;
+diff --git a/dist/providers/claude-sdk.d.ts b/dist/providers/claude-sdk.d.ts
+index d6c29807224279d1c49c7ebf05d3fa4587b37d4a..f016a648dc0ad82fe98cb4954105879f5187d086 100644
+--- a/dist/providers/claude-sdk.d.ts
++++ b/dist/providers/claude-sdk.d.ts
+@@ -3,6 +3,7 @@ import type { AgentContext, AnyDefinedTool } from "../agent/index.js";
+ export type ClaudeSdkQuery = typeof defaultClaudeSdkQuery;
+ export interface ClaudeSdkProviderOptions {
+     agentContext: AgentContext;
++    cwd?: string;
+     env?: NodeJS.ProcessEnv;
+     id?: string;
+     pathToClaudeCodeExecutable?: string;
+diff --git a/dist/providers/claude-sdk.js b/dist/providers/claude-sdk.js
+index c5b3d8d3b1e019cb05e1f99d60ff037a24b9adc2..0ee8233cdd1011d7f7cf7462cc65df87785e0285 100644
+--- a/dist/providers/claude-sdk.js
++++ b/dist/providers/claude-sdk.js
+@@ -23,6 +23,7 @@ export function createClaudeSdkProvider(options) {
+     const query = options.query ?? defaultClaudeSdkQuery;
+     const tools = options.tools ?? claudeCodeTools;
+     const now = options.now ?? Date.now;
++    const cwd = options.cwd ?? options.agentContext.fs.cwd;
+     const providerSessionId = options.sessionId ?? randomUUID();
+     const pathToClaudeCodeExecutable = options.pathToClaudeCodeExecutable ?? resolveClaudeCodeExecutablePath();
+     const quota = createProviderQuotaCache(async () => {
+@@ -30,7 +31,7 @@ export function createClaudeSdkProvider(options) {
+             const probe = query({
+                 prompt: idleClaudeSdkPrompt(),
+                 options: {
+-                    cwd: options.agentContext.fs.cwd,
++                    cwd,
+                     env: {
+                         ...(options.env ?? process.env),
+                         ...CLAUDE_SDK_PRIVACY_ENVIRONMENT,
+@@ -96,6 +97,7 @@ export function createClaudeSdkProvider(options) {
+             const sdkOptions = toClaudeSdkOptions({
+                 agentContext: options.agentContext,
+                 context,
++                cwd,
+                 env: options.env ?? process.env,
+                 model,
+                 pathToClaudeCodeExecutable,
+@@ -107,7 +109,7 @@ export function createClaudeSdkProvider(options) {
+             const replay = context.messages.length > 1 && replaySessionId !== undefined
+                 ? createClaudeSessionReplay({
+                     context,
+-                    cwd: options.agentContext.fs.cwd,
++                    cwd,
+                     modelId: toClaudeSdkModelId(model),
+                     sessionId: replaySessionId,
+                 })
+@@ -275,7 +277,7 @@ function toClaudeSdkOptions(options) {
+         // Claude Code permission matching still uses the MCP identity even when
+         // the model-visible tool name is unprefixed.
+         allowedTools: mcpToolNames,
+-        cwd: options.agentContext.fs.cwd,
++        cwd: options.cwd,
+         mcpServers: {
+             [RIG_MCP_SERVER_NAME]: createSdkMcpServer({
+                 name: RIG_MCP_SERVER_NAME,
+diff --git a/dist/providers/createConfiguredClaudeProvider.d.ts b/dist/providers/createConfiguredClaudeProvider.d.ts
+index fd6d9e431b749bba4b5a92d6306db6f97efed34d..ce769f26d1d671331246aafa44f01c2d21a712e0 100644
+--- a/dist/providers/createConfiguredClaudeProvider.d.ts
++++ b/dist/providers/createConfiguredClaudeProvider.d.ts
+@@ -4,6 +4,7 @@ import type { Provider } from "./types.js";
+ export declare function createConfiguredClaudeProvider(options: {
+     agentContext: AgentContext;
+     config: ConfigClaudeProvider;
++    cwd?: string;
+     env: NodeJS.ProcessEnv;
+     id: string;
+     sessionId?: string;
+diff --git a/dist/providers/createConfiguredClaudeProvider.js b/dist/providers/createConfiguredClaudeProvider.js
+index 47ca11ed0bb9db977bebd9ee374247be093d2106..9595ef496a8d831b27d0f1a32246362fb78c7d6e 100644
+--- a/dist/providers/createConfiguredClaudeProvider.js
++++ b/dist/providers/createConfiguredClaudeProvider.js
+@@ -5,6 +5,7 @@ export function createConfiguredClaudeProvider(options) {
+     const executable = options.config.executable ?? options.env.RIG_CLAUDE_CODE_EXECUTABLE;
+     return createClaudeSdkProvider({
+         agentContext: options.agentContext,
++        cwd: options.cwd,
+         env: createConfiguredClaudeEnvironment(options.config, options.env),
+         id: options.id,
+         ...(executable === undefined ? {} : { pathToClaudeCodeExecutable: executable }),
+diff --git a/dist/providers/createConfiguredProvider.d.ts b/dist/providers/createConfiguredProvider.d.ts
+index 99236351def59687f10618d8f8822973db84fb48..d811842d01eac93f6d636810aee15d8d793fbd08 100644
+--- a/dist/providers/createConfiguredProvider.d.ts
++++ b/dist/providers/createConfiguredProvider.d.ts
+@@ -13,6 +13,7 @@ export declare function createConfiguredProvider(options: {
+     allowEmptyModels?: boolean;
+     apiKey?: string;
+     config: ConfigProvider;
++    cwd?: string;
+     env: NodeJS.ProcessEnv;
+     id: string;
+     sessionId?: string;
+diff --git a/dist/providers/createConfiguredProvider.js b/dist/providers/createConfiguredProvider.js
+index f533eb428eab1cb4c35ca2b7956aed7ca91a4213..f874560173a42bef318dae42614444d887d38517 100644
+--- a/dist/providers/createConfiguredProvider.js
++++ b/dist/providers/createConfiguredProvider.js
+@@ -16,6 +16,7 @@ export function createConfiguredProvider(options) {
+             ? createConfiguredClaudeProvider({
+                 agentContext: options.agentContext,
+                 config: options.config,
++                cwd: options.cwd,
+                 env: options.env,
+                 id: options.id,
+                 ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
+diff --git a/dist/runtime/createCodingAssistantAgent.js b/dist/runtime/createCodingAssistantAgent.js
+index a608c3f3c71500112b2cee1aa64ea3a8fb9630b4..0053b72f401b6d12f27832dd07c602b69a56b034 100644
+--- a/dist/runtime/createCodingAssistantAgent.js
++++ b/dist/runtime/createCodingAssistantAgent.js
+@@ -86,6 +86,7 @@ export function createCodingAssistantAgent(options) {
+             agentContext: context,
+             ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
+             config: providerConfig,
++            cwd: options.cwd,
+             env,
+             id: providerId,
+             sessionId: agentId,
+diff --git a/dist/server/InMemorySession.js b/dist/server/InMemorySession.js
+index 958f91a242a05a011c0ef3acacceefc30782ea88..abd09f27aa22daf48bf5792350ad8f720e1293a7 100644
+--- a/dist/server/InMemorySession.js
++++ b/dist/server/InMemorySession.js
+@@ -2706,6 +2706,7 @@ export class InMemorySession {
+         this.#discardPendingSteeringMessages(runId);
+         this.#append("run_finished", {
+             agentRunId: result.runId,
++            ...(result.errorMessage === undefined ? {} : { errorMessage: result.errorMessage }),
+             modelLocked: this.#modelLocked(),
+             runId,
+             stopReason,
