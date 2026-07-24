@@ -202,7 +202,7 @@ function applicationMenuInstall(snapshot: ReturnType<DesktopRuntime["get"]>): vo
 void app
     .whenReady()
     .then(async () => {
-        app.dock?.setIcon(applicationIconPath);
+        if (!app.isPackaged) app.dock?.setIcon(applicationIconPath);
         const desktopRoot = join(app.getPath("userData"), "desktop");
         const connector = localRigConnectorCreate();
         runtime = await DesktopRuntime.create(
