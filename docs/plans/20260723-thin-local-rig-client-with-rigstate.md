@@ -214,24 +214,24 @@ across server entities, or server onboarding surfaces.
 
 ### Task 8: Build reusable local-client UI components
 
-- [ ] add isolated `happy2-ui` components for Rig installation onboarding, confirmed terminal
+- [x] add isolated `happy2-ui` components for Rig installation onboarding, confirmed terminal
       execution, directory/session navigation, session controls, and local empty/error states
-- [ ] reuse existing chat, composer, activity, model, permission, and terminal components where
+- [x] reuse existing chat, composer, activity, model, permission, and terminal components where
       their contracts match direct Rig semantics
-- [ ] add every new component and state to Blueprint
-- [ ] add Chromium, Firefox, and WebKit geometry, keyboard, focus, overflow, and screenshot tests
+- [x] add every new component and state to Blueprint
+- [x] add Chromium, Firefox, and WebKit geometry, keyboard, focus, overflow, and screenshot tests
 - [ ] run `happy2-ui` tests, typecheck, lint, and format checks before Task 9
 
 ### Task 9: Compose the local Rig desktop surface
 
-- [ ] add one coarse React external-store adapter per materialized RigState surface
-- [ ] replace the local renderer's server-oriented `App` mount with the dedicated Rig client
+- [x] add one coarse React external-store adapter per materialized RigState surface
+- [x] replace the local renderer's server-oriented `App` mount with the dedicated Rig client
       composition
-- [ ] wire onboarding confirmation and PTY controls through the preload bridge
-- [ ] wire directory/session navigation, creation folder picker, chat actions, activity, and
+- [x] wire onboarding confirmation and PTY controls through the preload bridge
+- [x] wire directory/session navigation, creation folder picker, chat actions, activity, and
       terminals
-- [ ] keep cloud mode's remote sandboxed web-app window unchanged
-- [ ] remove local-only profile, Documents, Apps, Administration, plugins, and Happy server routes
+- [x] keep cloud mode's remote sandboxed web-app window unchanged
+- [x] remove local-only profile, Documents, Apps, Administration, plugins, and Happy server routes
 - [ ] test exact DOM identity, focus, selection, scroll, open controls, store replacement, and
       cleanup across Rig notifications
 - [ ] run app and desktop tests, typecheck, lint, and format checks before Task 10
@@ -274,6 +274,9 @@ across server entities, or server onboarding surfaces.
 
 - Connect through Rig's normal home, socket, and token resolution.
 - Use Rig's supported client/daemon helpers rather than copying its authentication protocol.
+- Seed each session event subscription from an authoritative session read before opening it. An
+  undefined cursor replays the session's complete history and can exhaust the daemon on a large
+  normal Rig home.
 - Starting the daemon is idempotent. If another process wins the race, connect to the resulting
   daemon.
 - Never kill, reload, or replace a healthy daemon without an explicit compatibility reason and

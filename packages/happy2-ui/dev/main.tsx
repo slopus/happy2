@@ -96,6 +96,8 @@ import { DocumentDeleteDialogPage } from "./pages/DocumentDeleteDialogPage";
 import { DocumentWritePermissionCardPage } from "./pages/DocumentWritePermissionCardPage";
 import { DesktopStartupScreenPage } from "./pages/DesktopStartupScreenPage";
 import { DesktopInstanceSwitcherPage } from "./pages/DesktopInstanceSwitcherPage";
+import { RigClientShellPage } from "./pages/RigClientShellPage";
+import { RigInstallScreenPage } from "./pages/RigInstallScreenPage";
 type BlueprintPage = {
     id: string;
     label: string;
@@ -164,6 +166,18 @@ const components: BlueprintPage[] = [
         label: "Desktop instance switcher",
         number: "C-146",
         page: DesktopInstanceSwitcherPage,
+    },
+    {
+        id: "rig-install-screen",
+        label: "Rig install screen",
+        number: "C-147",
+        page: RigInstallScreenPage,
+    },
+    {
+        id: "rig-client-shell",
+        label: "Rig client shell",
+        number: "C-148",
+        page: RigClientShellPage,
     },
     { id: "app-shell", label: "App shell", number: "C-010", page: AppShellPage },
     { id: "channel-header", label: "Channel header", number: "C-011", page: ChannelHeaderPage },

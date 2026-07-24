@@ -32,6 +32,7 @@
         "electron-updater": "^6.8.9",
         "happy2-app": "workspace:*",
         "happy2-state": "workspace:*",
+        "happy2-ui": "workspace:*",
         "react": "19.2.7",
         "react-dom": "19.2.7"
     },

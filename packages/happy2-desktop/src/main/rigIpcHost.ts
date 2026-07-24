@@ -26,7 +26,10 @@ export class RigIpcHost implements Disposable {
     private readonly streams = new Map<string, Stream>();
     private disposed = false;
 
-    constructor(private readonly transportGet: () => RigTransport) {}
+    constructor(
+        private readonly transportGet: () => RigTransport,
+        private readonly transportError: (error: unknown) => void = () => undefined,
+    ) {}
 
     request<Request extends RigClientRequest>(
         request: Request,
@@ -102,7 +105,10 @@ export class RigIpcHost implements Disposable {
                 result = transport.terminalStop(request.sessionId, request.terminalId);
                 break;
         }
-        return result as Promise<RigClientResponse<Request>>;
+        return result.catch((error: unknown) => {
+            this.transportError(error);
+            throw error;
+        }) as Promise<RigClientResponse<Request>>;
     }
 
     async streamOpen(
@@ -138,6 +144,7 @@ export class RigIpcHost implements Disposable {
                 return streamId;
             } catch (error) {
                 this.streams.delete(streamId);
+                this.transportError(error);
                 throw error;
             }
         }
@@ -167,6 +174,7 @@ export class RigIpcHost implements Disposable {
                 return streamId;
             } catch (error) {
                 this.streams.delete(streamId);
+                this.transportError(error);
                 throw error;
             }
         }
@@ -205,6 +213,7 @@ export class RigIpcHost implements Disposable {
             return streamId;
         } catch (error) {
             this.streams.delete(streamId);
+            this.transportError(error);
             throw error;
         }
     }
@@ -233,7 +242,10 @@ export class RigIpcHost implements Disposable {
     ) {
         const connection = this.terminal(ownerId, streamId).connection;
         if (!connection) throw new Error("The Rig terminal is still connecting.");
-        return connection.scrollback(start, count, basis);
+        return connection.scrollback(start, count, basis).catch((error: unknown) => {
+            this.transportError(error);
+            throw error;
+        });
     }
 
     closeOwner(ownerId: number): void {
@@ -284,6 +296,7 @@ export class RigIpcHost implements Disposable {
         emit: (event: RigStreamEvent) => void,
         error: unknown,
     ): void {
+        this.transportError(error);
         this.emitOwned(streamId, stream, emit, {
             streamId,
             type: "error",

@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { rigStateCreate, type RigSessionId, type RigTerminalId } from "../src/index.js";
+import {
+    rigStateCreate,
+    type RigEventId,
+    type RigSessionId,
+    type RigTerminalId,
+} from "../src/index.js";
 import {
     createFakeRigTransport,
     fakeRigSession,
@@ -10,10 +15,21 @@ describe("RigState terminals", () => {
     it("creates, attaches, drives, reconnects, and disposes terminals independently", async () => {
         const fake = createFakeRigTransport();
         const sessionId = "session-terminal" as RigSessionId;
-        fake.sessionSet(fakeRigSession(sessionId));
+        fake.sessionSet(
+            fakeRigSession(sessionId, {
+                lastEventId: "event-terminal-edge" as RigEventId,
+            }),
+        );
         using state = rigStateCreate({ transport: fake.transport });
         using list = state.terminalListOpen(sessionId);
         await state.whenIdle();
+        expect(
+            fake.calls.filter(({ operation }) => operation === "sessionEventsSubscribe"),
+        ).toContainEqual({
+            operation: "sessionEventsSubscribe",
+            sessionId,
+            after: "event-terminal-edge",
+        });
         list.terminalCreate({ cols: 100, rows: 30 });
         await state.whenIdle();
         const terminalId = list.get().terminals[0]!.id;

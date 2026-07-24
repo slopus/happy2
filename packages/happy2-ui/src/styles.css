@@ -98,3 +98,5 @@
 @import "./styles/sidebar-apps.css";
 @import "./styles/desktop-startup.css";
 @import "./styles/desktop-instance-switcher.css";
+@import "./styles/rig-install.css";
+@import "./styles/rig-client.css";

@@ -1,0 +1,108 @@
+.happy2-rig-client {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--surface);
+}
+
+.happy2-rig-client__sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    color: var(--text-secondary);
+    font-family: var(--happy2-font-mono);
+    font-size: 11px;
+}
+
+.happy2-rig-client__state {
+    display: flex;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+}
+
+.happy2-rig-client__banner {
+    display: flex;
+    padding: 8px 12px 0;
+}
+
+.happy2-rig-client__requests {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: var(--happy2-chat-measure);
+    margin: 0 auto;
+    padding: 0 20px 8px 12px;
+    background: var(--surface);
+}
+
+.happy2-rig-client__create {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.happy2-rig-input {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    background: var(--surface-high);
+}
+
+.happy2-rig-input__question,
+.happy2-rig-input__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.happy2-rig-input__heading strong {
+    color: var(--text);
+    font-size: 13px;
+}
+
+.happy2-rig-input__heading span {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.happy2-rig-input__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.happy2-rig-input__options button {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 120px;
+    padding: 8px 10px;
+    border: 1px solid var(--divider);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    text-align: left;
+}
+
+.happy2-rig-input__options button[aria-pressed="true"] {
+    border-color: var(--text-link);
+    box-shadow: inset 0 0 0 1px var(--text-link);
+}
+
+.happy2-rig-input__options small {
+    color: var(--text-secondary);
+    font-size: 11px;
+}

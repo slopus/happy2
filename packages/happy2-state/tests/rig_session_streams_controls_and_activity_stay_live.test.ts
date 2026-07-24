@@ -3,27 +3,68 @@ import { rigStateCreate, type RigEventId, type RigSessionId } from "../src/index
 import { createFakeRigTransport, fakeRigSession } from "../src/testing/index.js";
 
 describe("RigState live sessions", () => {
+    it("retries a transient initial read before opening a resumable stream", async () => {
+        vi.useFakeTimers();
+        try {
+            const fake = createFakeRigTransport();
+            const sessionId = "session-startup-retry" as RigSessionId;
+            fake.sessionSet(
+                fakeRigSession(sessionId, {
+                    lastEventId: "event-startup-edge" as RigEventId,
+                }),
+            );
+            fake.failNext("sessionRead", new Error("daemon restarting"));
+            using state = rigStateCreate({ transport: fake.transport });
+            using session = state.sessionOpen(sessionId);
+
+            await state.whenIdle();
+            expect(session.get().status).toMatchObject({
+                type: "error",
+                error: { message: "daemon restarting" },
+            });
+            expect(fake.sessionSubscriberCount).toBe(0);
+
+            await vi.advanceTimersByTimeAsync(250);
+            await state.whenIdle();
+
+            expect(session.get().status).toEqual({ type: "ready" });
+            expect(fake.sessionSubscriberCount).toBe(1);
+            expect(
+                fake.calls.filter(({ operation }) => operation === "sessionEventsSubscribe"),
+            ).toContainEqual({
+                operation: "sessionEventsSubscribe",
+                sessionId,
+                after: "event-startup-edge",
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it("discards a stale initial read that completes after an event reconciliation", async () => {
         const fake = createFakeRigTransport();
         const sessionId = "session-race" as RigSessionId;
         fake.sessionSet(fakeRigSession(sessionId, { title: "Old" }));
-        const initial = fake.deferNext("sessionRead");
         using state = rigStateCreate({ transport: fake.transport });
         using session = state.sessionOpen(sessionId);
+        await state.whenIdle();
+        const stale = fake.deferNext("sessionRead");
+        fake.sessionEnd(sessionId);
         await vi.waitFor(() =>
             expect(fake.calls.filter(({ operation }) => operation === "sessionRead")).toHaveLength(
-                1,
+                2,
             ),
         );
 
         fake.sessionSet(fakeRigSession(sessionId, { title: "New" }));
+        stale.release();
+        await state.whenIdle();
         fake.sessionEmit({
             eventId: "event-race" as RigEventId,
             sessionId,
             kind: "sessionChanged",
         });
         await vi.waitFor(() => expect(session.get().session?.title).toBe("New"));
-        initial.release();
         await state.whenIdle();
 
         expect(session.get().session?.title).toBe("New");
@@ -116,6 +157,7 @@ describe("RigState live sessions", () => {
         const sessionId = "session-activity" as RigSessionId;
         fake.sessionSet(
             fakeRigSession(sessionId, {
+                lastEventId: "event-activity-edge" as RigEventId,
                 backgroundProcesses: [
                     { id: 7, command: "pnpm test", cwd: "/workspace", status: "running" },
                 ],
@@ -140,6 +182,13 @@ describe("RigState live sessions", () => {
             status: { type: "ready" },
             subagents: [{ description: "Review" }],
             backgroundProcesses: [{ command: "pnpm test" }],
+        });
+        expect(
+            fake.calls.filter(({ operation }) => operation === "sessionEventsSubscribe"),
+        ).toContainEqual({
+            operation: "sessionEventsSubscribe",
+            sessionId,
+            after: "event-activity-edge",
         });
         activity[Symbol.dispose]();
         expect(fake.sessionSubscriberCount).toBe(0);

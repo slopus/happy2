@@ -11,6 +11,7 @@ import {
 } from "./shared/desktopContract";
 
 const bridge: HappyDesktopBridge = {
+    directoryPick: () => ipcRenderer.invoke(desktopIpc.directoryPick),
     runtimeGet: () => ipcRenderer.invoke(desktopIpc.runtimeGet),
     runtimeReset: () => ipcRenderer.invoke(desktopIpc.runtimeReset),
     runtimeRetry: () => ipcRenderer.invoke(desktopIpc.runtimeRetry),

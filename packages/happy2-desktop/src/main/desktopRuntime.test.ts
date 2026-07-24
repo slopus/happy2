@@ -147,6 +147,28 @@ describe("desktop direct Rig topology", () => {
         await waitFor(() => second.get().phase === "ready");
         expect(second.get()).toMatchObject({ phase: "ready", mode: "local" });
     });
+
+    it("coalesces dead-socket failures into one normal-daemon reconnection", async () => {
+        const firstClose = vi.fn();
+        const secondClose = vi.fn();
+        const connector = connectorSequence([connection(firstClose), connection(secondClose)]);
+        const runtime = await runtimeCreate(connector);
+        await runtime.start({ mode: "local" });
+        const firstConnectionId = readySnapshot(runtime.get()).connectionId;
+        const refused = Object.assign(new Error("socket refused"), { code: "ECONNREFUSED" });
+
+        await Promise.all([
+            runtime.reconnectLocal(refused),
+            runtime.reconnectLocal(refused),
+            runtime.reconnectLocal(refused),
+        ]);
+
+        expect(connector.connect).toHaveBeenCalledTimes(2);
+        expect(firstClose).toHaveBeenCalledOnce();
+        expect(readySnapshot(runtime.get()).connectionId).toBeGreaterThan(firstConnectionId);
+        await runtime.reconnectLocal(new Error("ordinary request failure"));
+        expect(connector.connect).toHaveBeenCalledTimes(2);
+    });
 });
 
 function connectorSequence(values: readonly (LocalRigConnection | Error)[]): LocalRigConnector {

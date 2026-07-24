@@ -60,21 +60,31 @@ interface SessionBinding {
     generation: number;
     cursor?: RigSessionProjection["lastEventId"];
     closeStream?: () => void;
+    retryAttempt: number;
+    retryTimer?: ReturnType<typeof setTimeout>;
 }
 
 interface ActivityBinding {
     readonly store: Surface<RigActivitySnapshot>;
     acquisitions: number;
     generation: number;
+    cursor?: RigSessionProjection["lastEventId"];
     closeStream?: () => void;
+    retryAttempt: number;
+    retryTimer?: ReturnType<typeof setTimeout>;
 }
 
 interface TerminalListBinding {
     readonly store: Surface<RigTerminalListSnapshot>;
     acquisitions: number;
     generation: number;
+    cursor?: RigSessionProjection["lastEventId"];
     closeStream?: () => void;
+    retryAttempt: number;
+    retryTimer?: ReturnType<typeof setTimeout>;
 }
+
+type ResumableBinding = SessionBinding | ActivityBinding | TerminalListBinding;
 
 /** Owns direct-Rig surface lifetimes without constructing a process-global instance. */
 export class RigState implements Disposable, AsyncDisposable {
@@ -129,14 +139,12 @@ export class RigState implements Disposable, AsyncDisposable {
                 }),
                 acquisitions: 0,
                 generation: 0,
+                retryAttempt: 0,
             };
             this.sessions.set(sessionId, binding);
         }
         binding.acquisitions += 1;
-        if (binding.acquisitions === 1) {
-            this.background(this.sessionReconcile(sessionId, binding));
-            this.sessionStreamOpen(sessionId, binding);
-        }
+        if (binding.acquisitions === 1) this.sessionStart(sessionId, binding);
         const store = binding.store;
         let released = false;
         return {
@@ -208,14 +216,12 @@ export class RigState implements Disposable, AsyncDisposable {
                 }),
                 acquisitions: 0,
                 generation: 0,
+                retryAttempt: 0,
             };
             this.activities.set(sessionId, binding);
         }
         binding.acquisitions += 1;
-        if (binding.acquisitions === 1) {
-            this.background(this.activityReconcile(sessionId, binding));
-            this.activityStreamOpen(sessionId, binding);
-        }
+        if (binding.acquisitions === 1) this.activityStart(sessionId, binding);
         const store = binding.store;
         let released = false;
         return {
@@ -241,14 +247,12 @@ export class RigState implements Disposable, AsyncDisposable {
                 }),
                 acquisitions: 0,
                 generation: 0,
+                retryAttempt: 0,
             };
             this.terminalLists.set(sessionId, binding);
         }
         binding.acquisitions += 1;
-        if (binding.acquisitions === 1) {
-            this.background(this.terminalListReconcile(sessionId, binding));
-            this.terminalListStreamOpen(sessionId, binding);
-        }
+        if (binding.acquisitions === 1) this.terminalListStart(sessionId, binding);
         const store = binding.store;
         let released = false;
         return {
@@ -392,9 +396,18 @@ export class RigState implements Disposable, AsyncDisposable {
         this.disposed = true;
         this.closeGlobalStream?.();
         this.closeGlobalStream = undefined;
-        for (const binding of this.sessions.values()) binding.closeStream?.();
-        for (const binding of this.activities.values()) binding.closeStream?.();
-        for (const binding of this.terminalLists.values()) binding.closeStream?.();
+        for (const binding of this.sessions.values()) {
+            this.streamRetryCancel(binding);
+            binding.closeStream?.();
+        }
+        for (const binding of this.activities.values()) {
+            this.streamRetryCancel(binding);
+            binding.closeStream?.();
+        }
+        for (const binding of this.terminalLists.values()) {
+            this.streamRetryCancel(binding);
+            binding.closeStream?.();
+        }
         for (const terminal of this.terminals) terminal[Symbol.dispose]();
         this.sessions.clear();
         this.activities.clear();
@@ -481,6 +494,62 @@ export class RigState implements Disposable, AsyncDisposable {
         this.background(this.directoryReconcile().then(() => this.globalStreamOpen()));
     }
 
+    private streamStart(
+        binding: ResumableBinding,
+        active: () => boolean,
+        reconcile: () => Promise<void>,
+        streamOpen: () => void,
+    ): void {
+        if (!active()) return;
+        this.streamRetryCancel(binding);
+        this.background(
+            reconcile()
+                .then(() => {
+                    if (!active()) return;
+                    binding.retryAttempt = 0;
+                    streamOpen();
+                })
+                .catch((error: unknown) => {
+                    if (active())
+                        this.streamRetrySchedule(binding, active, () =>
+                            this.streamStart(binding, active, reconcile, streamOpen),
+                        );
+                    throw error;
+                }),
+        );
+    }
+
+    private streamRetrySchedule(
+        binding: ResumableBinding,
+        active: () => boolean,
+        retry: () => void,
+    ): void {
+        this.streamRetryCancel(binding);
+        const delay = Math.min(5_000, 250 * 2 ** Math.min(binding.retryAttempt, 5));
+        binding.retryAttempt += 1;
+        binding.retryTimer = setTimeout(() => {
+            binding.retryTimer = undefined;
+            if (active()) retry();
+        }, delay);
+    }
+
+    private streamRetryCancel(binding: ResumableBinding): void {
+        if (binding.retryTimer) clearTimeout(binding.retryTimer);
+        binding.retryTimer = undefined;
+    }
+
+    private sessionStart(sessionId: RigSessionId, binding: SessionBinding): void {
+        this.streamStart(
+            binding,
+            () =>
+                !this.disposed &&
+                binding.acquisitions > 0 &&
+                this.sessions.get(sessionId) === binding,
+            () => this.sessionReconcile(sessionId, binding),
+            () => this.sessionStreamOpen(sessionId, binding),
+        );
+    }
+
     private async sessionReconcile(
         sessionId: RigSessionId,
         binding: SessionBinding,
@@ -518,7 +587,8 @@ export class RigState implements Disposable, AsyncDisposable {
 
     private sessionStreamOpen(sessionId: RigSessionId, binding: SessionBinding): void {
         binding.closeStream?.();
-        if (this.disposed || binding.acquisitions === 0) return;
+        if (this.disposed || binding.acquisitions === 0 || this.sessions.get(sessionId) !== binding)
+            return;
         binding.closeStream = this.transport.sessionEventsSubscribe(
             sessionId,
             {
@@ -526,21 +596,11 @@ export class RigState implements Disposable, AsyncDisposable {
                 error: (error) => {
                     binding.closeStream = undefined;
                     this.backgroundError(stateError(error));
-                    if (!this.disposed && binding.acquisitions > 0)
-                        this.background(
-                            this.sessionReconcile(sessionId, binding).then(() =>
-                                this.sessionStreamOpen(sessionId, binding),
-                            ),
-                        );
+                    this.sessionStart(sessionId, binding);
                 },
                 end: () => {
                     binding.closeStream = undefined;
-                    if (!this.disposed && binding.acquisitions > 0)
-                        this.background(
-                            this.sessionReconcile(sessionId, binding).then(() =>
-                                this.sessionStreamOpen(sessionId, binding),
-                            ),
-                        );
+                    this.sessionStart(sessionId, binding);
                 },
             },
             binding.cursor,
@@ -552,7 +612,8 @@ export class RigState implements Disposable, AsyncDisposable {
         binding: SessionBinding,
         event: RigSessionEvent,
     ): void {
-        if (this.disposed || binding.acquisitions === 0) return;
+        if (this.disposed || binding.acquisitions === 0 || this.sessions.get(sessionId) !== binding)
+            return;
         binding.cursor = event.eventId;
         if (event.kind === "streamingMessageChanged")
             binding.store.set({ ...binding.store.get(), streaming: event.message });
@@ -563,8 +624,22 @@ export class RigState implements Disposable, AsyncDisposable {
         binding.acquisitions -= 1;
         if (binding.acquisitions > 0) return;
         binding.generation += 1;
+        this.streamRetryCancel(binding);
         binding.closeStream?.();
+        binding.closeStream = undefined;
         this.sessions.delete(sessionId);
+    }
+
+    private activityStart(sessionId: RigSessionId, binding: ActivityBinding): void {
+        this.streamStart(
+            binding,
+            () =>
+                !this.disposed &&
+                binding.acquisitions > 0 &&
+                this.activities.get(sessionId) === binding,
+            () => this.activityReconcile(sessionId, binding),
+            () => this.activityStreamOpen(sessionId, binding),
+        );
     }
 
     private async activityReconcile(
@@ -579,6 +654,7 @@ export class RigState implements Disposable, AsyncDisposable {
             ]);
             if (this.disposed || binding.acquisitions === 0 || generation !== binding.generation)
                 return;
+            binding.cursor = session.lastEventId ?? binding.cursor;
             binding.store.set({
                 status: { type: "ready" },
                 subagents: referencesPreserve(binding.store.get().subagents, subagents, "id"),
@@ -606,36 +682,47 @@ export class RigState implements Disposable, AsyncDisposable {
             this.activities.get(sessionId) !== binding
         )
             return;
-        binding.closeStream = this.transport.sessionEventsSubscribe(sessionId, {
-            event: () => this.background(this.activityReconcile(sessionId, binding)),
-            error: (error) => {
-                binding.closeStream = undefined;
-                this.backgroundError(stateError(error));
-                if (!this.disposed && binding.acquisitions > 0)
-                    this.background(
-                        this.activityReconcile(sessionId, binding).then(() =>
-                            this.activityStreamOpen(sessionId, binding),
-                        ),
-                    );
+        binding.closeStream = this.transport.sessionEventsSubscribe(
+            sessionId,
+            {
+                event: (event) => {
+                    binding.cursor = event.eventId;
+                    this.background(this.activityReconcile(sessionId, binding));
+                },
+                error: (error) => {
+                    binding.closeStream = undefined;
+                    this.backgroundError(stateError(error));
+                    this.activityStart(sessionId, binding);
+                },
+                end: () => {
+                    binding.closeStream = undefined;
+                    this.activityStart(sessionId, binding);
+                },
             },
-            end: () => {
-                binding.closeStream = undefined;
-                if (!this.disposed && binding.acquisitions > 0)
-                    this.background(
-                        this.activityReconcile(sessionId, binding).then(() =>
-                            this.activityStreamOpen(sessionId, binding),
-                        ),
-                    );
-            },
-        });
+            binding.cursor,
+        );
     }
 
     private activityRelease(sessionId: RigSessionId, binding: ActivityBinding): void {
         binding.acquisitions -= 1;
         if (binding.acquisitions > 0) return;
         binding.generation += 1;
+        this.streamRetryCancel(binding);
         binding.closeStream?.();
+        binding.closeStream = undefined;
         this.activities.delete(sessionId);
+    }
+
+    private terminalListStart(sessionId: RigSessionId, binding: TerminalListBinding): void {
+        this.streamStart(
+            binding,
+            () =>
+                !this.disposed &&
+                binding.acquisitions > 0 &&
+                this.terminalLists.get(sessionId) === binding,
+            () => this.terminalListReconcile(sessionId, binding),
+            () => this.terminalListStreamOpen(sessionId, binding),
+        );
     }
 
     private async terminalListReconcile(
@@ -644,9 +731,13 @@ export class RigState implements Disposable, AsyncDisposable {
     ): Promise<void> {
         const generation = ++binding.generation;
         try {
-            const terminals = await this.transport.terminalsRead(sessionId);
+            const [session, terminals] = await Promise.all([
+                this.transport.sessionRead(sessionId),
+                this.transport.terminalsRead(sessionId),
+            ]);
             if (this.disposed || binding.acquisitions === 0 || generation !== binding.generation)
                 return;
+            binding.cursor = session.lastEventId ?? binding.cursor;
             binding.store.set({
                 status: { type: "ready" },
                 terminals: referencesPreserve(binding.store.get().terminals, terminals, "id"),
@@ -669,35 +760,34 @@ export class RigState implements Disposable, AsyncDisposable {
             this.terminalLists.get(sessionId) !== binding
         )
             return;
-        binding.closeStream = this.transport.sessionEventsSubscribe(sessionId, {
-            event: () => this.background(this.terminalListReconcile(sessionId, binding)),
-            error: (error) => {
-                binding.closeStream = undefined;
-                this.backgroundError(stateError(error));
-                if (!this.disposed && binding.acquisitions > 0)
-                    this.background(
-                        this.terminalListReconcile(sessionId, binding).then(() =>
-                            this.terminalListStreamOpen(sessionId, binding),
-                        ),
-                    );
+        binding.closeStream = this.transport.sessionEventsSubscribe(
+            sessionId,
+            {
+                event: (event) => {
+                    binding.cursor = event.eventId;
+                    this.background(this.terminalListReconcile(sessionId, binding));
+                },
+                error: (error) => {
+                    binding.closeStream = undefined;
+                    this.backgroundError(stateError(error));
+                    this.terminalListStart(sessionId, binding);
+                },
+                end: () => {
+                    binding.closeStream = undefined;
+                    this.terminalListStart(sessionId, binding);
+                },
             },
-            end: () => {
-                binding.closeStream = undefined;
-                if (!this.disposed && binding.acquisitions > 0)
-                    this.background(
-                        this.terminalListReconcile(sessionId, binding).then(() =>
-                            this.terminalListStreamOpen(sessionId, binding),
-                        ),
-                    );
-            },
-        });
+            binding.cursor,
+        );
     }
 
     private terminalListRelease(sessionId: RigSessionId, binding: TerminalListBinding): void {
         binding.acquisitions -= 1;
         if (binding.acquisitions > 0) return;
         binding.generation += 1;
+        this.streamRetryCancel(binding);
         binding.closeStream?.();
+        binding.closeStream = undefined;
         this.terminalLists.delete(sessionId);
     }
 

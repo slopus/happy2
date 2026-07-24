@@ -141,6 +141,7 @@ export {
     type ComposerModelChoice,
     type ComposerModelControlProps,
 } from "./ComposerModelControl";
+export { ComposerDock, type ComposerDockProps } from "./pages/chat/ComposerDock";
 export {
     DiffSnippet,
     type DiffLine,
@@ -203,6 +204,16 @@ export {
     type DesktopInstanceTarget,
     type DesktopInstanceUpdate,
 } from "./DesktopInstanceSwitcher";
+export { RigInstallScreen, type RigInstallScreenProps } from "./RigInstallScreen";
+export {
+    RigClientShell,
+    type RigClientInputQuestion,
+    type RigClientInputRequest,
+    type RigClientMessage,
+    type RigClientSessionView,
+    type RigClientShellProps,
+    type RigClientTerminalView,
+} from "./RigClientShell";
 export {
     SearchField,
     type SearchFieldEditableProps,

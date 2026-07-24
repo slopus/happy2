@@ -223,6 +223,9 @@ importers:
       happy2-state:
         specifier: workspace:*
         version: link:../happy2-state
+      happy2-ui:
+        specifier: workspace:*
+        version: link:../happy2-ui
       react:
         specifier: 19.2.7
         version: 19.2.7

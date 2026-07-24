@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App, DesktopStartupScreen, type DesktopStartupValues } from "happy2-app";
 import type { DesktopUpdateSnapshot, HappyDesktopBridge } from "./shared/desktopContract";
 import { desktopStartRequestFromValues, desktopStartupValues } from "./desktopStartupModel";
+import { RigClientBoundary, RigInstallBoundary } from "./rigClientRenderer";
 import { desktopRuntimeStoreCreate, type DesktopRuntimeStore } from "./runtimeStore";
 
 function desktopAction(operation: Promise<void>): void {
@@ -56,15 +57,9 @@ function DesktopRenderer(props: { bridge: HappyDesktopBridge; store: DesktopRunt
         );
     if (snapshot.phase === "installRequired")
         return (
-            <DesktopStartupScreen
-                error={`${snapshot.message} Installation UI is pending foundation approval. Command: ${snapshot.command}`}
-                onChange={() => undefined}
+            <RigInstallBoundary
+                bridge={props.bridge}
                 onChangeMode={() => desktopAction(props.bridge.runtimeReset())}
-                onRetry={() => desktopAction(props.bridge.runtimeRetry())}
-                onSubmit={() => undefined}
-                phase="error"
-                update={snapshot.update}
-                values={desktopStartupValues(snapshot.request)}
             />
         );
     if (snapshot.phase === "error")
@@ -102,19 +97,12 @@ function DesktopRenderer(props: { bridge: HappyDesktopBridge; store: DesktopRunt
             />
         );
 
-    // The direct-Rig foundation deliberately does not mount the server-oriented
-    // App. The dedicated local composition is the next, separately approved UI
-    // boundary; this existing reusable status surface keeps the checkpoint
-    // executable without introducing a local HTTP compatibility adapter.
     return (
-        <DesktopStartupScreen
-            message={`Connected to system Rig ${active.rigVersion}. Local client UI is pending foundation approval.`}
-            onChange={() => undefined}
+        <RigClientBoundary
+            bridge={props.bridge}
+            connectionId={snapshot.connectionId}
             onChangeMode={() => desktopAction(props.bridge.runtimeReset())}
-            onSubmit={() => undefined}
-            phase="starting"
-            update={snapshot.update}
-            values={desktopStartupValues({ mode: "local" })}
+            rigVersion={active.rigVersion}
         />
     );
 }

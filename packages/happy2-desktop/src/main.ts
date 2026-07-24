@@ -8,6 +8,7 @@ import {
     shell,
     type BrowserWindowConstructorOptions,
     type MenuItemConstructorOptions,
+    type OpenDialogOptions,
 } from "electron";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -210,7 +211,10 @@ void app
             },
             { localRigConnector: connector },
         );
-        rigIpcHost = new RigIpcHost(() => runtime.localRigTransport());
+        rigIpcHost = new RigIpcHost(
+            () => runtime.localRigTransport(),
+            (error) => void runtime.reconnectLocal(error).catch(() => undefined),
+        );
         rigInstallManager = new RigInstallTerminalManager(connector, {
             verified: () => void runtime.retry().catch(() => undefined),
         });
@@ -237,6 +241,18 @@ void app
                 window.webContents.send(desktopIpc.runtimeChanged, snapshot);
         });
         ipcMain.handle(desktopIpc.runtimeGet, () => runtime.get());
+        ipcMain.handle(desktopIpc.directoryPick, async (event) => {
+            const owner = BrowserWindow.fromWebContents(event.sender);
+            const options: OpenDialogOptions = {
+                buttonLabel: "Choose",
+                properties: ["openDirectory", "createDirectory"],
+                title: "Choose a Rig working directory",
+            };
+            const result = owner
+                ? await dialog.showOpenDialog(owner, options)
+                : await dialog.showOpenDialog(options);
+            return result.canceled ? undefined : result.filePaths[0];
+        });
         ipcMain.handle(desktopIpc.runtimeStart, (_event, request: unknown) =>
             runtime.start(desktopStartRequestValidate(request)),
         );

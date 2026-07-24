@@ -42,10 +42,12 @@ export type FakeRigOperation =
     | "permissionModeChange"
     | "terminalCreate"
     | "terminalStop"
-    | "terminalConnect";
+    | "terminalConnect"
+    | "sessionEventsSubscribe";
 
 export interface FakeRigCall {
     readonly operation: FakeRigOperation;
+    readonly after?: string;
     readonly sessionId?: RigSessionId;
     readonly terminalId?: RigTerminalId;
 }
@@ -244,8 +246,13 @@ class FakeRigTransportModel implements FakeRigTransport {
             this.globalObservers.add(observer);
             return () => this.globalObservers.delete(observer);
         },
-        sessionEventsSubscribe: (sessionId, observer) => {
+        sessionEventsSubscribe: (sessionId, observer, after) => {
             this.assertOpen();
+            this.recorded.push({
+                operation: "sessionEventsSubscribe",
+                sessionId,
+                ...(after ? { after } : {}),
+            });
             let observers = this.sessionObservers.get(sessionId);
             if (!observers) {
                 observers = new Set();

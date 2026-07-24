@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RigSessionId, RigTerminalId } from "happy2-state";
 import {
     createFakeRigTransport,
@@ -120,5 +120,21 @@ describe("Rig IPC authorization and cleanup", () => {
 
         await expect(opening).rejects.toThrow("owner closed");
         expect(terminal!.closed).toBe(true);
+    });
+
+    it("reports request transport failures to the runtime recovery boundary", async () => {
+        const fake = createFakeRigTransport();
+        fake.failNext(
+            "sessionsRead",
+            Object.assign(new Error("socket refused"), {
+                code: "ECONNREFUSED",
+            }),
+        );
+        const unavailable = vi.fn();
+        using host = new RigIpcHost(() => fake.transport, unavailable);
+
+        await expect(host.request({ type: "sessionsRead" })).rejects.toThrow("socket refused");
+        expect(unavailable).toHaveBeenCalledOnce();
+        expect(unavailable.mock.calls[0]?.[0]).toMatchObject({ code: "ECONNREFUSED" });
     });
 });

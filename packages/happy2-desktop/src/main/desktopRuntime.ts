@@ -50,6 +50,7 @@ export class DesktopRuntime implements AsyncDisposable {
     private readonly listeners = new Set<(snapshot: DesktopRuntimeSnapshot) => void>();
     private operation = Promise.resolve();
     private persistOnSuccess = false;
+    private reconnectTask?: Promise<void>;
     private rigConnection?: LocalRigConnection;
     private rigTransport?: RigTransport & Disposable;
     private settings?: DesktopSettings;
@@ -123,6 +124,23 @@ export class DesktopRuntime implements AsyncDisposable {
             if (!this.activeTopology) throw new Error("There is no desktop topology to retry.");
             await this.startValidated(this.activeTopology, this.persistOnSuccess);
         });
+    }
+
+    /** Reconnects one failed normal-daemon transport and coalesces concurrent IPC failures. */
+    reconnectLocal(error: unknown): Promise<void> {
+        if (!rigDaemonConnectionUnavailable(error)) return Promise.resolve();
+        if (this.reconnectTask) return this.reconnectTask;
+        const topology = this.activeTopology;
+        if (!topology || topology.mode !== "local" || this.closed) return Promise.resolve();
+        const task = this.serial(async () => {
+            if (this.closed || this.activeTopology?.id !== topology.id) return;
+            await this.startValidated(topology, false);
+        });
+        const tracked = task.finally(() => {
+            if (this.reconnectTask === tracked) this.reconnectTask = undefined;
+        });
+        this.reconnectTask = tracked;
+        return tracked;
     }
 
     reset(): Promise<void> {
@@ -285,4 +303,21 @@ export class DesktopRuntime implements AsyncDisposable {
 
 function displayError(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+}
+
+export function rigDaemonConnectionUnavailable(error: unknown): boolean {
+    let current: unknown = error;
+    for (let depth = 0; current && depth < 4; depth += 1) {
+        if (typeof current !== "object") return false;
+        const value = current as { readonly cause?: unknown; readonly code?: unknown };
+        if (
+            value.code === "ECONNREFUSED" ||
+            value.code === "ECONNRESET" ||
+            value.code === "EPIPE" ||
+            value.code === "ENOENT"
+        )
+            return true;
+        current = value.cause;
+    }
+    return false;
 }
