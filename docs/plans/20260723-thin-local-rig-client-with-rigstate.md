@@ -274,6 +274,9 @@ across server entities, or server onboarding surfaces.
 
 - Connect through Rig's normal home, socket, and token resolution.
 - Use Rig's supported client/daemon helpers rather than copying its authentication protocol.
+- Do not require or enable Rig's optional durable global event queue. Load the complete directory
+  when a connection is established; if a session connection is lost, rebuild the local Rig client
+  and reload every surface authoritatively.
 - Seed each session event subscription from an authoritative session read before opening it. An
   undefined cursor replays the session's complete history and can exhaust the daemon on a large
   normal Rig home.

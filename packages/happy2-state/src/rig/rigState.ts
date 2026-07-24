@@ -18,12 +18,7 @@ import type {
     RigTerminalSnapshot,
     RigTerminalStore,
 } from "./rigTypes.js";
-import type {
-    RigGlobalEvent,
-    RigSessionEvent,
-    RigTerminalConnection,
-    RigTransport,
-} from "./rigTransport.js";
+import type { RigSessionEvent, RigTerminalConnection, RigTransport } from "./rigTransport.js";
 
 export interface RigStateOptions {
     readonly transport: RigTransport;
@@ -100,8 +95,6 @@ export class RigState implements Disposable, AsyncDisposable {
     private directoryBinding?: Surface<RigDirectorySnapshot>;
     private directoryStoreValue?: RigDirectoryStore;
     private directoryGeneration = 0;
-    private directoryCursor?: number;
-    private closeGlobalStream?: () => void;
     private disposed = false;
 
     constructor(options: RigStateOptions) {
@@ -123,7 +116,6 @@ export class RigState implements Disposable, AsyncDisposable {
         });
         this.directoryBinding = binding;
         this.background(this.directoryReconcile());
-        this.globalStreamOpen();
         this.directoryStoreValue = this.directoryStore(binding);
         return this.directoryStoreValue;
     }
@@ -394,8 +386,6 @@ export class RigState implements Disposable, AsyncDisposable {
     [Symbol.dispose](): void {
         if (this.disposed) return;
         this.disposed = true;
-        this.closeGlobalStream?.();
-        this.closeGlobalStream = undefined;
         for (const binding of this.sessions.values()) {
             this.streamRetryCancel(binding);
             binding.closeStream?.();
@@ -461,37 +451,6 @@ export class RigState implements Disposable, AsyncDisposable {
             binding.set({ ...binding.get(), status: { type: "error", error: stateError(error) } });
             throw error;
         }
-    }
-
-    private globalStreamOpen(): void {
-        if (this.closeGlobalStream || this.disposed) return;
-        this.closeGlobalStream = this.transport.globalEventsSubscribe(
-            {
-                event: (event) => this.globalEvent(event),
-                error: (error) => {
-                    this.closeGlobalStream = undefined;
-                    this.backgroundError(stateError(error));
-                    if (!this.disposed)
-                        this.background(
-                            this.directoryReconcile().then(() => this.globalStreamOpen()),
-                        );
-                },
-                end: () => {
-                    this.closeGlobalStream = undefined;
-                    if (!this.disposed)
-                        this.background(
-                            this.directoryReconcile().then(() => this.globalStreamOpen()),
-                        );
-                },
-            },
-            this.directoryCursor,
-        );
-    }
-
-    private globalEvent(event: RigGlobalEvent): void {
-        if (this.disposed || event.cursor <= (this.directoryCursor ?? -1)) return;
-        this.directoryCursor = event.cursor;
-        this.background(this.directoryReconcile().then(() => this.globalStreamOpen()));
     }
 
     private streamStart(

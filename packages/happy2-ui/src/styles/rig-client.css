@@ -7,6 +7,23 @@
     background: var(--surface);
 }
 
+.happy2-app-shell.happy2-rig-app-shell[data-window-controls]
+    .happy2-app-shell__sidebar
+    > .happy2-sidebar
+    > .happy2-sidebar__header {
+    height: 104px;
+    padding: 48px 16px 0;
+}
+
+.happy2-rig-client__empty-header {
+    display: block;
+    flex: none;
+    width: 100%;
+    height: 56px;
+    -webkit-app-region: drag;
+    app-region: drag;
+}
+
 .happy2-rig-client__sidebar-footer {
     display: flex;
     align-items: center;

@@ -30,6 +30,7 @@ import { RigRendererTransport } from "./rigRendererTransport";
 import type { HappyDesktopBridge } from "./shared/desktopContract";
 
 interface RigUiSnapshot {
+    readonly appearance: "dark" | "light";
     readonly backgroundError?: string;
     readonly drafts: ReadonlyMap<RigSessionId, string>;
     readonly selectedSessionId?: RigSessionId;
@@ -40,6 +41,11 @@ interface RigUiSnapshot {
 class RigUiStore {
     private readonly listeners = new Set<() => void>();
     private snapshot: RigUiSnapshot = {
+        appearance:
+            typeof window !== "undefined" &&
+            window.matchMedia?.("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light",
         drafts: new Map(),
         terminalHeight: 260,
         terminals: new Map(),
@@ -73,6 +79,13 @@ class RigUiStore {
         this.set({
             ...this.snapshot,
             terminalHeight: Math.max(120, Math.min(560, Math.round(value))),
+        });
+    }
+
+    appearanceToggle(): void {
+        this.set({
+            ...this.snapshot,
+            appearance: this.snapshot.appearance === "dark" ? "light" : "dark",
         });
     }
 
@@ -236,11 +249,13 @@ function RigClientView(props: {
     }));
     const shared = {
         activeSessionId: selected,
+        appearance: ui.appearance,
         composerValue: selected ? (ui.drafts.get(selected) ?? "") : "",
         directoryError:
             directory.status.type === "error" ? directory.status.error.message : ui.backgroundError,
         directoryLoading: directory.status.type === "loading",
         onChangeConnection: props.onChangeMode,
+        onAppearanceToggle: () => props.runtime.ui.appearanceToggle(),
         onComposerValueChange: (value: string) => {
             if (selected) props.runtime.ui.draftUpdate(selected, value);
         },

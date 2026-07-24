@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { rigStateCreate, type RigSessionId } from "../src/index.js";
 import { createFakeRigTransport, fakeRigSession } from "../src/testing/index.js";
 
-describe("RigState directory", () => {
-    it("groups canonical directories deterministically and preserves unchanged identities", async () => {
+describe("RigState connection directory", () => {
+    it("groups directories and reloads them authoritatively with a reconstructed state", async () => {
         const fake = createFakeRigTransport();
         const newest = fakeRigSession("session-b", {
             cwd: "/Users/ada/Project",
@@ -27,7 +27,7 @@ describe("RigState directory", () => {
         expect(state.directory()).toBe(directory);
         await state.whenIdle();
 
-        expect(fake.globalSubscriberCount).toBe(1);
+        expect(fake.globalSubscriberCount).toBe(0);
         expect(directory.get().groups.map(({ id }) => id)).toEqual([
             "/opt/alpha",
             "/Users/ada/Project",
@@ -36,25 +36,29 @@ describe("RigState directory", () => {
         const priorOther = priorGroups[0];
         const priorOlder = priorGroups[1]!.sessions.find(({ id }) => id === older.id);
 
-        fake.sessionSet({ ...newest, title: "Changed" });
-        fake.globalEmit({
-            cursor: 1,
-            sessionId: newest.id,
-            kind: "sessionChanged",
-        });
+        directory.sessionCreate({ cwd: "/new" });
         await state.whenIdle();
 
-        expect(directory.get().groups[0]).toBe(priorOther);
-        expect(directory.get().groups[1]!.sessions.find(({ id }) => id === older.id)).toBe(
-            priorOlder,
-        );
-        expect(directory.get().groups[1]!.sessions.find(({ id }) => id === newest.id)?.title).toBe(
-            "Changed",
-        );
+        expect(directory.get().groups.find(({ id }) => id === "/opt/alpha")).toBe(priorOther);
+        expect(
+            directory
+                .get()
+                .groups.find(({ id }) => id === "/Users/ada/Project")
+                ?.sessions.find(({ id }) => id === older.id),
+        ).toBe(priorOlder);
+        fake.sessionSet({ ...newest, title: "Changed after reconnect" });
+        state[Symbol.dispose]();
+        using reconnected = rigStateCreate({ transport: fake.transport });
+        const refreshed = reconnected.directory();
+        await reconnected.whenIdle();
 
-        fake.globalEnd();
-        await state.whenIdle();
-        expect(fake.globalSubscriberCount).toBe(1);
+        expect(
+            refreshed
+                .get()
+                .groups.flatMap(({ sessions }) => sessions)
+                .find(({ id }) => id === newest.id)?.title,
+        ).toBe("Changed after reconnect");
+        expect(fake.globalSubscriberCount).toBe(0);
     });
 
     it("routes create, fork, and reset failures without fabricating durable state", async () => {
@@ -87,12 +91,12 @@ describe("RigState directory", () => {
         );
     });
 
-    it("cancels the global subscription when the root is disposed", async () => {
+    it("does not require Rig's optional durable global event queue", async () => {
         const fake = createFakeRigTransport();
         const state = rigStateCreate({ transport: fake.transport });
         state.directory();
         await state.whenIdle();
-        expect(fake.globalSubscriberCount).toBe(1);
+        expect(fake.globalSubscriberCount).toBe(0);
         state[Symbol.dispose]();
         expect(fake.globalSubscriberCount).toBe(0);
     });

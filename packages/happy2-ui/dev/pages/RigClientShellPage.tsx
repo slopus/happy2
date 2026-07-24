@@ -4,6 +4,7 @@ import { ComponentPage, FullScreenSpecimen } from "../kit";
 const noOp = () => undefined;
 const base: RigClientShellProps = {
     activeSessionId: "session-1",
+    appearance: "light",
     activity: {
         now: Date.UTC(2026, 6, 23, 20, 0),
         subagents: [
@@ -21,6 +22,7 @@ const base: RigClientShellProps = {
     composerValue: "",
     onAbort: noOp,
     onAnswerInput: noOp,
+    onAppearanceToggle: noOp,
     onChangeConnection: noOp,
     onComposerValueChange: noOp,
     onDirectoryPick: async () => undefined,

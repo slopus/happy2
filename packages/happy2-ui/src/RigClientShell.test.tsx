@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { server, userEvent } from "vitest/browser";
 import "./styles.css";
 import { RigClientShell, type RigClientShellProps } from "./RigClientShell";
 import { createRenderer } from "./testing";
@@ -8,6 +8,7 @@ import { createRenderer } from "./testing";
 const noOp = () => undefined;
 const base: RigClientShellProps = {
     activeSessionId: "session-1",
+    appearance: "light",
     activity: {
         now: Date.UTC(2026, 6, 23, 20, 0),
         subagents: [
@@ -25,6 +26,7 @@ const base: RigClientShellProps = {
     composerValue: "",
     onAbort: noOp,
     onAnswerInput: noOp,
+    onAppearanceToggle: noOp,
     onChangeConnection: noOp,
     onComposerValueChange: noOp,
     onDirectoryPick: async () => undefined,
@@ -92,10 +94,12 @@ const base: RigClientShellProps = {
 it("composes the direct-Rig desktop workspace and creates sessions from absolute paths", async () => {
     const sessionCreate = vi.fn();
     const directoryPick = vi.fn(async () => "/Users/ada/Developer/new-project");
+    const appearanceToggle = vi.fn();
     const view = createRenderer().render(
         () => (
             <RigClientShell
                 {...base}
+                onAppearanceToggle={appearanceToggle}
                 onDirectoryPick={directoryPick}
                 onSessionCreate={sessionCreate}
             />
@@ -110,8 +114,11 @@ it("composes the direct-Rig desktop workspace and creates sessions from absolute
     });
     expect(view.container.textContent).toContain("Rig 0.0.45");
     expect(view.container.textContent).toContain("Direct local Rig client");
+    expect(view.$('[data-happy2-ui="sidebar-brand-logo"]').bounds().y).toBeGreaterThanOrEqual(56);
     expect(view.container.querySelectorAll('[data-happy2-ui="message"]')).toHaveLength(2);
     expect(view.$('[data-happy2-ui="message-list"]').computedStyle("overflow-y")).toBe("auto");
+    await userEvent.click(view.container.querySelector('[aria-label="Use dark appearance"]')!);
+    expect(appearanceToggle).toHaveBeenCalledOnce();
 
     const newSession = Array.from(
         view.container.querySelectorAll<HTMLButtonElement>("button"),
@@ -134,6 +141,31 @@ it("composes the direct-Rig desktop workspace and creates sessions from absolute
     expect(sessionCreate).toHaveBeenCalledWith("/Users/ada/Developer/new-project");
 
     await view.screenshot("RigClientShell.test");
+});
+
+it("keeps an empty workspace draggable before a session is selected", async () => {
+    const view = createRenderer().render(
+        () => (
+            <RigClientShell
+                {...base}
+                activeSessionId={undefined}
+                activity={{ now: 0, subagents: [], terminals: [] }}
+                session={undefined}
+                sidebarSections={[]}
+            />
+        ),
+        { width: 720, height: 480 },
+    );
+    await view.ready();
+
+    const header = view.$('[data-happy2-ui="rig-client-empty-header"]');
+    expect(header.bounds().height).toBe(56);
+    if (server.browser === "chromium") {
+        const style = getComputedStyle(header.element);
+        expect(
+            style.getPropertyValue("app-region") || style.getPropertyValue("-webkit-app-region"),
+        ).toBe("drag");
+    }
 });
 
 it("preserves message nodes and composer focus across same-surface notifications", async () => {

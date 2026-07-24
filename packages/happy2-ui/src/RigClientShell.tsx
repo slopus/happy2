@@ -15,6 +15,7 @@ import type { SelectOption } from "./Select";
 import { Sidebar, type SidebarSection } from "./Sidebar";
 import { TerminalPanel } from "./TerminalPanel";
 import { TextField } from "./TextField";
+import { ThemeScope } from "./ThemeScope";
 
 export interface RigClientMessage {
     readonly body: string;
@@ -66,6 +67,7 @@ export interface RigClientShellProps {
     readonly activeSessionId?: string;
     readonly activeTerminal?: RigClientTerminalView;
     readonly activity: Pick<AgentActivityStripProps, "now" | "subagents" | "terminals">;
+    readonly appearance: "dark" | "light";
     readonly composerValue: string;
     readonly directoryError?: string;
     readonly directoryLoading?: boolean;
@@ -75,6 +77,7 @@ export interface RigClientShellProps {
         answers: Readonly<Record<string, readonly string[]>>,
     ) => void;
     readonly onChangeConnection: () => void;
+    readonly onAppearanceToggle: () => void;
     readonly onComposerValueChange: (value: string) => void;
     readonly onDirectoryPick: () => Promise<string | undefined>;
     readonly onEffortChange: (value?: string) => void;
@@ -112,269 +115,299 @@ export function RigClientShell(props: RigClientShellProps) {
     const [cwd, setCwd] = useState("");
     const session = props.session;
     const controlsDisabled = !session || Boolean(props.sessionLoading);
+    const contextHeaderVisible =
+        !props.directoryError &&
+        !props.directoryLoading &&
+        Boolean(props.activeSessionId) &&
+        !props.sessionLoading &&
+        Boolean(session);
     return (
-        <AppShell
-            sidebar={
-                <Sidebar
-                    activeItemId={props.activeSessionId ?? ""}
-                    brand
-                    composeLabel="New session"
-                    footer={
-                        <div className="happy2-rig-client__sidebar-footer">
-                            <span>Rig {props.rigVersion}</span>
-                            <Button onClick={props.onChangeConnection} size="small" variant="ghost">
-                                Switch
-                            </Button>
-                        </div>
-                    }
-                    onCompose={() => setCreateOpen(true)}
-                    onItemSelect={props.onSessionSelect}
-                    sections={[...props.sidebarSections]}
-                    subtitle="Local sessions"
-                />
-            }
-            sidebarCollapsible
-            windowControls
-        >
-            <main
-                className="happy2-rig-client happy2-chat-conversation"
-                data-happy2-ui="rig-client-shell"
+        <ThemeScope mode={props.appearance}>
+            <AppShell
+                className="happy2-rig-app-shell"
+                sidebar={
+                    <Sidebar
+                        activeItemId={props.activeSessionId ?? ""}
+                        brand
+                        composeLabel="New session"
+                        footer={
+                            <div className="happy2-rig-client__sidebar-footer">
+                                <span>Rig {props.rigVersion}</span>
+                                <Button
+                                    aria-label={
+                                        props.appearance === "dark"
+                                            ? "Use light appearance"
+                                            : "Use dark appearance"
+                                    }
+                                    icon={props.appearance === "dark" ? "sun" : "moon"}
+                                    iconOnly
+                                    onClick={props.onAppearanceToggle}
+                                    size="small"
+                                    variant="ghost"
+                                />
+                            </div>
+                        }
+                        onCompose={() => setCreateOpen(true)}
+                        onItemSelect={props.onSessionSelect}
+                        sections={[...props.sidebarSections]}
+                        subtitle="Local sessions"
+                    />
+                }
+                sidebarCollapsible
+                windowControls
             >
-                {props.directoryError ? (
-                    <div className="happy2-rig-client__state">
-                        <EmptyState
-                            description={props.directoryError}
-                            icon="shield"
-                            title="Sessions could not be loaded"
+                <main
+                    className="happy2-rig-client happy2-chat-conversation"
+                    data-happy2-ui="rig-client-shell"
+                >
+                    {!contextHeaderVisible ? (
+                        <div
+                            aria-hidden="true"
+                            className="happy2-rig-client__empty-header"
+                            data-happy2-ui="rig-client-empty-header"
                         />
-                    </div>
-                ) : props.directoryLoading ? (
-                    <div className="happy2-rig-client__state">
-                        <EmptyState
-                            description="Reading the Rig catalog…"
-                            icon="inbox"
-                            title="Loading sessions"
-                        />
-                    </div>
-                ) : !props.activeSessionId ? (
-                    <div className="happy2-rig-client__state">
-                        <EmptyState
-                            action={{ label: "New session", onClick: () => setCreateOpen(true) }}
-                            description="Start an agent in a working directory on this Mac."
-                            icon="plus"
-                            title="No Rig sessions yet"
-                        />
-                    </div>
-                ) : props.sessionLoading || !session ? (
-                    <div className="happy2-rig-client__state">
-                        <EmptyState
-                            description="Reconciling the session…"
-                            icon="inbox"
-                            title="Loading session"
-                        />
-                    </div>
-                ) : (
-                    <>
-                        <ChannelHeader
-                            actions={
-                                <>
-                                    {session.status === "running" ? (
+                    ) : null}
+                    {props.directoryError ? (
+                        <div className="happy2-rig-client__state">
+                            <EmptyState
+                                description={props.directoryError}
+                                icon="shield"
+                                title="Sessions could not be loaded"
+                            />
+                        </div>
+                    ) : props.directoryLoading ? (
+                        <div className="happy2-rig-client__state">
+                            <EmptyState
+                                description="Reading the Rig catalog…"
+                                icon="inbox"
+                                title="Loading sessions"
+                            />
+                        </div>
+                    ) : !props.activeSessionId ? (
+                        <div className="happy2-rig-client__state">
+                            <EmptyState
+                                action={{
+                                    label: "New session",
+                                    onClick: () => setCreateOpen(true),
+                                }}
+                                description="Start an agent in a working directory on this Mac."
+                                icon="plus"
+                                title="No Rig sessions yet"
+                            />
+                        </div>
+                    ) : props.sessionLoading || !session ? (
+                        <div className="happy2-rig-client__state">
+                            <EmptyState
+                                description="Reconciling the session…"
+                                icon="inbox"
+                                title="Loading session"
+                            />
+                        </div>
+                    ) : (
+                        <>
+                            <ChannelHeader
+                                actions={
+                                    <>
+                                        {session.status === "running" ? (
+                                            <Button
+                                                aria-label="Stop active run"
+                                                icon="pause"
+                                                iconOnly
+                                                onClick={props.onAbort}
+                                                size="small"
+                                                variant="ghost"
+                                            />
+                                        ) : null}
                                         <Button
-                                            aria-label="Stop active run"
-                                            icon="pause"
+                                            aria-label={
+                                                props.activeTerminal
+                                                    ? "Terminal is open"
+                                                    : "Open terminal"
+                                            }
+                                            icon="terminal"
                                             iconOnly
-                                            onClick={props.onAbort}
+                                            onClick={() => {
+                                                if (props.activeTerminal) return;
+                                                const terminal = props.terminalIds[0];
+                                                if (terminal) props.onTerminalOpen(terminal.id);
+                                                else props.onTerminalCreate();
+                                            }}
                                             size="small"
                                             variant="ghost"
                                         />
-                                    ) : null}
-                                    <Button
-                                        aria-label={
-                                            props.activeTerminal
-                                                ? "Terminal is open"
-                                                : "Open terminal"
+                                    </>
+                                }
+                                agentCount={props.activity.subagents.length || undefined}
+                                icon="spark"
+                                menuItems={sessionMenuItems(props)}
+                                menuLabel="Rig session menu"
+                                onMenuSelect={(id) => sessionMenuSelect(id, props)}
+                                topic={session.cwd}
+                                title={session.title}
+                            />
+                            {session.error ? (
+                                <div className="happy2-rig-client__banner">
+                                    <Banner tone="danger">{session.error}</Banner>
+                                </div>
+                            ) : null}
+                            <MessageList virtualize>
+                                {session.messages.map((message) => (
+                                    <Message
+                                        agent={message.role === "agent"}
+                                        author={
+                                            message.role === "agent"
+                                                ? "Rig"
+                                                : message.role === "system"
+                                                  ? "System"
+                                                  : "You"
                                         }
-                                        icon="terminal"
-                                        iconOnly
-                                        onClick={() => {
-                                            if (props.activeTerminal) return;
-                                            const terminal = props.terminalIds[0];
-                                            if (terminal) props.onTerminalOpen(terminal.id);
-                                            else props.onTerminalCreate();
-                                        }}
-                                        size="small"
-                                        variant="ghost"
+                                        body={message.body}
+                                        generationStatus={
+                                            message.streaming ? "streaming" : undefined
+                                        }
+                                        key={message.id}
+                                        own={message.role === "user"}
+                                        time=""
                                     />
-                                </>
-                            }
-                            agentCount={props.activity.subagents.length || undefined}
-                            icon="spark"
-                            menuItems={sessionMenuItems(props)}
-                            menuLabel="Rig session menu"
-                            onMenuSelect={(id) => sessionMenuSelect(id, props)}
-                            topic={session.cwd}
-                            title={session.title}
-                        />
-                        {session.error ? (
-                            <div className="happy2-rig-client__banner">
-                                <Banner tone="danger">{session.error}</Banner>
+                                ))}
+                            </MessageList>
+                            <div className="happy2-rig-client__requests">
+                                {session.pendingInputs.map((request) => (
+                                    <RigInputRequestCard
+                                        key={request.requestId}
+                                        onAnswer={(answers) =>
+                                            props.onAnswerInput(request.requestId, answers)
+                                        }
+                                        request={request}
+                                    />
+                                ))}
                             </div>
-                        ) : null}
-                        <MessageList virtualize>
-                            {session.messages.map((message) => (
-                                <Message
-                                    agent={message.role === "agent"}
-                                    author={
-                                        message.role === "agent"
-                                            ? "Rig"
-                                            : message.role === "system"
-                                              ? "System"
-                                              : "You"
-                                    }
-                                    body={message.body}
-                                    generationStatus={message.streaming ? "streaming" : undefined}
-                                    key={message.id}
-                                    own={message.role === "user"}
-                                    time=""
-                                />
-                            ))}
-                        </MessageList>
-                        <div className="happy2-rig-client__requests">
-                            {session.pendingInputs.map((request) => (
-                                <RigInputRequestCard
-                                    key={request.requestId}
-                                    onAnswer={(answers) =>
-                                        props.onAnswerInput(request.requestId, answers)
-                                    }
-                                    request={request}
-                                />
-                            ))}
-                        </div>
-                        <ComposerDock
-                            activities={activityProject(session.id, props.activity)}
-                            activityNow={props.activity.now}
-                            composerCompactHint={
-                                session.status === "running" ? "Steer run" : "Send"
-                            }
-                            composerDisabled={controlsDisabled}
-                            composerHint={
-                                session.status === "running"
-                                    ? "Enter to steer the active run"
-                                    : "Enter to send"
-                            }
-                            composerMentions={[]}
-                            composerModelControl={
-                                <ComposerModelControl
-                                    disabled={session.modelLocked}
-                                    effort={session.effort ?? ""}
-                                    efforts={[
-                                        { id: "", label: "Default" },
-                                        ...session.effortOptions.map((option) => ({
+                            <ComposerDock
+                                activities={activityProject(session.id, props.activity)}
+                                activityNow={props.activity.now}
+                                composerCompactHint={
+                                    session.status === "running" ? "Steer run" : "Send"
+                                }
+                                composerDisabled={controlsDisabled}
+                                composerHint={
+                                    session.status === "running"
+                                        ? "Enter to steer the active run"
+                                        : "Enter to send"
+                                }
+                                composerMentions={[]}
+                                composerModelControl={
+                                    <ComposerModelControl
+                                        disabled={session.modelLocked}
+                                        effort={session.effort ?? ""}
+                                        efforts={[
+                                            { id: "", label: "Default" },
+                                            ...session.effortOptions.map((option) => ({
+                                                id: option.value,
+                                                label: option.label,
+                                            })),
+                                        ]}
+                                        model={session.modelId}
+                                        models={session.modelOptions.map((option) => ({
                                             id: option.value,
                                             label: option.label,
-                                        })),
-                                    ]}
-                                    model={session.modelId}
-                                    models={session.modelOptions.map((option) => ({
-                                        id: option.value,
-                                        label: option.label,
-                                    }))}
-                                    onEffortChange={(value) =>
-                                        props.onEffortChange(value || undefined)
-                                    }
-                                    onModelChange={props.onModelChange}
-                                />
-                            }
-                            composerPending={false}
-                            composerSendEnabled={Boolean(props.composerValue.trim())}
-                            composerValue={props.composerValue}
-                            contextItems={[]}
-                            onComposerFocusChange={() => undefined}
-                            onContextRemove={() => undefined}
-                            onFilesSelected={() => undefined}
-                            onSend={props.onSend}
-                            onValueChange={props.onComposerValueChange}
-                            placeholder={
-                                session.status === "running"
-                                    ? "Steer the running agent…"
-                                    : "Ask Rig to work…"
-                            }
-                        />
-                        {props.activeTerminal ? (
-                            <TerminalPanel
-                                error={props.activeTerminal.error}
-                                exitCode={props.activeTerminal.exitCode}
-                                grid={props.activeTerminal.grid}
-                                height={props.terminalHeight}
-                                onClose={props.onTerminalClose}
-                                onHeightChange={props.onTerminalHeightChange}
-                                onInput={props.onTerminalInput}
-                                onReconnect={props.onTerminalReconnect}
-                                onResize={props.onTerminalResize}
-                                status={props.activeTerminal.status}
-                            />
-                        ) : null}
-                    </>
-                )}
-            </main>
-            {createOpen ? (
-                <ModalOverlay onDismiss={() => setCreateOpen(false)}>
-                    <Modal
-                        footer={
-                            <>
-                                <Button onClick={() => setCreateOpen(false)} variant="ghost">
-                                    Cancel
-                                </Button>
-                                <Button
-                                    disabled={!cwd.startsWith("/")}
-                                    onClick={() => {
-                                        props.onSessionCreate(cwd);
-                                        setCreateOpen(false);
-                                        setCwd("");
-                                    }}
-                                >
-                                    Create session
-                                </Button>
-                            </>
-                        }
-                        icon="plus"
-                        onClose={() => setCreateOpen(false)}
-                        size="medium"
-                        title="New Rig session"
-                    >
-                        <div className="happy2-rig-client__create">
-                            <TextField
-                                autoComplete="off"
-                                fullWidth
-                                hint="Choose a folder or enter an absolute directory path."
-                                label="Working directory"
-                                onSubmit={() => {
-                                    if (cwd.startsWith("/")) {
-                                        props.onSessionCreate(cwd);
-                                        setCreateOpen(false);
-                                        setCwd("");
-                                    }
-                                }}
-                                onValueChange={setCwd}
-                                placeholder="/Users/you/Developer/project"
-                                value={cwd}
-                            />
-                            <Button
-                                icon="files"
-                                onClick={() =>
-                                    void props.onDirectoryPick().then((path) => {
-                                        if (path) setCwd(path);
-                                    })
+                                        }))}
+                                        onEffortChange={(value) =>
+                                            props.onEffortChange(value || undefined)
+                                        }
+                                        onModelChange={props.onModelChange}
+                                    />
                                 }
-                                variant="secondary"
-                            >
-                                Choose folder
-                            </Button>
-                        </div>
-                    </Modal>
-                </ModalOverlay>
-            ) : null}
-        </AppShell>
+                                composerPending={false}
+                                composerSendEnabled={Boolean(props.composerValue.trim())}
+                                composerValue={props.composerValue}
+                                contextItems={[]}
+                                onComposerFocusChange={() => undefined}
+                                onContextRemove={() => undefined}
+                                onFilesSelected={() => undefined}
+                                onSend={props.onSend}
+                                onValueChange={props.onComposerValueChange}
+                                placeholder={
+                                    session.status === "running"
+                                        ? "Steer the running agent…"
+                                        : "Ask Rig to work…"
+                                }
+                            />
+                            {props.activeTerminal ? (
+                                <TerminalPanel
+                                    error={props.activeTerminal.error}
+                                    exitCode={props.activeTerminal.exitCode}
+                                    grid={props.activeTerminal.grid}
+                                    height={props.terminalHeight}
+                                    onClose={props.onTerminalClose}
+                                    onHeightChange={props.onTerminalHeightChange}
+                                    onInput={props.onTerminalInput}
+                                    onReconnect={props.onTerminalReconnect}
+                                    onResize={props.onTerminalResize}
+                                    status={props.activeTerminal.status}
+                                />
+                            ) : null}
+                        </>
+                    )}
+                </main>
+                {createOpen ? (
+                    <ModalOverlay onDismiss={() => setCreateOpen(false)}>
+                        <Modal
+                            footer={
+                                <>
+                                    <Button onClick={() => setCreateOpen(false)} variant="ghost">
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        disabled={!cwd.startsWith("/")}
+                                        onClick={() => {
+                                            props.onSessionCreate(cwd);
+                                            setCreateOpen(false);
+                                            setCwd("");
+                                        }}
+                                    >
+                                        Create session
+                                    </Button>
+                                </>
+                            }
+                            icon="plus"
+                            onClose={() => setCreateOpen(false)}
+                            size="medium"
+                            title="New Rig session"
+                        >
+                            <div className="happy2-rig-client__create">
+                                <TextField
+                                    autoComplete="off"
+                                    fullWidth
+                                    hint="Choose a folder or enter an absolute directory path."
+                                    label="Working directory"
+                                    onSubmit={() => {
+                                        if (cwd.startsWith("/")) {
+                                            props.onSessionCreate(cwd);
+                                            setCreateOpen(false);
+                                            setCwd("");
+                                        }
+                                    }}
+                                    onValueChange={setCwd}
+                                    placeholder="/Users/you/Developer/project"
+                                    value={cwd}
+                                />
+                                <Button
+                                    icon="files"
+                                    onClick={() =>
+                                        void props.onDirectoryPick().then((path) => {
+                                            if (path) setCwd(path);
+                                        })
+                                    }
+                                    variant="secondary"
+                                >
+                                    Choose folder
+                                </Button>
+                            </div>
+                        </Modal>
+                    </ModalOverlay>
+                ) : null}
+            </AppShell>
+        </ThemeScope>
     );
 }
 
@@ -460,6 +493,13 @@ function sessionMenuItems(props: RigClientShellProps) {
                   },
               ]
             : []),
+        { kind: "separator" as const },
+        {
+            kind: "item" as const,
+            id: "connection:switch",
+            icon: "arrow-right" as const,
+            label: "Switch connection",
+        },
     ];
 }
 
@@ -472,6 +512,7 @@ function sessionMenuSelect(id: string, props: RigClientShellProps): void {
     else if (id === "terminal:new") props.onTerminalCreate();
     else if (id.startsWith("terminal-stop:")) props.onTerminalStop(id.slice(14));
     else if (id.startsWith("terminal:")) props.onTerminalOpen(id.slice(9));
+    else if (id === "connection:switch") props.onChangeConnection();
 }
 
 function RigInputRequestCard(props: {
