@@ -12,7 +12,6 @@ import {
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { CredentialVault } from "./main/credentialVault";
 import { DesktopRuntime } from "./main/desktopRuntime";
 import { desktopInstanceMenuTargets } from "./main/applicationMenu";
 import {
@@ -22,12 +21,20 @@ import {
 } from "./main/navigation";
 import { desktopUpdaterCreate } from "./main/updater";
 import { DesktopWindowLifecycle, type DesktopWindowBounds } from "./main/windowLifecycle";
-import {
-    desktopLocalCapabilityValueValidate,
-    desktopStartRequestValidate,
-    desktopTopologyIdValidate,
-} from "./main/runtimeValidation";
+import { desktopStartRequestValidate, desktopTopologyIdValidate } from "./main/runtimeValidation";
 import { desktopIpc } from "./shared/desktopContract";
+import { localRigConnectorCreate } from "./main/localRig";
+import { RigIpcHost } from "./main/rigIpcHost";
+import {
+    rigClientRequestValidate,
+    rigScrollbackBasisValidate,
+    rigScrollbackValidate,
+    rigStreamIdValidate,
+    rigStreamOpenRequestValidate,
+    rigTerminalInputValidate,
+    rigTerminalSizeValidate,
+} from "./main/rigIpcValidation";
+import { RigInstallTerminalManager } from "./main/rigInstallTerminal";
 
 if (process.platform !== "darwin") {
     console.error("Happy (2) desktop is available only on macOS.");
@@ -55,7 +62,10 @@ const macosWindowChrome = {
 nativeTheme.themeSource = "system";
 
 let runtime: DesktopRuntime;
+let rigIpcHost: RigIpcHost;
+let rigInstallManager: RigInstallTerminalManager;
 let quitting = false;
+let activeRigConnectionId: number | undefined;
 const windowLifecycle = new DesktopWindowLifecycle<BrowserWindow>();
 
 function windowOptions(
@@ -98,6 +108,16 @@ function localWindowCreate(bounds?: DesktopWindowBounds) {
     };
     window.webContents.on("will-navigate", preventUntrustedNavigation);
     window.webContents.on("will-redirect", preventUntrustedNavigation);
+    const ownerId = window.webContents.id;
+    const cleanup = () => {
+        rigIpcHost?.closeOwner(ownerId);
+        rigInstallManager?.closeOwner(ownerId);
+    };
+    window.webContents.on("render-process-gone", cleanup);
+    window.webContents.on("destroyed", cleanup);
+    window.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+        if (isMainFrame && !isInPlace) cleanup();
+    });
     return {
         load: () =>
             developmentUrl ? window.loadURL(developmentUrl) : window.loadFile(rendererPath),
@@ -183,22 +203,34 @@ void app
     .then(async () => {
         app.dock?.setIcon(applicationIconPath);
         const desktopRoot = join(app.getPath("userData"), "desktop");
-        const vault = new CredentialVault(join(desktopRoot, "credentials.json"));
+        const connector = localRigConnectorCreate();
         runtime = await DesktopRuntime.create(
             {
-                executablePath: process.execPath,
                 root: desktopRoot,
-                serverWorkerPath: join(dirname, "server-process.js"),
-                webRoot: join(dirname, "renderer"),
             },
-            vault,
+            { localRigConnector: connector },
         );
+        rigIpcHost = new RigIpcHost(() => runtime.localRigTransport());
+        rigInstallManager = new RigInstallTerminalManager(connector, {
+            verified: () => void runtime.retry().catch(() => undefined),
+        });
         const updater = desktopUpdaterCreate({
             packaged: app.isPackaged,
             update: (snapshot) => runtime.updateSet(snapshot),
         });
         runtime.subscribe((snapshot) => {
             const previous = windowLifecycle.get();
+            const nextRigConnectionId =
+                snapshot.phase === "ready" && snapshot.mode === "local"
+                    ? snapshot.connectionId
+                    : undefined;
+            if (
+                previous &&
+                activeRigConnectionId !== undefined &&
+                nextRigConnectionId !== activeRigConnectionId
+            )
+                rigIpcHost.closeOwner(previous.webContents.id);
+            activeRigConnectionId = nextRigConnectionId;
             const window = windowSynchronize(snapshot);
             applicationMenuInstall(snapshot);
             if (window === previous && desktopWindowTarget(snapshot).kind === "local")
@@ -213,17 +245,88 @@ void app
         ipcMain.handle(desktopIpc.topologySelect, (_event, topologyId: unknown) =>
             runtime.topologySelect(desktopTopologyIdValidate(topologyId)),
         );
-        ipcMain.handle(desktopIpc.localCapabilityGet, (_event, targetId: unknown) =>
-            runtime.localCapabilityGet(desktopTopologyIdValidate(targetId)),
+        ipcMain.handle(desktopIpc.rigRequest, (_event, request: unknown) =>
+            rigIpcHost.request(rigClientRequestValidate(request)),
+        );
+        ipcMain.handle(desktopIpc.rigStreamOpen, (event, request: unknown) =>
+            rigIpcHost.streamOpen(
+                event.sender.id,
+                rigStreamOpenRequestValidate(request),
+                (streamEvent) => {
+                    if (!event.sender.isDestroyed())
+                        event.sender.send(desktopIpc.rigStreamEvent, streamEvent);
+                },
+            ),
+        );
+        ipcMain.handle(desktopIpc.rigStreamClose, (event, streamId: unknown) =>
+            rigIpcHost.streamClose(event.sender.id, rigStreamIdValidate(streamId)),
+        );
+        ipcMain.handle(desktopIpc.rigTerminalWrite, (event, streamId: unknown, data: unknown) =>
+            rigIpcHost.terminalWrite(
+                event.sender.id,
+                rigStreamIdValidate(streamId),
+                rigTerminalInputValidate(data),
+            ),
         );
         ipcMain.handle(
-            desktopIpc.localCapabilityConfirm,
-            (_event, targetId: unknown, value: unknown) =>
-                runtime.localCapabilityConfirm(
-                    desktopTopologyIdValidate(targetId),
-                    desktopLocalCapabilityValueValidate(value),
-                ),
+            desktopIpc.rigTerminalResize,
+            (event, streamId: unknown, cols: unknown, rows: unknown) => {
+                const size = rigTerminalSizeValidate(cols, rows);
+                rigIpcHost.terminalResize(
+                    event.sender.id,
+                    rigStreamIdValidate(streamId),
+                    size.cols,
+                    size.rows,
+                );
+            },
         );
+        ipcMain.handle(
+            desktopIpc.rigTerminalScrollback,
+            (event, streamId: unknown, start: unknown, count: unknown, basis: unknown) => {
+                const range = rigScrollbackValidate(start, count);
+                return rigIpcHost.terminalScrollback(
+                    event.sender.id,
+                    rigStreamIdValidate(streamId),
+                    range.start,
+                    range.count,
+                    rigScrollbackBasisValidate(basis),
+                );
+            },
+        );
+        ipcMain.handle(desktopIpc.rigInstallOpen, (event) =>
+            rigInstallManager.open(event.sender.id, (installEvent) => {
+                if (!event.sender.isDestroyed())
+                    event.sender.send(desktopIpc.rigInstallEvent, installEvent);
+            }),
+        );
+        ipcMain.handle(
+            desktopIpc.rigInstallConfirm,
+            (event, terminalId: unknown, cols: unknown, rows: unknown) => {
+                const size = rigTerminalSizeValidate(cols, rows);
+                if (typeof terminalId !== "string")
+                    throw new Error("The Rig installation terminal identity is invalid.");
+                rigInstallManager.confirm(event.sender.id, terminalId, size.cols, size.rows);
+            },
+        );
+        ipcMain.handle(desktopIpc.rigInstallInput, (event, terminalId: unknown, data: unknown) => {
+            if (typeof terminalId !== "string")
+                throw new Error("The Rig installation terminal identity is invalid.");
+            rigInstallManager.input(event.sender.id, terminalId, rigTerminalInputValidate(data));
+        });
+        ipcMain.handle(
+            desktopIpc.rigInstallResize,
+            (event, terminalId: unknown, cols: unknown, rows: unknown) => {
+                const size = rigTerminalSizeValidate(cols, rows);
+                if (typeof terminalId !== "string")
+                    throw new Error("The Rig installation terminal identity is invalid.");
+                rigInstallManager.resize(event.sender.id, terminalId, size.cols, size.rows);
+            },
+        );
+        ipcMain.handle(desktopIpc.rigInstallClose, (event, terminalId: unknown) => {
+            if (typeof terminalId !== "string")
+                throw new Error("The Rig installation terminal identity is invalid.");
+            rigInstallManager.close(event.sender.id, terminalId);
+        });
         ipcMain.handle(desktopIpc.updateInstall, () => updater.install());
         windowSynchronize(runtime.get());
         applicationMenuInstall(runtime.get());
@@ -252,6 +355,8 @@ app.on("before-quit", (event) => {
     if (quitting || !runtime) return;
     event.preventDefault();
     void runtime.close().finally(() => {
+        rigIpcHost?.[Symbol.dispose]();
+        rigInstallManager?.[Symbol.dispose]();
         quitting = true;
         app.quit();
     });

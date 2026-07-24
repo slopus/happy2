@@ -7,9 +7,9 @@
     "type": "module",
     "main": "dist/main.js",
     "scripts": {
-        "predev": "pnpm --dir ../.. plugins:build && pnpm --dir ../happy2-server build",
+        "predev": "pnpm --dir ../.. plugins:build",
         "dev": "PORT=${PORT:-5174}; concurrently --kill-others-on-fail --names main,preload,renderer,electron \"vite build --config vite.main.config.ts --watch\" \"vite build --config vite.preload.config.ts --watch\" \"vite --host 127.0.0.1 --port $PORT --strictPort\" \"wait-on dist/main.js dist/preload.cjs tcp:$PORT && VITE_DEV_SERVER_URL=http://127.0.0.1:$PORT electron ./dist/main.js\"",
-        "prebuild": "pnpm --dir ../.. plugins:build && pnpm --dir ../happy2-server build",
+        "prebuild": "pnpm --dir ../.. plugins:build",
         "build": "vite build && vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts",
         "predist:mac": "pnpm --dir ../.. desktop:assets",
         "dist:mac": "pnpm build && electron-builder --mac",
@@ -25,9 +25,13 @@
         "clean": "rm -rf dist release"
     },
     "dependencies": {
+        "@lydell/node-pty": "1.2.0-beta.12",
+        "@slopus/ghostty-web": "0.1.0",
+        "@slopus/rig": "0.0.45",
+        "@slopus/rig-client-runtime": "npm:@slopus/rig@0.0.33",
         "electron-updater": "^6.8.9",
         "happy2-app": "workspace:*",
-        "happy2-server": "workspace:*",
+        "happy2-state": "workspace:*",
         "react": "19.2.7",
         "react-dom": "19.2.7"
     },

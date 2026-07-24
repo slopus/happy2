@@ -1,46 +1,12 @@
 import { useReducer, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
-import {
-    App,
-    type DesktopInstanceStatus,
-    type DesktopInstanceTarget,
-    DesktopStartupScreen,
-    type DesktopStartupValues,
-} from "happy2-app";
-import type {
-    DesktopActiveTarget,
-    DesktopTopologyTarget,
-    DesktopUpdateSnapshot,
-    HappyDesktopBridge,
-} from "./shared/desktopContract";
+import { App, DesktopStartupScreen, type DesktopStartupValues } from "happy2-app";
+import type { DesktopUpdateSnapshot, HappyDesktopBridge } from "./shared/desktopContract";
 import { desktopStartRequestFromValues, desktopStartupValues } from "./desktopStartupModel";
 import { desktopRuntimeStoreCreate, type DesktopRuntimeStore } from "./runtimeStore";
 
 function desktopAction(operation: Promise<void>): void {
     void operation.catch(() => undefined);
-}
-
-/**
- * The instance switcher speaks the product's two user-facing kinds. The runtime
- * distinguishes a private on-machine server (`local`) from an HTTPS client to an
- * existing cloud instance, which it tags `remote`; both surface to the user as
- * "cloud" vs "local", so the backend `remote` kind is remapped only here at the
- * composition boundary and the contract itself is left unchanged.
- */
-function instanceTarget(target: DesktopTopologyTarget): DesktopInstanceTarget {
-    return {
-        detail: target.detail,
-        id: target.id,
-        kind: target.kind === "local" ? "local" : "cloud",
-        label: target.label,
-    };
-}
-
-/** Distinct, Rig-free status copy for the active local machine vs cloud endpoint. */
-function runtimeStatus(active: DesktopActiveTarget): DesktopInstanceStatus {
-    return active.mode === "local"
-        ? { label: "Running locally on this Mac", tone: "success" }
-        : { label: `Connected to ${active.label} over HTTPS`, tone: "success" };
 }
 
 function ChoosingScreen(props: { bridge: HappyDesktopBridge; update: DesktopUpdateSnapshot }) {
@@ -88,6 +54,19 @@ function DesktopRenderer(props: { bridge: HappyDesktopBridge; store: DesktopRunt
                 values={desktopStartupValues(snapshot.request)}
             />
         );
+    if (snapshot.phase === "installRequired")
+        return (
+            <DesktopStartupScreen
+                error={`${snapshot.message} Installation UI is pending foundation approval. Command: ${snapshot.command}`}
+                onChange={() => undefined}
+                onChangeMode={() => desktopAction(props.bridge.runtimeReset())}
+                onRetry={() => desktopAction(props.bridge.runtimeRetry())}
+                onSubmit={() => undefined}
+                phase="error"
+                update={snapshot.update}
+                values={desktopStartupValues(snapshot.request)}
+            />
+        );
     if (snapshot.phase === "error")
         return (
             <DesktopStartupScreen
@@ -123,28 +102,19 @@ function DesktopRenderer(props: { bridge: HappyDesktopBridge; store: DesktopRunt
             />
         );
 
-    // Ready local: the App, its process-local state, and its authenticated
-    // transport are tied to one activation. Keying by `connectionId`
-    // rematerializes them only when the runtime opens a new connection; ordinary
-    // same-connection notifications preserve App and DOM identity.
+    // The direct-Rig foundation deliberately does not mount the server-oriented
+    // App. The dedicated local composition is the next, separately approved UI
+    // boundary; this existing reusable status surface keeps the checkpoint
+    // executable without introducing a local HTTP compatibility adapter.
     return (
-        <App
-            credentialStore={{
-                get: () => props.bridge.localCapabilityGet(active.id),
-                set: (value) => props.bridge.localCapabilityConfirm(active.id, value),
-            }}
-            desktopRuntime={{
-                activeTargetId: snapshot.activeTargetId,
-                onChangeMode: () => desktopAction(props.bridge.runtimeReset()),
-                onInstallUpdate: () => desktopAction(props.bridge.updateInstall()),
-                onTargetSelect: (id) => desktopAction(props.bridge.topologySelect(id)),
-                status: runtimeStatus(active),
-                targets: snapshot.targets.map(instanceTarget),
-                update: snapshot.update,
-            }}
-            key={snapshot.connectionId}
-            platform="desktop"
-            serverUrl={active.serverUrl}
+        <DesktopStartupScreen
+            message={`Connected to system Rig ${active.rigVersion}. Local client UI is pending foundation approval.`}
+            onChange={() => undefined}
+            onChangeMode={() => desktopAction(props.bridge.runtimeReset())}
+            onSubmit={() => undefined}
+            phase="starting"
+            update={snapshot.update}
+            values={desktopStartupValues({ mode: "local" })}
         />
     );
 }

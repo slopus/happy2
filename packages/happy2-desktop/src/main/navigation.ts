@@ -31,7 +31,7 @@ export type DesktopWindowTarget =
  * same-origin; every transitional and local state remains in the bundled shell.
  */
 export function desktopWindowTarget(snapshot: DesktopRuntimeSnapshot): DesktopWindowTarget {
-    if (snapshot.phase !== "ready" || snapshot.mode === "local")
+    if (snapshot.phase !== "ready" || snapshot.activeTarget.mode === "local")
         return { key: "local", kind: "local" };
     const url = new URL(snapshot.activeTarget.serverUrl);
     url.searchParams.set("desktop", "1");

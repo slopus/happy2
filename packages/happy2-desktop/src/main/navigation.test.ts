@@ -66,8 +66,8 @@ describe("desktop window target", () => {
                 phase: "ready",
                 activeTarget: {
                     ...targets[0],
-                    authentication: "local",
-                    serverUrl: "http://127.0.0.1:49152",
+                    authentication: "rig",
+                    rigVersion: "0.0.45",
                 },
                 activeTargetId: targets[0].id,
                 connectionId: 3,

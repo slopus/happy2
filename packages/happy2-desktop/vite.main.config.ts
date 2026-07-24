@@ -9,9 +9,15 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 main: resolve(import.meta.dirname, "src/main.ts"),
-                "server-process": resolve(import.meta.dirname, "src/serverProcess.ts"),
             },
-            external: ["electron", "electron-updater", "happy2-server"],
+            external: [
+                /^@slopus\/rig(?:\/|$)/u,
+                "@lydell/node-pty",
+                "@slopus/ghostty-web",
+                "electron",
+                "electron-updater",
+                "happy2-state",
+            ],
             output: {
                 entryFileNames: "[name].js",
             },

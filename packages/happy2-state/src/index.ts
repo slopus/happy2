@@ -193,3 +193,13 @@ export type {
     TerminalStore,
 } from "./modules/terminal/terminalState.js";
 export type { ReactionSelector } from "./modules/reaction/reactionState.js";
+export { RigState, rigStateCreate, type RigStateOptions } from "./rig/rigState.js";
+export type {
+    RigEventObserver,
+    RigGlobalEvent,
+    RigSessionEvent,
+    RigTerminalConnection as RigDirectTerminalConnection,
+    RigTerminalObserver,
+    RigTransport,
+} from "./rig/rigTransport.js";
+export type * from "./rig/rigTypes.js";

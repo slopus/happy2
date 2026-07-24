@@ -38,7 +38,7 @@ export function desktopTopologyRequest(topology: DesktopTopology): DesktopStartR
 export function desktopTopologyTarget(topology: DesktopTopology): DesktopTopologyTarget {
     if (topology.mode === "local")
         return {
-            detail: `Private workspace · ${topology.id.slice(-6)}`,
+            detail: `System Rig · ${topology.id.slice(-6)}`,
             id: topology.id,
             kind: "local",
             label: "This Mac",
@@ -56,26 +56,24 @@ export function desktopTopologyTarget(topology: DesktopTopology): DesktopTopolog
 
 export function desktopActiveTarget(
     topology: DesktopTopology,
-    serverUrl?: string,
+    rigVersion?: string,
 ): DesktopActiveTarget {
     const target = desktopTopologyTarget(topology);
     if (topology.mode === "local") {
-        if (!serverUrl) throw new Error("The local Happy endpoint is unavailable.");
-        return { ...target, authentication: "local", serverUrl };
+        if (!rigVersion) throw new Error("The local Rig version is unavailable.");
+        return { ...target, authentication: "rig", mode: "local", rigVersion };
     }
-    return { ...target, authentication: "account", serverUrl: topology.serverUrl };
+    return {
+        ...target,
+        authentication: "account",
+        mode: "cloud",
+        serverUrl: topology.serverUrl,
+    };
 }
 
 export function desktopTopologyIdValidate(value: unknown): string {
     if (desktopTopologyIdValid(value)) return value;
     throw new Error("The desktop topology identity is invalid.");
-}
-
-export function desktopLocalCapabilityValueValidate(value: unknown): string | undefined {
-    if (value === undefined) return undefined;
-    if (typeof value !== "string" || value.length === 0 || value.length > 65_536)
-        throw new Error("The desktop credential value is invalid.");
-    return value;
 }
 
 export function desktopTopologyIdValid(value: unknown): value is string {

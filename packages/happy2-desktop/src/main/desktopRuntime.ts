@@ -1,7 +1,5 @@
-import { randomBytes } from "node:crypto";
-import { chmod, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { RigTransport } from "happy2-state";
 import type {
     DesktopRuntimeSnapshot,
     DesktopStartRequest,
@@ -9,7 +7,6 @@ import type {
     DesktopTopologyTarget,
     DesktopUpdateSnapshot,
 } from "../shared/desktopContract";
-import { CredentialVault } from "./credentialVault";
 import {
     desktopSettingsActivate,
     desktopSettingsRead,
@@ -24,40 +21,52 @@ import {
     desktopTopologyRequest,
     desktopTopologyTarget,
 } from "./runtimeValidation";
-import { serverChildStart, type ServerChildHandle } from "./serverChild";
+import {
+    localRigConnectorCreate,
+    RigCommandMissingError,
+    type LocalRigConnection,
+    type LocalRigConnector,
+} from "./localRig";
+import { RigProtocolTransport } from "./rigProtocolTransport";
+import { rigInstallCommand } from "./rigInstallTerminal";
 
 const idleUpdate: DesktopUpdateSnapshot = { status: "idle" };
 
 export interface DesktopRuntimePaths {
-    executablePath: string;
-    root: string;
-    serverWorkerPath: string;
-    webRoot: string;
+    readonly root: string;
 }
 
-/** Owns the active topology lifetime and publishes one immutable renderer snapshot. */
-export class DesktopRuntime {
+export interface DesktopRuntimeOptions {
+    readonly localRigConnector?: LocalRigConnector;
+    readonly transportCreate?: (connection: LocalRigConnection) => RigTransport & Disposable;
+}
+
+/** Owns the active local-Rig or remote-cloud topology and one immutable renderer snapshot. */
+export class DesktopRuntime implements AsyncDisposable {
     private activationGeneration = 0;
     private activeTopology?: DesktopTopology;
     private closed = false;
     private closeTask?: Promise<void>;
-    private localAccessToken?: string;
     private readonly listeners = new Set<(snapshot: DesktopRuntimeSnapshot) => void>();
     private operation = Promise.resolve();
     private persistOnSuccess = false;
-    private restartAttempt = 0;
-    private restartTimer?: ReturnType<typeof setTimeout>;
-    private rigEndpointRoot?: string;
-    private server?: ServerChildHandle;
+    private rigConnection?: LocalRigConnection;
+    private rigTransport?: RigTransport & Disposable;
     private settings?: DesktopSettings;
     private snapshotValue: DesktopRuntimeSnapshot;
+    private readonly connector: LocalRigConnector;
+    private readonly transportCreate: (connection: LocalRigConnection) => RigTransport & Disposable;
 
     private constructor(
         private readonly paths: DesktopRuntimePaths,
-        private readonly vault: CredentialVault,
-        settings?: DesktopSettings,
+        settings: DesktopSettings | undefined,
+        options: DesktopRuntimeOptions,
     ) {
         this.settings = settings;
+        this.connector = options.localRigConnector ?? localRigConnectorCreate();
+        this.transportCreate =
+            options.transportCreate ??
+            ((connection) => new RigProtocolTransport(connection.client));
         const active = settings?.topologies.find(({ id }) => id === settings.activeTopologyId);
         if (active) {
             this.activeTopology = active;
@@ -65,7 +74,7 @@ export class DesktopRuntime {
                 phase: "starting",
                 message:
                     active.mode === "local"
-                        ? "Starting your local Happy workspace…"
+                        ? "Connecting to your local Rig daemon…"
                         : "Connecting to your cloud Happy workspace…",
                 request: desktopTopologyRequest(active),
                 targets: this.targets(),
@@ -81,11 +90,10 @@ export class DesktopRuntime {
 
     static async create(
         paths: DesktopRuntimePaths,
-        vault: CredentialVault,
+        options: DesktopRuntimeOptions = {},
     ): Promise<DesktopRuntime> {
         const settings = await desktopSettingsRead(join(paths.root, "desktop-settings.json"));
-        await vault.obsoleteCredentialsRemove();
-        const runtime = new DesktopRuntime(paths, vault, settings);
+        const runtime = new DesktopRuntime(paths, settings, options);
         if (runtime.activeTopology)
             void runtime
                 .serial(() => runtime.startValidated(runtime.activeTopology!, false))
@@ -122,9 +130,7 @@ export class DesktopRuntime {
             this.activationGeneration += 1;
             this.activeTopology = undefined;
             this.persistOnSuccess = false;
-            this.restartAttempt = 0;
-            this.restartCancel();
-            await this.processStop();
+            this.localDispose();
             this.publish({
                 phase: "choosing",
                 targets: this.targets(),
@@ -146,20 +152,15 @@ export class DesktopRuntime {
         });
     }
 
-    async localCapabilityGet(targetId: string): Promise<string> {
-        const topology = this.activeTarget(targetId);
-        if (topology.mode !== "local")
-            throw new Error("Cloud targets do not expose desktop credentials.");
-        if (!this.localAccessToken) throw new Error("The local Happy capability is unavailable.");
-        return this.localAccessToken;
-    }
-
-    async localCapabilityConfirm(targetId: string, value?: string): Promise<void> {
-        const topology = this.activeTarget(targetId);
-        if (topology.mode !== "local")
-            throw new Error("Cloud targets do not expose desktop credentials.");
-        if (value !== undefined && value !== this.localAccessToken)
-            throw new Error("The desktop-owned local capability cannot be replaced.");
+    /** Returns the active typed Rig transport without exposing its socket or token. */
+    localRigTransport(): RigTransport {
+        if (
+            this.snapshotValue.phase !== "ready" ||
+            this.snapshotValue.mode !== "local" ||
+            !this.rigTransport
+        )
+            throw new Error("The local Rig connection is not active.");
+        return this.rigTransport;
     }
 
     updateSet(update: DesktopUpdateSnapshot): void {
@@ -171,18 +172,20 @@ export class DesktopRuntime {
         return this.closeTask;
     }
 
+    async [Symbol.asyncDispose](): Promise<void> {
+        await this.close();
+    }
+
     private async closeOnce(): Promise<void> {
         this.closed = true;
         this.activationGeneration += 1;
-        this.restartCancel();
-        await this.serial(() => this.processStop());
+        await this.serial(async () => this.localDispose());
     }
 
     private async startValidated(topology: DesktopTopology, persist: boolean): Promise<void> {
         if (this.closed) throw new Error("The desktop runtime is closed.");
         const generation = ++this.activationGeneration;
-        this.restartCancel();
-        await this.processStop();
+        this.localDispose();
         this.activeTopology = topology;
         this.persistOnSuccess = persist;
         const request = desktopTopologyRequest(topology);
@@ -190,35 +193,23 @@ export class DesktopRuntime {
             phase: "starting",
             message:
                 topology.mode === "local"
-                    ? "Starting the local Happy server…"
-                    : "Connecting to the cloud Happy server…",
+                    ? "Connecting to your local Rig daemon…"
+                    : "Connecting to your cloud Happy workspace…",
             request,
             targets: this.targets(),
             update: this.snapshotValue.update,
         });
         try {
-            let serverUrl: string | undefined;
+            let rigVersion: string | undefined;
             if (topology.mode === "local") {
-                const topologyRoot = join(this.paths.root, "topologies", topology.id);
-                const runtimeRoot = join(topologyRoot, "runtime");
-                this.rigEndpointRoot = await mkdtemp(join(tmpdir(), "happy2-rig-"));
-                await chmod(this.rigEndpointRoot, 0o700);
-                this.localAccessToken = randomBytes(48).toString("base64url");
-                this.server = await serverChildStart({
-                    executablePath: this.paths.executablePath,
-                    localAccessToken: this.localAccessToken,
-                    logPath: join(topologyRoot, "logs", "server.log"),
-                    workerPath: this.paths.serverWorkerPath,
-                    start: {
-                        configPath: join(runtimeRoot, "happy2.toml"),
-                        errorLogPath: join(topologyRoot, "logs", "server-errors.log"),
-                        rigEndpointRoot: this.rigEndpointRoot,
-                        runtimeRoot,
-                        webRoot: this.paths.webRoot,
-                    },
-                    onUnexpectedExit: (error) => this.unexpectedExit(error, generation),
-                });
-                serverUrl = this.server.url;
+                const connection = await this.connector.connect();
+                if (generation !== this.activationGeneration) {
+                    connection.close();
+                    return;
+                }
+                this.rigConnection = connection;
+                this.rigTransport = this.transportCreate(connection);
+                rigVersion = connection.version;
             }
             if (this.persistOnSuccess) {
                 const settings = desktopSettingsActivate(this.settings, topology);
@@ -229,8 +220,8 @@ export class DesktopRuntime {
                 this.settings = settings;
                 this.persistOnSuccess = false;
             }
-            this.restartAttempt = 0;
-            const activeTarget = desktopActiveTarget(topology, serverUrl);
+            if (generation !== this.activationGeneration) return;
+            const activeTarget = desktopActiveTarget(topology, rigVersion);
             this.publish({
                 phase: "ready",
                 activeTarget,
@@ -241,7 +232,19 @@ export class DesktopRuntime {
                 update: this.snapshotValue.update,
             });
         } catch (error) {
-            await this.processStop();
+            this.localDispose();
+            if (generation !== this.activationGeneration) return;
+            if (topology.mode === "local" && error instanceof RigCommandMissingError) {
+                this.publish({
+                    phase: "installRequired",
+                    command: rigInstallCommand,
+                    message: "Rig is required for local mode.",
+                    request: { mode: "local" },
+                    targets: this.targets(),
+                    update: this.snapshotValue.update,
+                });
+                return;
+            }
             this.publish({
                 phase: "error",
                 message: displayError(error),
@@ -254,48 +257,11 @@ export class DesktopRuntime {
         }
     }
 
-    private unexpectedExit(error: Error, generation: number): void {
-        if (
-            this.closed ||
-            generation !== this.activationGeneration ||
-            !this.activeTopology ||
-            this.restartTimer
-        )
-            return;
-        const topology = this.activeTopology;
-        const delay = Math.min(30_000, 1_000 * 2 ** this.restartAttempt++);
-        this.publish({
-            phase: "error",
-            message: `${error.message} Restarting automatically…`,
-            request: desktopTopologyRequest(topology),
-            retryable: true,
-            targets: this.targets(),
-            update: this.snapshotValue.update,
-        });
-        this.restartTimer = setTimeout(() => {
-            this.restartTimer = undefined;
-            if (generation !== this.activationGeneration) return;
-            void this.serial(() => this.startValidated(topology, false)).catch(() => undefined);
-        }, delay);
-    }
-
-    private restartCancel(): void {
-        if (this.restartTimer) clearTimeout(this.restartTimer);
-        this.restartTimer = undefined;
-    }
-
-    private async processStop(): Promise<void> {
-        const server = this.server;
-        const rigEndpointRoot = this.rigEndpointRoot;
-        this.server = undefined;
-        this.rigEndpointRoot = undefined;
-        this.localAccessToken = undefined;
-        try {
-            await server?.close().catch(() => undefined);
-        } finally {
-            if (rigEndpointRoot)
-                await rm(rigEndpointRoot, { force: true, recursive: true }).catch(() => undefined);
-        }
+    private localDispose(): void {
+        this.rigTransport?.[Symbol.dispose]();
+        this.rigTransport = undefined;
+        this.rigConnection?.close();
+        this.rigConnection = undefined;
     }
 
     private publish(snapshot: DesktopRuntimeSnapshot): void {
@@ -310,16 +276,6 @@ export class DesktopRuntime {
             () => undefined,
         );
         return next;
-    }
-
-    private activeTarget(targetId: string): DesktopTopology {
-        if (
-            this.snapshotValue.phase !== "ready" ||
-            this.snapshotValue.activeTargetId !== targetId ||
-            this.activeTopology?.id !== targetId
-        )
-            throw new Error("The Happy target is not active in this desktop runtime.");
-        return this.activeTopology;
     }
 
     private targets(): readonly DesktopTopologyTarget[] {

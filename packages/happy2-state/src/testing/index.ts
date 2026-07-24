@@ -41,3 +41,11 @@ export {
     workspaceStoreFixtureCreate,
     type SurfaceStoreFixture,
 } from "./surfaceStoreFixtures.js";
+export {
+    createFakeRigTransport,
+    fakeRigSession,
+    type FakeRigCall,
+    type FakeRigOperation,
+    type FakeRigTerminalController,
+    type FakeRigTransport,
+} from "./fake-rig.js";

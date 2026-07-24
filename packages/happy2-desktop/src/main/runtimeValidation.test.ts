@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-    desktopLocalCapabilityValueValidate,
     desktopActiveTarget,
     desktopStartRequestValidate,
     desktopTopologyIdValidate,
@@ -42,7 +41,7 @@ describe("desktop startup request validation", () => {
 });
 
 describe("desktop topology targets", () => {
-    it("keeps local and cloud credentials in topology-scoped namespaces", () => {
+    it("keeps direct Rig and cloud account targets in topology-scoped namespaces", () => {
         const local = { id: "top_0123456789abcdef0123456789abcdef", mode: "local" } as const;
         const cloud = {
             id: "top_fedcba9876543210fedcba9876543210",
@@ -55,9 +54,9 @@ describe("desktop topology targets", () => {
             kind: "local",
             mode: "local",
         });
-        expect(desktopActiveTarget(local, "http://127.0.0.1:3020")).toMatchObject({
-            authentication: "local",
-            serverUrl: "http://127.0.0.1:3020",
+        expect(desktopActiveTarget(local, "0.0.45")).toMatchObject({
+            authentication: "rig",
+            rigVersion: "0.0.45",
         });
         expect(desktopActiveTarget(cloud)).toMatchObject({
             authentication: "account",
@@ -66,9 +65,6 @@ describe("desktop topology targets", () => {
             serverUrl: cloud.serverUrl,
         });
         expect(desktopTopologyIdValidate(cloud.id)).toBe(cloud.id);
-        expect(desktopLocalCapabilityValueValidate("session-token")).toBe("session-token");
-        expect(desktopLocalCapabilityValueValidate(undefined)).toBeUndefined();
         expect(() => desktopTopologyIdValidate({ id: cloud.id })).toThrow();
-        expect(() => desktopLocalCapabilityValueValidate(42)).toThrow();
     });
 });
